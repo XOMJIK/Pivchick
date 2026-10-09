@@ -32,6 +32,8 @@ public static partial class G
                 if (S.winT <= 0) showWin();
             }
         }
+        if (fish.Count > 0) updateFish(dt);
+        foreach (var o in OBS) if (o.hit > 0) o.hit -= dt;
         updateParts(dt);
         S.shake *= Math.Pow(.004, dt); if (S.shake < .1) S.shake = 0;
         if (S.mode == "menu")
@@ -89,7 +91,9 @@ public static partial class G
         for (int i = pickups.Count - 1; i >= 0; i--)
         {
             var p = pickups[i]; p.t -= dt; p.ph += dt;
-            if (hypot(p.x - P.x, p.y - P.y) < P.r + P.magnet) { collect(p); pickups.RemoveAt(i); continue; }
+            if (S.kind == "sk") updateSkPickup(p, dt);
+            if (p.kind == "skw" || p.price > 0) continue; // оружие и товары — кнопкой действия
+            if (p.z <= 0 && hypot(p.x - P.x, p.y - P.y) < P.r + P.magnet) { collect(p); pickups.RemoveAt(i); continue; }
             if (p.t <= 0) pickups.RemoveAt(i);
         }
     }
@@ -99,13 +103,13 @@ public static partial class G
     {
         double mx = 0, my = 0;
         if (sticks.move != null) { var v = stickVal(sticks.move); mx = v.x; my = v.y; }
-        var K = input.keys;
-        if (K.Contains("KeyA") || K.Contains("ArrowLeft")) mx -= 1; if (K.Contains("KeyD") || K.Contains("ArrowRight")) mx += 1;
-        if (K.Contains("KeyW") || K.Contains("ArrowUp")) my -= 1; if (K.Contains("KeyS") || K.Contains("ArrowDown")) my += 1;
+        if (held("left")) mx -= 1; if (held("right")) mx += 1;
+        if (held("up")) my -= 1; if (held("down")) my += 1;
         double ml = hypot(mx, my); if (ml > 1) { mx /= ml; my /= ml; ml = 1; }
         if (ml < .12) { mx = my = 0; ml = 0; }
         P._px = P.x; P._py = P.y;
-        double ox = P.x, oy = P.y, spd = P.spd * (P.buff == "turbo" ? 2 : P.buff == "adren" ? 1.4 : 1) * (P.w == "minigun" && P.wasFiring ? .72 : 1) * (P.hop && inWater(P.x, P.y) ? .65 : 1); // утка плывёт медленнее
+        var PW = WEAP[P.w]; bool spinGun = PW.special == "mini" || PW.spinUp;
+        double ox = P.x, oy = P.y, spd = P.spd * (P.buff == "turbo" ? 2 : P.buff == "adren" ? 1.4 : 1) * (spinGun && P.wasFiring ? .72 : 1) * (P.hop && inWater(P.x, P.y) ? .65 : 1); // утка плывёт медленнее
         P.x += mx * spd * dt; P.y += my * spd * dt; P.moving = ml > 0; if (P.moving) P.phase += dt * 15 * Math.Max(.5, ml);
         bool firing = false;
         if (sticks.aim != null)
@@ -124,11 +128,14 @@ public static partial class G
         }
         else if (input.mouse) { double wx = camX + input.mx / SC, wy = camY + input.my / SC; P.ang = Math.Atan2(wy - (P.y - 19), wx - P.x); }
         else if (P.moving) P.ang = Math.Atan2(my, mx);
-        if (firing && WEAP[P.w].special == "melee" && !(input.mouse && input.firing) && !(sticks.aim != null && hypot(stickVal(sticks.aim).x, stickVal(sticks.aim).y) > .38))
-        { // палкой сам машет только когда враг рядом, а не по всем на экране
+        if (firing && PW.special == "melee" && !(input.mouse && input.firing) && !(sticks.aim != null && hypot(stickVal(sticks.aim).x, stickVal(sticks.aim).y) > .38))
+        { // ближним оружием сам машет только когда враг рядом, а не по всем на экране
             var t = nearestTarget();
-            if (t == null || hypot(t.x - P.x, t.y - P.y) - t.r > MELEE_R + 20) firing = false; else P.ang = Math.Atan2(t.y - P.y, t.x - P.x);
+            if (t == null || hypot(t.x - P.x, t.y - P.y) - t.r > (PW.meleeR > 0 ? PW.meleeR : MELEE_R) + 20) firing = false; else P.ang = Math.Atan2(t.y - P.y, t.x - P.x);
         }
+        if (P.noStamT > 0) P.noStamT -= dt;
+        P.stamT += dt;
+        if (P.stam < P.stamMax && (S.kind != "sk" || P.stamT > SK_STAM_PAUSE)) P.stam = Math.Min(P.stamMax, P.stam + P.stamRegen * dt);
         if (P.swing > 0) P.swing -= dt;
         P.face = Math.Cos(P.ang) >= 0 ? 1 : -1;
         foreach (var e in enemies) { if (e.T.fly) continue; double dx = P.x - e.x, dy = P.y - e.y, d = hypot(dx, dy); if (d == 0) d = 1; double m = P.r + e.r; if (d < m) { P.x += dx / d * (m - d) * .5; P.y += dy / d * (m - d) * .5; } }
@@ -143,7 +150,7 @@ public static partial class G
             if (regenTick > .5) { regenTick = 0; if (rnd() < .5) parts.Add(new Part { k = "puff", x = P.x + rand(-10, 10), y = P.y, z = rand(20, 40), vx = 0, vy = 0, vz = 30, t = 0, max = .5, r = 3, col = "#9cf27a" }); }
         }
         if (firing && P.cd <= 0) shoot();
-        if (!firing || P.w != "minigun") P.spin = Math.Max(0, P.spin - dt * 1.4);
+        if (!firing || !spinGun) P.spin = Math.Max(0, P.spin - dt * 1.4);
         P.wasFiring = firing;
         if (!P.hop) waterBlock(P, P._px, P._py);
         updateBridges(dt);
@@ -194,6 +201,8 @@ public static partial class G
             }
             double spdMul = 1; bool noSep = false;
             if (e.chill > 0) { e.chill -= dt; spdMul *= .5; }
+            if (e.honey > 0) { e.honey -= dt; spdMul *= .4; }
+            if (e.bubble > 0) e.bubble -= dt;
             foreach (var pd in puddles) if (!T.fly && hypot(e.x - pd.x, (e.y - pd.y) * 1.6) < pd.r) { spdMul *= .45; break; }
             if (e.emerge > 0) { e.emerge -= dt; e.moving = false; continue; }
             if (e.stun > 0)
@@ -304,7 +313,7 @@ public static partial class G
                     if (e.navT > 7)
                     {
                         e.navT = 0; e.navBest = null; e.navAlt++;
-                        if (e.navAlt > 2) { var p = sidePoint(regionOf(tg.x, tg.y)); if (p != null) { puff(e.x, e.y, "#e9dcc0", 6, 1); e.x = p.Value.x; e.y = p.Value.y; e._px = e.x; e._py = e.y; } e.navAlt = 0; }
+                        if (e.navAlt > 2) { var p = DUN != null ? null : sidePoint(regionOf(tg.x, tg.y)); if (p != null) { puff(e.x, e.y, "#e9dcc0", 6, 1); e.x = p.Value.x; e.y = p.Value.y; e._px = e.x; e._py = e.y; } e.navAlt = 0; } // в подземелье враг заперт в комнате — не переносим
                     }
                 }
                 else { e.navT = 0; e.navBest = null; }
@@ -385,7 +394,9 @@ public static partial class G
         for (int i = bullets.Count - 1; i >= 0; i--)
         {
             if (i >= bullets.Count) continue;
-            var b = bullets[i]; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+            var b = bullets[i];
+            if (b.w != null) skBulletTick(b, dt);
+            b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
             if (b.bounce > 0 && b.life > 0)
             { // фигурки рикошетят от забора и укрытий
                 bool hit = false;
@@ -406,16 +417,20 @@ public static partial class G
             }
             if (b.kind == "yarn") b.spin += dt * 14;
             bool dead = b.life <= 0 || b.x < FENCE || b.x > WW - FENCE || b.y < FENCE || b.y > WH - FENCE || (DUN != null && !dunWalk(b.x, b.y, -2)); // стены подземелья
-            if (!dead)
+            if (!dead && !(b.w != null && b.w.ghost)) // гаусс-снаряд пролетает сквозь укрытия
+            {
+                Obs hitO = null;
                 foreach (var o in OBS)
                 {
                     if ((b.x - o.x) * (b.x - o.x) + (b.y - o.y) * (b.y - o.y) < o.r * o.r)
                     {
-                        dead = true;
+                        dead = true; hitO = o;
                         if (!b.fromP) splat(b.x, b.y, .7); else puff(b.x, b.y, o.type == "hay" ? "#f3d36e" : o.type == "bush" ? "#5f9e35" : o.type == "rock" ? "#b8b2a6" : "#a87547", 3, .6);
                         break;
                     }
                 }
+                if (hitO?.type == "crate") hitCrate(hitO, b.fromP ? b.dmg : b.dmg * .5); // ящик ломается от выстрелов (вражеских тоже)
+            }
             if (!dead)
             {
                 if (b.fromP)
@@ -428,6 +443,13 @@ public static partial class G
                         if ((b.x - e.x) * (b.x - e.x) + (b.y - e.y) * (b.y - e.y) < (er + b.r) * (er + b.r))
                         {
                             var k = b.kind;
+                            if (b.w != null)
+                            {
+                                hitEnemy(e, b.dmg, b.vx, b.vy, true, b.w.knock * (k == "steam" ? .5 : 1), k is "steam" or "tornado");
+                                skHit(b, e);
+                                if (b.pierce > 0) { b.pierce--; b.hits?.Add(e); } else dead = true;
+                                break;
+                            }
                             hitEnemy(e, b.dmg, b.vx, b.vy, !b.ally, k == "flame" ? .06 : k == "ice" ? .4 : 1, k == "flame");
                             if (k == "flame") { e.burn = 2.2; e.burnDps = 9 * P.dmgMul; }
                             else if (k == "ice")
@@ -465,7 +487,11 @@ public static partial class G
                         if (dd < (a.r + b.r - 2) * (a.r + b.r - 2)) { hurtAlly(a, b.dmg); splat(b.x, b.y, .6); dead = true; break; }
                     }
             }
-            if (dead) { var idx = bullets.IndexOf(b); if (idx >= 0) bullets.RemoveAt(idx); }
+            if (dead)
+            {
+                if (b.w != null) skExpire(b);
+                var idx = i < bullets.Count && bullets[i] == b ? i : bullets.IndexOf(b); if (idx >= 0) bullets.RemoveAt(idx);
+            }
         }
     }
     static void updateNades(double dt)
@@ -495,7 +521,8 @@ public static partial class G
     }
     static void updateParts(double dt)
     {
-        for (int i = parts.Count - 1; i >= 0; i--)
+        int keep = 0; // отжившие частицы убираем одним проходом, без сдвига списка на каждой
+        for (int i = 0; i < parts.Count; i++)
         {
             var p = parts[i]; p.t += dt;
             if (p.k == "feather")
@@ -506,9 +533,13 @@ public static partial class G
             else if (p.k == "puff") { p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; }
             else if (p.k == "plus") p.z += p.vz * dt;
             else if (p.k == "shell") { p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.vz -= 700 * dt; p.rot += p.vr * dt; if (p.z < 0) { p.z = 0; p.vz *= -.3; p.vx *= .5; p.vy *= .5; p.vr *= .5; } }
-            if (p.t >= p.max) parts.RemoveAt(i);
+            if (p.t < p.max) parts[keep++] = p;
         }
+        if (keep < parts.Count) parts.RemoveRange(keep, parts.Count - keep);
         if (parts.Count > 520) parts.RemoveRange(0, parts.Count - 520);
-        for (int i = texts.Count - 1; i >= 0; i--) { var t = texts[i]; t.t += dt; t.y -= 40 * dt; t.x += t.vx * dt; if (t.t >= t.max) texts.RemoveAt(i); }
+        keep = 0;
+        for (int i = 0; i < texts.Count; i++) { var t = texts[i]; t.t += dt; t.y -= 40 * dt; t.x += t.vx * dt; if (t.t < t.max) texts[keep++] = t; }
+        if (keep < texts.Count) texts.RemoveRange(keep, texts.Count - keep);
+        if (texts.Count > 80) texts.RemoveRange(0, texts.Count - 80); // лавина цифр урона не тормозит кадр
     }
 }

@@ -15,6 +15,8 @@ public sealed class GameView : Control
 {
     TimeSpan? last;
     public event Action<double> Frame; // для анимаций интерфейса (сундук)
+    /// <summary>Поле целиком закрыто доской — не перерисовываем его (иначе каждый кадр перерисовывается и доска сверху).</summary>
+    public Func<bool> Covered;
     TopLevel top;
 
     public GameView() { Focusable = false; ClipToBounds = true; }
@@ -46,7 +48,7 @@ public sealed class GameView : Control
             Frame?.Invoke(dt);
         }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
-        InvalidateVisual();
+        if (Covered?.Invoke() != true) InvalidateVisual();
         (top ?? TopLevel.GetTopLevel(this))?.RequestAnimationFrame(Tick);
     }
 

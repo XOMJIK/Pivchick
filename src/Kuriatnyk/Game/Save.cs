@@ -39,6 +39,8 @@ public sealed class SaveData
     public Dictionary<string, LvRec> wlv { get; set; } = new();
     public int schests { get; set; }
     public string menuBg { get; set; } = "yard";
+    public string shopDay { get; set; } // день, на который разложены карточки в магазине
+    public List<Offer> offers { get; set; } = new();
 }
 
 public sealed class Settings
@@ -49,7 +51,15 @@ public sealed class Settings
     public bool shake { get; set; } = true;
     public bool muted { get; set; }
     public bool autoAim { get; set; } = true;
+    /// <summary>Окно на ПК: windowed — обычное окно, borderless — окно без рамок на весь рабочий стол, fullscreen — полный экран.</summary>
+    public string display { get; set; } = "windowed";
+    public string lastWin { get; set; } = "windowed"; // куда вернуться из полного экрана по F11
+    /// <summary>Свои клавиши: действие → две клавиши (основная и запасная, "" — нет).</summary>
+    public Dictionary<string, List<string>> keys { get; set; } = new();
 }
+
+/// <summary>Предложение в магазине: пачка карт героя (hero) или оружия (weap) за зёрна.</summary>
+public sealed class Offer { public string kind { get; set; } public string id { get; set; } public int n { get; set; } public int price { get; set; } public bool bought { get; set; } }
 
 [JsonSourceGenerationOptions(WriteIndented = false)]
 [JsonSerializable(typeof(SaveData))]
@@ -79,6 +89,10 @@ public static class Store
         SET = Read(SetPath, SaveJson.Default.Settings) ?? new Settings { lang = DefaultLang() };
         SET.music = Math.Clamp(SET.music, 0, 1); SET.sfx = Math.Clamp(SET.sfx, 0, 1);
         if (SET.lang != "ru" && SET.lang != "en") SET.lang = "ru";
+        if (SET.display is not ("windowed" or "borderless" or "fullscreen")) SET.display = "windowed";
+        if (SET.lastWin is not ("windowed" or "borderless")) SET.lastWin = "windowed";
+        SET.keys ??= new();
+        foreach (var k in SET.keys.Keys.ToList()) if (SET.keys[k] == null || !G.ACTIONS.Any(a => a.id == k)) SET.keys.Remove(k);
         L.Lang = SET.lang;
         SAVE = Validate(Read(SavePath, SaveJson.Default.SaveData) ?? new SaveData());
         persist();
@@ -136,6 +150,7 @@ public static class Store
         }
         o.best ??= new();
         o.schests = Math.Max(0, o.schests); o.menuBg ??= "yard";
+        o.offers ??= new(); o.offers = o.offers.Where(f => f != null && (f.kind == "hero" ? D.HEROES.ContainsKey(f.id ?? "") : D.WEAP.TryGetValue(f.id ?? "", out var fw) && fw.rar != null)).ToList();
         o.v = 2; return o;
     }
 

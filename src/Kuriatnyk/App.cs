@@ -28,9 +28,9 @@ public sealed class App : Application
                 Content = new MainView(), Background = K.B(K.Grass), WindowStartupLocation = WindowStartupLocation.CenterScreen
             };
             try { w.Icon = new WindowIcon(Avalonia.Platform.AssetLoader.Open(new System.Uri("avares://Kuriatnyk/Assets/icon.png"))); } catch { }
-            w.Closing += (_, _) => { if (G.S.mode is "play" or "paused" or "dying") G.bankCoins(); Store.persist(); Synth.Stop(); };
+            w.Closing += (_, _) => { if (G.S.mode is "play" or "paused" or "dying" or "pick") G.bankCoins(); Store.persist(); Synth.Stop(); };
             desk.MainWindow = w;
-            w.Opened += (_, _) => WindowOpened?.Invoke(w);
+            w.Opened += (_, _) => { if (Store.SET.display != "windowed") DisplayMode.Apply(w, Store.SET.display); WindowOpened?.Invoke(w); };
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime single)
         {

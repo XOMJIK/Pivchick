@@ -70,8 +70,8 @@ public static partial class G
         if (kind == "sk") { startSK(S.skHero ?? SAVE.hero); return; } // «Ещё раз» и «Заново» в Soul Knight — новый забег из лагеря
         DUN = null;
         var mk2 = kind == "story" ? MAP_OF_CH[STORY[idx].ch] : "yard"; buildWorld(mk2); lastBridge = null;
-        P = newPlayer(); makeAllies(); enemies = new(); bullets = new(); parts = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); holes = new(); zones = new(); strikes = new(); puddles = new();
-        S.holeT = rand(8, 12);
+        P = newPlayer(); makeAllies(); enemies = new(); bullets = new(); parts = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); holes = new(); zones = new(); strikes = new(); puddles = new(); goo = new();
+        S.holeT = rand(8, 12); addCrates(7);
         var Lv = kind == "story" ? STORY[idx] : null;
         S.mode = "play"; S.kind = kind; S.lvIdx = idx; S.L = Lv; S.diff = Lv?.diff ?? 1; S.night = Lv != null && Lv.night; S.t = 0; S.score = 0; S.wave = 0; S.toSpawn = 0; S.spawnT = 0;
         S.between = 1.2; S.running = false; S.kills = 0; S.goalKills = 0; S.survT = Lv != null && Lv.goal.type == "survive" ? Lv.goal.t : 0; S.boss = null; S.bossT = 0; S.shake = 0;
@@ -81,7 +81,9 @@ public static partial class G
         if (Lv != null) showBanner(T("Глава ") + (Lv.ch + 1) + " · " + (Lv.i + 1) + "/20", Lv.name);
     }
     public static bool isWaves() => S.kind == "endless" || S.L.goal.type == "waves";
-    public static void bankCoins() { if (S.banked) return; S.banked = true; SAVE.coins += S.coins; SAVE.tokens += S.tokens; persist(); }
+    public static void bankCoins() { if (S.banked) return; S.banked = true; skCashPiv(); SAVE.coins += S.coins; SAVE.tokens += S.tokens; persist(); }
+    /// <summary>Пивчики живут только в забеге: что не потратил, превращается в зёрна (2 пивчика = 1 зерно).</summary>
+    public static void skCashPiv() { if (S.kind != "sk" || S.piv <= 0) return; S.coins += S.piv / 2; S.piv = 0; }
     static void startWave()
     {
         S.wave++;
@@ -98,6 +100,7 @@ public static partial class G
         bool bossWave = S.kind == "endless" && S.wave % 5 == 0; if (bossWave) { S.bossT = 2.2; S.toSpawn = (int)Math.Round(S.toSpawn * .5, MidpointRounding.AwayFromZero); } // каждые 5 волн — босс
         showBanner(S.kind == "story" ? S.L.name : T("Волна ") + S.wave, bossWave ? T("Волна босса!") : sub);
         Sfx.wave();
+        if (S.wave > 1) addCrates(2); // разбитые ящики понемногу появляются снова
         if (S.wave > 1) { spawnPickupNear(new[] { "shotgun", "smg", "nade" }[S.wave % 3]); if (P.hid == "hen" && hasP(5)) { P.nades = Math.Min(6, P.nades + 1); ftext(P.x, P.y - 50, T("+1 яйцо"), "#ffc93a", 14); } }
     }
     static void spawnPickupNear(string kind)
@@ -275,7 +278,7 @@ public static partial class G
     {
         if (e.dead || e.emerge > 0) return;
         bool crit = false;
-        if (fromP && P.hid == "rooster" && hasP(10) && rnd() < .15) { d *= 2; crit = true; }
+        if (fromP && ((P.hid == "rooster" && hasP(10) && rnd() < .15) || (P.crit > 0 && rnd() < P.crit))) { d *= 2; crit = true; }
         if (fromP && P.hid == "adren" && hasP(5) && P.hp < P.max * .5) d *= 1.3;
         if (fromP && P.hid == "quail" && hasP(5) && hypot(e.x - P.x, e.y - P.y) > 250) d *= 1.25;
         e.hp -= d; e.flash = .09; double l = hypot(vx, vy); if (l == 0) l = 1; double kb = (e.T.boss ? 8 : 90) * kbMul; e.kx += vx / l * kb; e.ky += vy / l * kb;
@@ -324,6 +327,7 @@ public static partial class G
         ftext(e.x, e.y - 56, "+" + pts, mult > 1 ? "#ffc93a" : "#fff", 17);
         addUlt(5);
         if (P.hid == "adren" && hasP(10) && P.alive) P.hp = Math.Min(P.max, P.hp + 3);
+        if (P.vamp > 0 && P.alive) P.hp = Math.Min(P.max, P.hp + P.vamp);
         if (P.hid == "quail" && hasP(10) && hypot(e.x - P.x, e.y - P.y) > 250) P.ult = Math.Min(100, P.ult + 10);
         var tp = e.type;
         if (tp is "fox" or "ataman" or "wolf" or "wolfboss") { puff(e.x, e.y, tp.StartsWith("wolf") ? "#b9bfc8" : "#f09a55", 14, Tt.boss ? 2.4 : 1.3); feathers(e.x, e.y, featherCol(e), 6, 1); Sfx.yelp(); }
@@ -336,12 +340,15 @@ public static partial class G
         }
         if (Tt.boss) { S.shake += 18; Sfx.boom(); ring(e.x, e.y, "#fff6c8", 200, .6); }
         double r = rnd(), cornCh = .06 * (P.hid == "hen" && hasP(10) ? 1.5 : 1);
+        bool sk = S.kind == "sk";
         if ((e.type != "rat" || rnd() < .3) && !nearWater(e.x, e.y, 12))
         {
             if (r < cornCh) pickups.Add(new Pickup { x = e.x, y = e.y, kind = "corn", t = 12, ph = 0 });
-            else if (r < cornCh + .05) pickups.Add(new Pickup { x = e.x, y = e.y, kind = rnd() < .5 ? "shotgun" : "smg", t = 12, ph = 0 });
+            else if (r < cornCh + .05 && !sk) pickups.Add(new Pickup { x = e.x, y = e.y, kind = rnd() < .5 ? "shotgun" : "smg", t = 12, ph = 0 }); // стволов сюжета в подземелье нет
             else if (r < cornCh + .09) pickups.Add(new Pickup { x = e.x, y = e.y, kind = "nade", t = 12, ph = 0 });
+            else if (r < cornCh + .09 + (sk ? .08 : .04)) pickups.Add(new Pickup { x = e.x + rand(-8, 8), y = e.y, kind = "stam", t = 12, ph = 0 }); // стамина падает нечасто
         }
+        if (sk) dropPiv(e.x, e.y, Tt.boss ? 30 : e.type == "rat" ? (rnd() < .5 ? 1 : 0) : 1 + (rnd() < .45 ? 1 : 0) + (Tt.hp >= 100 ? 1 : 0)); // пивчики
         if (S.kind == "story" && S.mode == "play")
         {
             var g = S.L.goal;

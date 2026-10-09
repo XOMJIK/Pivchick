@@ -33,6 +33,7 @@ public static class Sfx
         {
             case "shot": shot(); break; case "shotgun": shotgun(); break; case "smg": smg(); break; case "pop": pop(); break;
             case "throw": throw_(); break; case "flame": flame(); break; case "ice": ice(); break; case "rail": rail(); break; case "swish": swish(); break;
+            case "laser": laser(); break;
         }
     }
     public static void shot() { noise(.09, .22, 2600); tone(260, .06, "square", .05, 110); }
@@ -71,6 +72,10 @@ public static class Sfx
     static double lastClick;
     public static void swish() { noise(.09, .2, 1600); tone(260, .09, "triangle", .05, 620); }
     public static void chest() { noise(.15, .2, 900); tone(392, .1, "square", .05, 0, .05); }
+    public static void laser() { var n = Ms; if (n - lastSmg < 80) return; lastSmg = n; tone(1800, .07, "sawtooth", .025, 1400); }
+    /// <summary>Пивчик в кармане: короткий звон.</summary>
+    public static void coin() { var n = Ms; if (n - lastCoin < 50) return; lastCoin = n; tone(1320, .05, "square", .03); tone(1760, .07, "triangle", .035, 0, .04); }
+    static double lastCoin;
 }
 
 /// <summary>Музыка: короткие чиптюн-петли для меню, боя и босса (как TRACKS в audio.js).</summary>

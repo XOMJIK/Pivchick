@@ -32,6 +32,7 @@ public static class Svg
 
     public static Control Heroes(double s) => View(32, s, new("M8 26c0-7 3-12 9-12 4 0 7 3 7 7v5z", "#fff4dc"), new(Circle(19, 10, 5), "#fff4dc"), new("M16 5a2 2 0 0 1 3-1 2 2 0 0 1 3 1", "#e8322a"), new("M24 9l4 1.5-4 1.5z", "#f6a723"), new(Circle(20.5, 9.5, 1.2), "#2b1d14"));
     public static Control Chest(double s) => View(32, s, new("M6 15h20l-2 11H8z", "#d39a4f"), new("M5 12q11-8 22 0v4H5z", "#fff4dc"), new("M8 12h4v4H8zm8 0h4v4h-4zm8 0h3v4h-3", "#e8322a"), new("M8 4q8-6 16 0", null, "#c98a43", 2.5));
+    public static Control Gun(double s) => View(32, s, new("M4 11h20a2 2 0 0 1 2 2v3H4z", "#fff4dc"), new("M7 16h6l-2.5 9H5.5z", "#fff4dc"), new("M26 12.5h3.5v3h-3.5z", "#ffc93a"), new("M13 16q1 3 4 3", null, "#fff4dc", 2), new("M8 8l3 3", null, "#e8322a", 2.2));
     public static Control Shop(double s) => View(32, s, new("M7 11h18l-2 16H9z", "#ffc93a"), new("M11 11a5 5 0 0 1 10 0", null, "#fff4dc", 2.5), new(Circle(16, 19, 3.5), "#fff4dc"));
     public static Control Info(double s) => View(32, s, new(Circle(16, 16, 11), "#ffc93a"), new(Circle(16, 10.5, 1.9), "#2b1d14"), new("M16 14.5v8", null, "#2b1d14", 3));
     public static Control Help(double s) => View(32, s, new(Circle(16, 16, 11), "#4cc3ff"), new("M12.5 13a3.5 3.5 0 1 1 5 3.2c-1 .5-1.5 1.2-1.5 2.3", null, "#fff", 2.6), new(Circle(16, 22.5, 1.6), "#fff"));
@@ -143,7 +144,7 @@ public sealed class Lobby : Grid
         bestText = Txt("", 12, FontWeight.SemiBold, B("#b32b1d14"));
         var endless = new Press(Col(3, Txt(T("Бесконечный бой"), tsz, FontWeight.Black), bestText), PaperB, 3, 16, pad, 4) { MinHeight = minH };
         endless.Click += () => { Audio.Init(); G.startGame("endless"); };
-        var skSub = Txt(T("Подземелья 0-1 … 0-5 · ближний бой"), 12, FontWeight.SemiBold, B("#b32b1d14"));
+        var skSub = Txt(T("Подземелья 0-1 … 0-5 · 35 стволов, торговец и сундуки"), 12, FontWeight.SemiBold, B("#b32b1d14"));
         var sk = new Press(Col(3, Txt(T("Режим Soul Knight"), tsz, FontWeight.Black), skSub), B("#e9dcff"), 3, 16, pad, 4) { MinHeight = minH };
         sk.Click += () => Overlays.OpenSkSelect(mv);
         singleModes = Col(9, headRow, story, endless, sk);
@@ -163,7 +164,7 @@ public sealed class Lobby : Grid
         if (!IsVisible || !single) return false;
         ShowSingle(false); return true;
     }
-    /// <summary>Нижние разделы: герои, сундуки, магазин, об игре, как играть.</summary>
+    /// <summary>Нижние разделы: герои, оружие, сундуки, магазин, об игре, как играть.</summary>
     Control BuildNav(bool sh)
     {
         Control navBtn(Func<double, Control> icon, string label, Action click, bool badge = false)
@@ -179,16 +180,17 @@ public sealed class Lobby : Grid
             chestBadge.MinWidth = 22; chestBadge.Height = 22; chestBadge.HorizontalAlignment = HorizontalAlignment.Right; chestBadge.VerticalAlignment = VerticalAlignment.Top; chestBadge.Margin = new Thickness(0, -8, -6, 0);
             var wrap = new Grid(); wrap.Children.Add(p); wrap.Children.Add(chestBadge); return wrap;
         }
-        navGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*") };
+        navGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,*") };
         var items = new[]
         {
             navBtn(Svg.Heroes, "Герои", () => mv.OpenPanel("heroes")),
+            navBtn(Svg.Gun, "Оружие", () => mv.OpenPanel("weapons")),
             navBtn(Svg.Chest, "Сундуки", () => mv.OpenPanel("chestP"), true),
             navBtn(Svg.Shop, "Магазин", () => mv.OpenPanel("shop")),
             navBtn(Svg.Info, "Об игре", () => Overlays.OpenInfo(mv)),
             navBtn(Svg.Help, "Как играть", () => Overlays.OpenHelp(mv)),
         };
-        for (int i = 0; i < items.Length; i++) { Grid.SetColumn(items[i], i); items[i].Margin = new Thickness(i == 0 ? 0 : 3.5, 0, i == 4 ? 0 : 3.5, 0); navGrid.Children.Add(items[i]); }
+        for (int i = 0; i < items.Length; i++) { Grid.SetColumn(items[i], i); items[i].Margin = new Thickness(i == 0 ? 0 : 3, 0, i == items.Length - 1 ? 0 : 3, 0); navGrid.Children.Add(items[i]); }
         return navGrid;
     }
 
@@ -222,7 +224,7 @@ public sealed class Lobby : Grid
             grid.ColumnDefinitions = new ColumnDefinitions($"*,{right.ToString(System.Globalization.CultureInfo.InvariantCulture)}"); grid.ColumnSpacing = sh ? 14 : 18;
             grid.RowDefinitions = new RowDefinitions("Auto,*,Auto"); grid.RowSpacing = sh ? 8 : 10;
             Place(top, 0, 0, 1, 2); Place(hero, 1, 0, 1, 1); Place(nav, 2, 0, 1, 1); Place(modes, 1, 1, 2, 1);
-            ((Control)nav).MaxWidth = 460; nav.HorizontalAlignment = HorizontalAlignment.Center; nav.VerticalAlignment = VerticalAlignment.Bottom;
+            ((Control)nav).MaxWidth = 540; nav.HorizontalAlignment = HorizontalAlignment.Center; nav.VerticalAlignment = VerticalAlignment.Bottom;
             modes.VerticalAlignment = VerticalAlignment.Center;
             shadeV.Background = Grad(true, (0, .5), (.22, 0), (.7, 0), (1, .5)); shadeH.Background = Grad(false, (.4, 0), (.75, .6));
         }

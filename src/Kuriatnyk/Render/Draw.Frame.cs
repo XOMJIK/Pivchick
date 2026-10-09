@@ -46,8 +46,21 @@ public static partial class G
             }
             else if (p.k == "beam")
             {
-                c.save(); c.lineCap = "round"; c.globalAlpha = a; c.strokeStyle = "rgba(120,230,255,.55)"; c.lineWidth = 16 * a + 2; seg(c, p.x, p.y - 19, p.x2, p.y2 - 19);
-                c.strokeStyle = "#ffffff"; c.lineWidth = 4.5 * a + 1; seg(c, p.x, p.y - 19, p.x2, p.y2 - 19); c.restore();
+                double wk = p.s > 0 ? p.s : 1;
+                c.save(); c.lineCap = "round"; c.globalAlpha = a; c.strokeStyle = p.col ?? "rgba(120,230,255,.55)"; c.lineWidth = (16 * a + 2) * wk; seg(c, p.x, p.y - 19, p.x2, p.y2 - 19);
+                c.strokeStyle = "#ffffff"; c.lineWidth = (4.5 * a + 1) * Math.Max(.5, wk); seg(c, p.x, p.y - 19, p.x2, p.y2 - 19); c.restore();
+            }
+            else if (p.k == "bolt")
+            { // молния: ломаная линия от точки к точке
+                c.save(); c.lineCap = "round"; c.lineJoin = "round"; c.globalAlpha = a;
+                double dx = p.x2 - p.x, dy = p.y2 - p.y, l = Math.Max(1, hypot(dx, dy)), nx = -dy / l, ny = dx / l; int n = Math.Max(3, (int)(l / 22));
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    c.strokeStyle = pass == 0 ? "rgba(180,140,255,.6)" : "#ffffff"; c.lineWidth = pass == 0 ? 7 : 2.4; c.beginPath(); c.moveTo(p.x, p.y);
+                    for (int i = 1; i < n; i++) { double k = (double)i / n, j = (fr((int)(p.seed * 1000) + i + (int)(p.t * 30)) - .5) * 18; c.lineTo(p.x + dx * k + nx * j, p.y + dy * k + ny * j); }
+                    c.lineTo(p.x2, p.y2); c.stroke();
+                }
+                c.restore();
             }
             else if (p.k == "kit")
             {
@@ -55,11 +68,11 @@ public static partial class G
                 c.fillStyle = "#fff"; c.strokeStyle = INK; c.lineWidth = 1.8; rr(c, -7, -6, 14, 12, 2); c.fill(); c.stroke(); c.fillStyle = "#e8322a"; c.fillRect(-1.5, -4, 3, 8); c.fillRect(-4, -1.5, 8, 3); c.restore();
             }
             else if (p.k == "swing")
-            { // след взмаха палкой: светлая дуга перед героем
-                double q = p.t / p.max, R = p.R > 0 ? p.R : 80; c.save(); c.translate(p.x, p.y - 19); c.scale(1, .75); c.lineCap = "round";
-                c.globalAlpha = Math.Max(0, 1 - q); c.strokeStyle = "rgba(255,244,220,.9)"; c.lineWidth = 10 * (1 - q) + 2;
-                c.beginPath(); c.arc(0, 0, R * .8, p.a - 1.1 + q * .3, p.a + 1.1 * (q * 2 - 1) + .3); c.stroke();
-                c.strokeStyle = "rgba(255,201,58,.8)"; c.lineWidth = 3; c.beginPath(); c.arc(0, 0, R * .95, p.a - 1.0, p.a + 1.0 * (q * 2 - 1)); c.stroke(); c.restore();
+            { // след взмаха ближним оружием: светлая дуга перед героем (ширина — по сектору удара)
+                double q = p.t / p.max, R = p.R > 0 ? p.R : 80, w = p.s > 0 ? p.s : 1.1; c.save(); c.translate(p.x, p.y - 19); c.scale(1, .75); c.lineCap = "round";
+                c.globalAlpha = Math.Max(0, 1 - q); c.strokeStyle = p.col ?? "rgba(255,244,220,.9)"; c.lineWidth = 10 * (1 - q) + 2;
+                c.beginPath(); c.arc(0, 0, R * .8, p.a - w + q * .3, p.a + w * (q * 2 - 1) + .3); c.stroke();
+                c.strokeStyle = "rgba(255,201,58,.8)"; c.lineWidth = 3; c.beginPath(); c.arc(0, 0, R * .95, p.a - w * .9, p.a + w * .9 * (q * 2 - 1)); c.stroke(); c.restore();
             }
             else if (p.k == "ring")
             {
@@ -76,8 +89,10 @@ public static partial class G
     }.With(P.look);
 
     static readonly Ctx frameCtx = new();
-    struct Item { public double y; public int i; public Action f; }
+    // список отрисовки по глубине: без лямбд на каждый объект — меньше мусора для сборщика в каждом кадре
+    struct Item { public double y; public int i; public byte kind; public object o; }
     static readonly List<Item> drawList = new();
+    static readonly Comparison<Item> byDepth = (p, q) => p.y != q.y ? p.y.CompareTo(q.y) : p.i.CompareTo(q.i);
 
     /// <summary>Нарисовать кадр игры на полотне размером VW×VH логических пикселей.</summary>
     public static void render(SKCanvas canvas)
@@ -89,6 +104,7 @@ public static partial class G
         c.save(); c.scale(Z, Z);
         double sx = 0, sy = 0; if (S.shake > 0 && !REDUCED && SET.shake) { sx = (rnd() - .5) * S.shake; sy = (rnd() - .5) * S.shake; }
         c.translate(-camX + sx, -camY + sy);
+        // земля целиком: всё, что вне кадра, Skia и так отсекает, а с целой картинкой работают mip-уровни (кусок рисуется медленнее)
         c.drawImage(ground, 0, 0, WW, WH);
         drawRiverDyn(c); drawDungeonDyn(c);
         drawParts(c, true);
@@ -109,6 +125,7 @@ public static partial class G
             for (int i = 0; i < 3; i++) { var q = ((S.t * .6 + i / 3.0) % 1); c.beginPath(); c.ellipse(pd.x + Math.Sin(i * 2.1) * pd.r * .4, pd.y + Math.Cos(i * 1.7) * pd.r * .15, 14 + q * 30, (14 + q * 30) * .4, 0, 0, TAU); c.stroke(); }
             c.restore();
         }
+        if (goo.Count > 0) drawGoo(c);
         foreach (var z in strikes)
         {
             double k = 1 - z.t / z.max, pl = .5 + .5 * Math.Sin(S.t * 14); c.save(); c.translate(z.x, z.y);
@@ -129,40 +146,53 @@ public static partial class G
             c.globalAlpha = 1;
             if (b.lob) { c.translate((b.sx - b.x) * (1 - k), (b.sy - b.y) * (1 - k)); c.translate(0, -(Math.Sin(k * Math.PI) * 130 + 14)); }
             else { double zz = (1 - k) * 190 + 8; c.translate(0, -zz); }
-            c.fillStyle = "#fffaf0"; c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.ellipse(0, 0, 6, 7.5, 0, 0, TAU); c.fill(); c.stroke(); c.restore();
+            c.strokeStyle = INK; c.lineWidth = 2;
+            if (b.kind == "pumpkin")
+            { // тыква с хвостиком
+                c.rotate(k * 9); c.fillStyle = "#f28c28"; c.beginPath(); c.ellipse(0, 0, 10, 8, 0, 0, TAU); c.fill(); c.stroke();
+                c.strokeStyle = "#c9661d"; c.lineWidth = 1.3; seg(c, -4, -7, -4, 7); seg(c, 4, -7, 4, 7); c.fillStyle = "#6db343"; c.fillRect(-1.2, -11, 2.4, 4); c.restore(); continue;
+            }
+            c.fillStyle = "#fffaf0"; c.beginPath(); c.ellipse(0, 0, 6, 7.5, 0, 0, TAU); c.fill(); c.stroke(); c.restore();
         }
         foreach (var n in nades) { c.fillStyle = "rgba(25,50,10,.3)"; c.beginPath(); c.ellipse(n.x, n.y, 7, 3, 0, 0, TAU); c.fill(); }
         drawList.Clear(); int idx = 0;
-        void add(double y, Action f) => drawList.Add(new Item { y = y, i = idx++, f = f });
-        foreach (var o in OBS) { var oo = o; add(o.y, () => drawObstacle(c, oo)); }
-        foreach (var e in enemies) { var ee = e; add(e.y + (e.T.fly ? 60 : 0), () => drawEnemy(c, ee)); }
-        if (P.alive) add(P.y, () => drawBird(c, playerSprite()));
-        foreach (var a in allies)
-        {
-            if (a.down > 0) continue; var aa = a;
-            add(a.y, () =>
+        void add(double y, byte kind, object o) => drawList.Add(new Item { y = y, i = idx++, kind = kind, o = o });
+        double vx0 = camX - 120, vy0 = camY - 160, vx1 = camX + VW / Z + 120, vy1 = camY + VH / Z + 200; // что далеко за кадром — не рисуем
+        bool vis(double x, double y) => x > vx0 && x < vx1 && y > vy0 && y < vy1;
+        foreach (var o in OBS) if (vis(o.x, o.y)) add(o.y, 0, o);
+        foreach (var e in enemies) if (vis(e.x, e.y)) add(e.y + (e.T.fly ? 60 : 0), 1, e);
+        if (P.alive) add(P.y, 2, P);
+        foreach (var a in allies) if (a.down <= 0) add(a.y, 3, a);
+        foreach (var n in nades) add(n.y, 4, n);
+        drawList.Sort(byDepth);
+        foreach (var it in drawList)
+            switch (it.kind)
             {
-                if (aa.cls == "medic" && S.mode != "menu") { c.save(); c.globalAlpha = .18 + Math.Sin(S.t * 3) * .05; c.strokeStyle = "#5fcf3f"; c.lineWidth = 2; c.setLineDash(new double[] { 8, 8 }); c.beginPath(); c.ellipse(aa.x, aa.y, 240, 100, 0, 0, TAU); c.stroke(); c.restore(); }
-                c.save(); c.strokeStyle = "rgba(95,207,63,.9)"; c.lineWidth = 2.5; c.beginPath(); c.ellipse(aa.x, aa.y + 1, 16, 6, 0, 0, TAU); c.stroke(); c.restore();
-                drawBird(c, new Sprite { x = aa.x, y = aa.y, face = aa.face, ang = aa.ang, phase = aa.phase, moving = aa.moving, flash = aa.flash, kind = "player", gun = aa.gun, swim = aa.hop && inWater(aa.x, aa.y), buff = aa.buff }.With(aa.look));
-            });
-        }
-        foreach (var n in nades)
-        {
-            var nn = n;
-            add(n.y, () =>
-            {
-                c.save(); c.translate(nn.x, nn.y - nn.z - 8); c.rotate(nn.rot); c.fillStyle = nn.t < .35 && Odd(S.t * 20) ? "#ffd34d" : "#fffaf0"; c.strokeStyle = INK; c.lineWidth = 2;
-                c.beginPath(); c.ellipse(0, 0, 6, 7.5, 0, 0, TAU); c.fill(); c.stroke(); c.fillStyle = "#c0392b"; c.fillRect(-5.6, -1, 11.2, 3); c.restore();
-            });
-        }
-        drawList.Sort((p, q) => p.y != q.y ? p.y.CompareTo(q.y) : p.i.CompareTo(q.i));
-        foreach (var it in drawList) it.f();
+                case 0: drawObstacle(c, (Obs)it.o); break;
+                case 1: drawEnemy(c, (Enemy)it.o); break;
+                case 2: drawBird(c, playerSprite()); break;
+                case 3:
+                    {
+                        var aa = (Ally)it.o;
+                        if (aa.cls == "medic" && S.mode != "menu") { c.save(); c.globalAlpha = .18 + Math.Sin(S.t * 3) * .05; c.strokeStyle = "#5fcf3f"; c.lineWidth = 2; c.setLineDash(DASH8); c.beginPath(); c.ellipse(aa.x, aa.y, 240, 100, 0, 0, TAU); c.stroke(); c.restore(); }
+                        c.save(); c.strokeStyle = "rgba(95,207,63,.9)"; c.lineWidth = 2.5; c.beginPath(); c.ellipse(aa.x, aa.y + 1, 16, 6, 0, 0, TAU); c.stroke(); c.restore();
+                        drawBird(c, new Sprite { x = aa.x, y = aa.y, face = aa.face, ang = aa.ang, phase = aa.phase, moving = aa.moving, flash = aa.flash, kind = "player", gun = aa.gun, swim = aa.hop && inWater(aa.x, aa.y), buff = aa.buff }.With(aa.look));
+                        break;
+                    }
+                case 4:
+                    {
+                        var nn = (Nade)it.o;
+                        c.save(); c.translate(nn.x, nn.y - nn.z - 8); c.rotate(nn.rot); c.fillStyle = nn.t < .35 && Odd(S.t * 20) ? "#ffd34d" : "#fffaf0"; c.strokeStyle = INK; c.lineWidth = 2;
+                        c.beginPath(); c.ellipse(0, 0, 6, 7.5, 0, 0, TAU); c.fill(); c.stroke(); c.fillStyle = "#c0392b"; c.fillRect(-5.6, -1, 11.2, 3); c.restore();
+                        break;
+                    }
+            }
         foreach (var b in bullets) drawBullet(c, b);
+        if (fish.Count > 0) drawFishAir(c);
         drawParts(c, false);
         foreach (var t in texts)
         {
-            double a = 1 - t.t / t.max; c.globalAlpha = Math.Min(1, a * 2.5); c.font = "900 " + t.size + "px Rubik"; c.textAlign = "center"; c.lineJoin = "round";
+            double a = 1 - t.t / t.max; c.globalAlpha = Math.Min(1, a * 2.5); c.font = textFont(t.size); c.textAlign = "center"; c.lineJoin = "round";
             c.strokeStyle = INK; c.lineWidth = 4; c.strokeText(t.txt, t.x, t.y); c.fillStyle = t.col; c.fillText(t.txt, t.x, t.y); c.globalAlpha = 1;
         }
         foreach (var a in allies)
@@ -206,11 +236,16 @@ public static partial class G
             var g = c.createRadialGradient(VW / 2, VH / 2, Math.Min(VW, VH) * .35, VW / 2, VH / 2, Math.Max(VW, VH) * .75);
             g.addColorStop(0, "rgba(192,57,43,0)"); g.addColorStop(1, "rgba(192,57,43," + Inv(k) + ")"); c.fillStyle = g; c.fillRect(0, 0, VW, VH);
         }
-        if (S.mode is "play" or "dying" or "won" or "paused") Hud.Draw(c);
+        if (S.mode is "play" or "dying" or "won" or "paused" or "pick") Hud.Draw(c);
     }
 
+    static readonly double[] DASH8 = { 8, 8 };
+    static readonly Dictionary<double, string> fontBySize = new();
+    static string textFont(double size) { if (!fontBySize.TryGetValue(size, out var f)) fontBySize[size] = f = "900 " + size.ToString(System.Globalization.CultureInfo.InvariantCulture) + "px Rubik"; return f; }
+    public static void drawBulletPublic(Ctx c, Bullet b) => drawBullet(c, b); // для листа спрайтов в Snap
     static void drawBullet(Ctx c, Bullet b)
     {
+        if (b.w != null) { drawSkBullet(c, b); return; }
         if (b.fromP && b.kind == "flame")
         {
             double q = 1 - b.life / (b.max > 0 ? b.max : .36); c.globalAlpha = Math.Max(0, .9 - q * .8); c.fillStyle = q < .3 ? "#fff2a0" : q < .65 ? "#ff9a1f" : "#e8322a";

@@ -5,13 +5,16 @@ A cartoon top-down shooter about chickens defending their coop — for **Windows
 ## Game modes
 - **Story** — 4 chapters × 20 levels, 8 bosses, night levels; goals get harder from the first chapter to the last
 - **Endless battle** — waves that keep growing, a boss every 5 waves
-- **Soul Knight mode** — pick a hero, step through the portal in the camp and fight through dungeon levels 0-1 … 0-5: rooms lock until every wave is cleared, an optional boss waits on 0-4 and the final boss on 0-5. Melee weapon (Wooden Stick) that can be swapped with your gun
+- **Soul Knight mode** — pick a hero, step through the portal in the camp and fight through dungeon levels 0-1 … 0-5: rooms lock until every wave is cleared, an optional boss waits on 0-4 and the final boss on 0-5. The mode has its own 35 weapons (melee, guns and 8 staffs — from a plunger that shoots poop to a gauss gun and a meat grinder); you carry 2 of them, more drop from a chest room and are sold by a merchant on every level for pivchiki, the run's coins. Between levels the portal offers a choice of three passives (the +1 weapon slot one appears only once)
 - **Multiplayer** — coming soon
 
 ## Features
 - 9 heroes in 4 classes (Assault, Tank, Sniper, Medic), each with an ultimate and two passives
-- 17 guns of three rarities, squad of up to 3 fighters
-- Chests, hero and weapon cards, upgrades up to level 10, shop
+- 17 story guns of three rarities, squad of up to 3 fighters; stamina (50 in story and endless, 100 in Soul Knight) is spent on shots
+- Chests, hero and weapon cards, upgrades up to level 10; a hero's stats, upgrade table and abilities open from the "Details" button
+- Separate Weapons section (story guns plus a guide to the Soul Knight arsenal), shop with two random card packs a day
+- Windowed, borderless and fullscreen modes (F11 toggles fullscreen), rebindable keys
+- Piranhas in every river leap at anyone by the water or on a bridge; breakable crates with loot in every mode
 - Russian and English, switchable on the fly
 - Scales to any screen: phones, tablets and large monitors
 
@@ -26,7 +29,8 @@ A cartoon top-down shooter about chickens defending their coop — for **Windows
 src/Kuriatnyk/            shared code
   Game/                   game logic: data (Data.cs), maps and rivers (World.cs), dungeons (Dungeon.cs),
                           combat (Combat.cs, Weapons.cs), game loop and AI (Update.cs), flow (Flow.cs),
-                          input, chests, saves
+                          input, chests, saves; Soul Knight weapons and passives (SkData.cs, SkPlay.cs),
+                          daily shop cards (Offers.cs)
   Render/                 rendering: Ctx.cs (canvas-style API over Skia), Draw.*.cs, Hud.cs
   Audio/                  synthesizer, sound effects and music
   UI/                     Avalonia UI: lobby, boards, overlays, game view
@@ -47,7 +51,7 @@ Single-file exe (no .NET installation required):
 ```
 dotnet publish src/Kuriatnyk.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist/windows
 ```
-Controls: WASD — move, auto-aim fires on its own (T — toggle), hold the mouse button — manual fire, right mouse button or Q — grenade, R — ultimate, F — swap weapon (Soul Knight mode), Esc/P — pause.
+Controls (default, can be rebound in Settings → Controls): WASD — move, auto-aim fires on its own (T — toggle), hold the mouse button — manual fire, right mouse button, Q or Space — grenade, R — ultimate, F — swap weapon, E — pick up or buy (Soul Knight), 1/2/3 — backpack slot, F11 — fullscreen, Esc/P — pause.
 
 ## Android
 One-time setup:

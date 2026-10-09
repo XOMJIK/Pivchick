@@ -44,7 +44,7 @@ public sealed partial class MainView : UserControl, IGameUi
         toast.Transitions = new Avalonia.Animation.Transitions { new Avalonia.Animation.DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(200) } };
         root.Children.Add(toast);
         G.Ui = this;
-        Game.Frame += OnFrame;
+        Game.Frame += OnFrame; Game.Covered = () => panel != null;
         AttachedToVisualTree += (_, _) => Start();
     }
 
@@ -94,12 +94,12 @@ public sealed partial class MainView : UserControl, IGameUi
         Hide(id); c.ZIndex = z; ov[id] = c; layer.Children.Add(c);
     }
     public void Hide(string id) { if (ov.Remove(id, out var c)) layer.Children.Remove(c); }
-    public static readonly string[] PANELS = { "shop", "heroes", "storyP", "chestP" };
+    public static readonly string[] PANELS = { "shop", "heroes", "weapons", "storyP", "chestP" };
     public bool AnyPanel => panel != null;
     public void OpenPanel(string id)
     {
         Audio.Init(); ClosePanels(); panelId = id; RefreshMenu();
-        panel = id switch { "shop" => new ShopPanel(this), "heroes" => new HeroesPanel(this), "storyP" => new StoryPanel(this), _ => new ChestPanel(this) };
+        panel = id switch { "shop" => new ShopPanel(this), "heroes" => new HeroesPanel(this), "weapons" => new WeaponsPanel(this), "storyP" => new StoryPanel(this), _ => new ChestPanel(this) };
         panel.ZIndex = 7; layer.Children.Add(panel);
     }
     public void ClosePanels() { if (panel != null) layer.Children.Remove(panel); panel = null; panelId = null; }
@@ -127,6 +127,9 @@ public sealed partial class MainView : UserControl, IGameUi
         if (Shown("chestInfoOv") && Overlays.ciTier >= 0) Overlays.OpenChestInfo(this, Overlays.ciTier);
         if (Shown("bgOv")) Overlays.OpenBg(this);
         if (Shown("skSel")) Overlays.OpenSkSelect(this);
+        if (Shown("heroInfo")) Overlays.OpenHeroInfo(this, Overlays.hiId);
+        if (Shown("keysOv")) Overlays.OpenKeys(this);
+        if (Shown("skPick") && G.skOffer != null) ShowSkPick(G.skOffer);
         if (Shown("pause")) Show("pause", Overlays.Pause(this));
         if (Shown("setOv")) Show("setOv", Overlays.Settings(this), 8);
         RefreshMenu();
@@ -143,14 +146,15 @@ public sealed partial class MainView : UserControl, IGameUi
     public void OnGameStart()
     {
         ClosePanels(); ShowLobby(false);
-        foreach (var id in new[] { "over", "pause", "win", "brief", "chestOv", "setOv", "skSel" }) Hide(id);
+        foreach (var id in new[] { "over", "pause", "win", "brief", "chestOv", "setOv", "skSel", "skPick", "keysOv", "heroInfo" }) Hide(id);
     }
+    public void ShowSkPick(List<string> passives) => Show("skPick", Overlays.SkPick(this, passives), 8);
     public void ShowPause(bool show) { if (show) Show("pause", Overlays.Pause(this)); else { Hide("pause"); Hide("setOv"); } }
     public void ShowOver(OverInfo info) => Show("over", Overlays.Over(this, info));
     public void ShowWin(WinInfo info) { Show("win", Overlays.Win(this, info)); RefreshMenu(); }
     public void OnMenu()
     {
-        foreach (var id in new[] { "setOv", "pause", "over", "win", "brief" }) Hide(id);
+        foreach (var id in new[] { "setOv", "pause", "over", "win", "brief", "skPick", "keysOv" }) Hide(id);
         ShowLobby(true); RefreshMenu();
     }
     public void RefreshMenu() { lobby?.Refresh(); (panel as BoardPanel)?.RefreshPurse(); }
@@ -158,26 +162,39 @@ public sealed partial class MainView : UserControl, IGameUi
     void OnFrame(double dt) { Overlays.ChestFrame(this, dt); lobby?.UpdateAnchor(); }
 
     // ---------- клавиатура (input.js) ----------
-    static string Code(Key k) => k switch
+    public static string Code(Key k) => k switch
     {
         >= Key.A and <= Key.Z => "Key" + k,
         Key.Up => "ArrowUp", Key.Down => "ArrowDown", Key.Left => "ArrowLeft", Key.Right => "ArrowRight",
         Key.Space => "Space", Key.Escape => "Escape", _ => k.ToString()
     };
+    /// <summary>Ждём клавишу для переназначения (окно «Управление»): действие и слот 0/1.</summary>
+    public (string act, int slot)? Capture;
     void OnKeyDown(object s, KeyEventArgs e)
     {
         var code = Code(e.Key);
         if (e.Source is TextBox) return;
+        if (Capture is { } cap)
+        {
+            e.Handled = true; Capture = null;
+            if (code != "Escape") { G.bindKey(cap.act, cap.slot, code); Sfx.pick(); }
+            if (Shown("keysOv")) Overlays.OpenKeys(this);
+            return;
+        }
+        var act = G.actionOf(code);
+        bool repeat = G.input.keys.Contains(code); // автоповтор зажатой клавиши — не повторяем действия
+        if (act == "full") { if (!repeat) DisplayMode.ToggleFull(this); G.input.keys.Add(code); e.Handled = true; return; } // F11 работает везде: в меню, в бою и в окнах
+        if (repeat) { e.Handled = act != null; return; }
         if (G.KeyDown(code)) { e.Handled = true; return; }
-        if (code == "KeyT") ToggleAuto();
+        if (act == "auto") ToggleAuto();
         if (code == "Escape")
         {
-            foreach (var id in new[] { "bgOv", "chestInfoOv", "setOv", "infoOv", "helpOv", "brief", "skSel" })
+            foreach (var id in new[] { "keysOv", "heroInfo", "bgOv", "chestInfoOv", "setOv", "infoOv", "helpOv", "brief", "skSel" })
                 if (Shown(id)) { Hide(id); e.Handled = true; return; }
             if (AnyPanel) { ClosePanels(); RefreshMenu(); e.Handled = true; return; }
             if (G.S.mode == "menu" && lobby != null && lobby.Back()) { e.Handled = true; return; }
         }
-        if (code is "Escape" or "KeyP")
+        if (code == "Escape" || act == "pause")
         {
             if (G.S.mode == "play") G.pauseGame(); else if (G.S.mode == "paused") G.resumeGame();
             e.Handled = true;

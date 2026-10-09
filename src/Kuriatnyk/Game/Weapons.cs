@@ -25,14 +25,35 @@ public static partial class G
         var b = new Bullet { x = x, y = y, vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp, r = r, dmg = dmg, fromP = true, life = life, max = life, kind = kind, pierce = pierce, hits = pierce > 0 ? new() : null, bounce = bounce, shape = shape };
         bullets.Add(b); return b;
     }
+    /// <summary>Сколько стамины стоит выстрел. Стволы сюжета — по редкости (в секунду стрельбы), Soul Knight — своё число,
+    /// временные стволы с патронами — бесплатно.</summary>
+    public static double shotCost(Weap W, double rate)
+    {
+        double c = W.skr != null ? W.stam : W.rar != null ? (W.rar == "legendary" ? 7 : W.rar == "rare" ? 5 : 2.5) * rate : 0;
+        return c * (P?.stamMul ?? 1);
+    }
+    static void noStamina(string msg)
+    {
+        if (P.noStamT > 0) return; P.noStamT = 1.4;
+        ftext(P.x, P.y - 58, msg, "#7fd4ff", 13); Sfx.beep();
+    }
     static void shoot()
     {
         var W = WEAP[P.w]; double rm = P.rateMul * (P.buff == "turbo" ? 2 : 1);
-        double rate = W.rate; if (W.special == "mini") { P.spin = Math.Min(1, P.spin + .09); rate = .22 - (.22 - W.rate) * P.spin; }
+        double rate = W.rate; if (W.special == "mini" || W.spinUp) { P.spin = Math.Min(1, P.spin + .09); rate = .22 - (.22 - W.rate) * P.spin; }
         P.cd = rate / rm;
+        double cost = shotCost(W, rate);
+        if (cost > 0 && P.stam < cost)
+        {
+            if (S.kind == "sk") { noStamina(T("Нет стамины — смени оружие")); P.cd = .25; return; } // в подземелье — только оружием без стамины
+            P.cd *= 2; noStamina(T("Устал!")); // в сюжете и бесконечном бое — стреляет вдвое реже, пока стамина не накопится
+        }
+        if (W.coin) { if (S.piv < 1) { noStamina(T("Нет пивчиков")); P.cd = .3; return; } S.piv--; }
+        P.stam = Math.Max(0, P.stam - cost); if (cost > 0) P.stamT = 0;
         double ang = input.mouse ? P.ang : aimAssist(P.ang); P.ang = ang;
         double wm = P.w == P.prim ? wMul(P.w) : 1;
-        if (W.special == "melee") meleeSwing(ang, W.dmg * P.dmgMul);
+        if (W.special == "melee") meleeSwing(ang, W);
+        else if (W.skr != null) skFire(W, ang);
         else if (W.special == "rail") fireRail(ang);
         else if (W.special == "mortar")
         {
@@ -60,31 +81,33 @@ public static partial class G
         }
         if (P.hid == "guinea" && (++P.gN) % 8 == 0) for (int k = -2; k <= 2; k++) pBullet(P.x + Math.Cos(ang) * 22, P.y + Math.Sin(ang) * 22, ang + k * .16, 720, 18 * P.dmgMul, 4.5, .6 * P.rangeMul, "pfeather", 1);
         if (P.hid == "adren" && (++P.aN) % 5 == 0) pBullet(P.x + Math.Cos(ang) * 22, P.y + Math.Sin(ang) * 22, ang, 620, 30 * P.dmgMul, 7, .75, "fireball");
-        if (W.special != "flame" && W.special != "melee")
+        if (W.special != "flame" && W.special != "melee" && W.special != "chain" && W.shape != "steam")
         {
-            double fl = (P.w == "shotgun" || P.w == "sawed" || P.w == "rail") ? 1.5 : 1;
+            double fl = (P.w is "shotgun" or "sawed" or "rail" or "seeds" or "gauss") ? 1.5 : 1;
             parts.Add(new Part { k = "flash", x = P.x + Math.Cos(ang) * 28 * fl, y = P.y + Math.Sin(ang) * 28 * fl, z = 19, t = 0, max = .06, a = ang, s = fl });
         }
         Sfx.Play(W.sfx); S.shake += W.kick * .5; P.x -= Math.Cos(ang) * W.kick * .6; P.y -= Math.Sin(ang) * W.kick * .6;
         if (!double.IsInfinity(P.ammo)) { P.ammo--; if (P.ammo <= 0) { P.w = P.prim; P.ammo = double.PositiveInfinity; ftext(P.x, P.y - 50, T("Патроны кончились"), "#ffc93a", 13); } }
     }
     static void fireRail(double ang) => fireBeam(P.x, P.y, ang, WEAP["rail"].dmg * P.dmgMul * wMul("rail"), true);
-    static void fireBeam(double sx, double sy, double ang, double dmg, bool fromP, Fighter owner = null)
+    /// <summary>Луч до забора или стены: бьёт всех на линии. col/width/puffs — вид (лазерная указка тоньше и красная).</summary>
+    static void fireBeam(double sx, double sy, double ang, double dmg, bool fromP, Fighter owner = null, string col = null, double width = 1, int puffs = 12)
     {
         double ca = Math.Cos(ang), sa = Math.Sin(ang), x0 = sx + ca * 22, y0 = sy + sa * 22;
         double Lb = 1000;
         if (ca > 1e-4) Lb = Math.Min(Lb, (WW - FENCE - x0) / ca); if (ca < -1e-4) Lb = Math.Min(Lb, (FENCE - x0) / ca);
         if (sa > 1e-4) Lb = Math.Min(Lb, (WH - FENCE - y0) / sa); if (sa < -1e-4) Lb = Math.Min(Lb, (FENCE - y0) / sa);
+        if (DUN != null) for (double t = 20; t < Lb; t += 16) if (!dunWalk(x0 + ca * t, y0 + sa * t, -2)) { Lb = t; break; } // в подземелье луч упирается в стену
         Lb = Math.Max(40, Lb);
         double x1 = x0 + ca * Lb, y1 = y0 + sa * Lb;
-        foreach (var e in enemies.ToList())
+        for (int i = 0; i < enemies.Count; i++)
         {
-            if (e.dead) continue; var t = clamp((e.x - x0) * ca + (e.y - y0) * sa, 0, Lb); double px = x0 + ca * t - e.x, py = y0 + sa * t - e.y;
-            if (px * px + py * py < (e.r + 9) * (e.r + 9)) { hitEnemy(e, dmg, ca, sa, fromP, 2); puff(e.x, e.y, "#bff4ff", 4, .8); if (owner != null) owner.ult = Math.Min(100, owner.ult + dmg * .08); }
+            var e = enemies[i]; if (e.dead) continue; var t = clamp((e.x - x0) * ca + (e.y - y0) * sa, 0, Lb); double px = x0 + ca * t - e.x, py = y0 + sa * t - e.y;
+            if (px * px + py * py < (e.r + 9) * (e.r + 9)) { hitEnemy(e, dmg, ca, sa, fromP, 2 * width, width < 1); puff(e.x, e.y, col ?? "#bff4ff", width < 1 ? 1 : 4, .8); if (owner != null) owner.ult = Math.Min(100, owner.ult + dmg * .08); }
         }
-        parts.Add(new Part { k = "beam", x = x0, y = y0, x2 = x1, y2 = y1, t = 0, max = .3 });
-        for (int i = 0; i < 12; i++) { var t = rand(0, Lb); parts.Add(new Part { k = "puff", x = x0 + ca * t, y = y0 + sa * t, z = 19, vx = rand(-20, 20), vy = rand(-20, 20), vz = rand(-10, 20), t = 0, max = rand(.25, .5), r = rand(2, 4), col = "#bff4ff" }); }
-        Sfx.rail();
+        parts.Add(new Part { k = "beam", x = x0, y = y0, x2 = x1, y2 = y1, t = 0, max = width < 1 ? .1 : .3, col = col, s = width });
+        for (int i = 0; i < puffs; i++) { var t = rand(0, Lb); parts.Add(new Part { k = "puff", x = x0 + ca * t, y = y0 + sa * t, z = 19, vx = rand(-20, 20), vy = rand(-20, 20), vz = rand(-10, 20), t = 0, max = rand(.25, .5), r = rand(2, 4), col = col ?? "#bff4ff" }); }
+        if (width >= 1) Sfx.rail();
     }
     static void eBullet(double x, double y, double a, double sp, double dmg, string kind = "egg")
     {
@@ -126,6 +149,7 @@ public static partial class G
         for (int i = 0; i < n; i++) { double a = rand(0, TAU), sp = rand(60, 260) * R / 130; parts.Add(new Part { k = "shell", x = x, y = y, z = 10, vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp * .6, vz = rand(120, 300), rot = rand(0, TAU), vr = rand(-10, 10), t = 0, max = rand(.8, 1.3) }); }
         puff(x, y, "#fff7d6", R > 100 ? 18 : 10, R / 60); puff(x, y, "#ffc93a", R > 100 ? 10 : 6, R / 75);
         ring(x, y, fromP ? "#fff6c8" : "#ffb3a3", R, .35); splat(x, y, R / 45);
+        hitCratesArea(x, y, R, fromP ? dmg : dmg * .5); // взрыв разносит ящики
         if (fromP)
             for (int i = 0; i < enemies.Count; i++)
             {
@@ -143,9 +167,15 @@ public static partial class G
     }
     static void collect(Pickup p)
     {
-        Sfx.pick();
+        if (p.kind != "piv") Sfx.pick();
         if (p.kind == "corn") { double heal = P.hid == "hen" && hasP(10) ? 40 : 20; var h = Math.Min(heal, P.max - P.hp); P.hp = Math.Min(P.max, P.hp + heal); ftext(P.x, P.y - 50, "+" + Math.Max(Math.Round(h, MidpointRounding.AwayFromZero), 0) + T(" здоровья"), "#7df05a", 14); }
-        else if (p.kind == "nade") { P.nades = Math.Min(6, P.nades + 1); ftext(P.x, P.y - 50, T("+1 яйцо"), "#ffc93a", 14); }
+        else if (p.kind == "nade") { P.nades = Math.Min(Math.Max(6, P.nades), P.nades + 1); ftext(P.x, P.y - 50, T("+1 яйцо"), "#ffc93a", 14); }
+        else if (p.kind is "stam" or "stamp")
+        {
+            double v = p.kind == "stamp" ? 60 : S.kind == "sk" ? 25 : 15, h = Math.Min(v, P.stamMax - P.stam); P.stam = Math.Min(P.stamMax, P.stam + v);
+            ftext(P.x, P.y - 50, "+" + Math.Round(Math.Max(0, h)) + T(" стамины"), "#7fd4ff", 14);
+        }
+        else if (p.kind == "piv") { S.piv += p.n; if (rnd() < .5) Sfx.coin(); }
         else { var W = WEAP[p.kind]; if (P.w == p.kind) P.ammo += W.ammo; else { P.w = p.kind; P.ammo = W.ammo; } ftext(P.x, P.y - 50, W.name, "#ffc93a", 15); }
     }
 
@@ -274,6 +304,7 @@ public static partial class G
     static void updateZones(double dt)
     {
         for (int i = puddles.Count - 1; i >= 0; i--) { puddles[i].t -= dt; if (puddles[i].t <= 0) puddles.RemoveAt(i); }
+        if (goo.Count > 0) updateGoo(dt);
         if (P.alive && P.hid == "nurse") nurseKit(P, dt);
         foreach (var a in allies) if (a.id == "nurse" && a.down <= 0) nurseKit(a, dt);
         for (int i = strikes.Count - 1; i >= 0; i--) { strikes[i].t -= dt; if (strikes[i].t <= 0) strikes.RemoveAt(i); }

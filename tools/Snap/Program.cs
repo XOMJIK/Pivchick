@@ -25,7 +25,7 @@ void Shot(string name)
     G.render(surf.Canvas);
     using var img = surf.Snapshot(); using var png = img.Encode(SKEncodedImageFormat.Png, 90);
     File.WriteAllBytes(Path.Combine(outDir, name + ".png"), png.ToArray());
-    Console.WriteLine($"{name}: mode={G.S.mode} wave={G.S.wave} enemies={G.enemies.Count} bullets={G.bullets.Count} hp={G.P?.hp:0} score={G.S.score} kills={G.S.kills}");
+    Console.WriteLine($"{name}: mode={G.S.mode} wave={G.S.wave} enemies={G.enemies.Count} bullets={G.bullets.Count} hp={G.P?.hp:0} score={G.S.score} kills={G.S.kills} goal={(G.S.mode == "menu" ? "" : G.goalLabel(false))}");
 }
 void Run(double sec) { for (double t = 0; t < sec; t += 1 / 60.0) { G.TickTimers(1 / 60.0); G.update(1 / 60.0); } }
 
@@ -66,6 +66,23 @@ G.startGame("story", 79); Run(7); Shot("10-emperor");
     using var img = surf.Snapshot(); using var png = img.Encode(SKEncodedImageFormat.Png, 90);
     File.WriteAllBytes(Path.Combine(outDir, "11-sprites.png"), png.ToArray());
 }
+// лист оружия Soul Knight: все стволы и их снаряды
+{
+    var info = new SKImageInfo(1200, 760);
+    using var surf = SKSurface.Create(info); var c = new Ctx(); c.Begin(surf.Canvas);
+    c.fillStyle = "#7d8b63"; c.fillRect(0, 0, 1200, 760);
+    int i = 0;
+    foreach (var w in SKW.LIST)
+    {
+        double x = 30 + (i % 6) * 195, y = 60 + (i / 6) * 118;
+        c.save(); c.translate(x + 30, y); c.scale(2, 2); G.drawGun(c, w.id); c.restore();
+        c.font = "800 13px Rubik"; c.textAlign = "left"; c.fillStyle = "#fff"; c.fillText(w.nameRu + " (" + w.skr + ")", x, y + 40);
+        if (w.shape != null) { var b = new Bullet { x = x + 150, y = y + 19, vx = 300, vy = -60, r = w.size > 0 ? w.size : 5, life = .3, max = .6, kind = w.shape, w = w, spin = 1 }; G.drawBulletPublic(c, b); }
+        i++;
+    }
+    using var img = surf.Snapshot(); using var png = img.Encode(SKEncodedImageFormat.Png, 90);
+    File.WriteAllBytes(Path.Combine(outDir, "12-sk-guns.png"), png.ToArray());
+}
 // Soul Knight: лагерь → портал → все комнаты 0-1 … 0-5 (герой бессмертен, идёт сам по коридорам)
 if (args.Length > 1 && args[1] == "sk")
 {
@@ -84,43 +101,96 @@ if (args.Length > 1 && args[1] == "sk")
     }
     G.startSK("hen"); for (int i = 0; i < 90; i++) Tick(); Shot("20-sk-hub");
     var pt = G.DUN.portals[0]; WalkTo(pt.x, pt.y); Tick(); Tick();
+    // на каждом уровне — пара стволов из списка, чтобы прогнать их механику в бою
+    string[] testGuns = { "plunger", "gauss", "grinder", "sbolt", "swind", "pumpkin", "rocket", "boomer", "laser", "sice", "spoison", "sroot", "sstar", "bees", "accordion", "cactus", "axe", "sword", "coingun", "bubble" };
+    int tg = 0; bool riverShot = false, riverPic = false;
     for (int lv = 1; lv <= 5 && G.S.mode == "play"; lv++)
     {
-        if (lv == 2 || lv == 4) G.P.w = "stick"; else G.P.w = G.P.prim;
-        var path = G.DUN.rooms.Where(r => r.type != "bossopt").ToList();
-        Console.WriteLine($"level 0-{G.S.skLv}: rooms={G.DUN.rooms.Count} ({string.Join(",", G.DUN.rooms.Select(r => r.type))}) corridors={G.DUN.cors.Count}");
+        G.P.bag = new() { testGuns[tg++ % testGuns.Length], testGuns[tg++ % testGuns.Length] }; G.P.slot = 0; G.P.w = G.P.prim = G.P.bag[0]; G.S.piv += 150;
+        var path = G.DUN.rooms.Where(r => r.type is "start" or "fight" or "end" or "boss").ToList();
+        Console.WriteLine($"level 0-{G.S.skLv}: rooms={G.DUN.rooms.Count} ({string.Join(",", G.DUN.rooms.Select(r => r.type))}) corridors={G.DUN.cors.Count} bag={string.Join(",", G.P.bag)}");
         if (lv == 1) Shot("21-sk-0-1-start");
+        Console.WriteLine($"  rivers={G.RIVERS.Count} fish={G.fish.Count} crates={G.OBS.Count(o => o.type == "crate")} world={G.WW}");
+        int cur = 0;
+        // по пути: в последней комнате не наступаем на портал в центре
+        // в комнате с речкой — к центру через ближайший мост
+        void ToCenter(Room Q)
+        {
+            foreach (var rv in G.RIVERS.Where(r => r.room == Q))
+                if (G.sideR(rv, G.P.x, G.P.y) != G.sideR(rv, Q.cx, Q.cy))
+                {
+                    var b = rv.bridges.OrderBy(b => G.hypot(b.ends[0].x - G.P.x, b.ends[0].y - G.P.y)).First();
+                    var near = b.ends.OrderBy(e => G.hypot(e.x - G.P.x, e.y - G.P.y)).First(); var far = b.ends.First(e => e != near);
+                    WalkTo(near.x, near.y, 6); WalkTo(far.x, far.y, 6);
+                }
+            WalkTo(Q.cx, Q.cy, 8);
+        }
+        void Step(int i)
+        {
+            var R = path[i]; double tx = R.cx, ty = R.cy;
+            if (path[cur].type != "end") ToCenter(path[cur]); // в последней комнате в центре портал
+            if (R.type == "end") { var Q = path[cur]; double dx = Q.cx - R.cx, dy = Q.cy - R.cy, d = Math.Max(1, Math.Sqrt(dx * dx + dy * dy)); tx += dx / d * 75; ty += dy / d * 75; }
+            WalkTo(tx, ty); cur = i;
+        }
+        void Along(int to) { while (cur != to) Step(cur + Math.Sign(to - cur)); }
         for (int i = 1; i < path.Count; i++)
         {
-            var R = path[i];
-            bool ok = WalkTo(R.cx, R.cy);
+            var R = path[i]; Step(i);
             if (R.type is "fight" or "boss")
             {
                 double t0 = simT;
                 while (!R.cleared && simT - t0 < 120 && G.S.mode == "play")
-                {   // крутимся в комнате, автонаводка стреляет сама
-                    var tg = G.enemies.FirstOrDefault(e => !e.dead);
-                    if (tg != null && G.P.w == "stick") WalkTo(tg.x, tg.y, .3); Tick();
+                {   // крутимся в комнате, автонаводка стреляет сама; кончилась стамина — меняем оружие
+                    var tgt = G.enemies.FirstOrDefault(e => !e.dead);
+                    if (tgt != null && D.WEAP[G.P.w].special == "melee") WalkTo(tgt.x, tgt.y, .3);
+                    if (G.P.stam < 5 && G.P.bag.Count > 1 && simT % 3 < 1 / 60.0) G.swapWeapon();
+                    if (G.S.t % 2 < 1 / 60.0) G.P.stam = Math.Min(G.P.stamMax, G.P.stam + 30);
+                    if (G.S.t % 1.5 < 1 / 60.0) G.swapWeapon(); // оба ствола в деле
+                    if (!riverPic && simT - t0 > 5 && G.RIVERS.Any(r => r.room == R)) { riverPic = true; Shot("33-sk-river"); }
+                    Tick();
                 }
-                if (!R.cleared) foreach (var e in G.enemies) Console.WriteLine($"    stuck: {e.type} dead={e.dead} at ({e.x:0},{e.y:0}) hp={e.hp:0}/{e.max:0} emerge={e.emerge:0.00} st={e.st} room=({R.x:0},{R.y:0},{R.w:0},{R.h:0}) eroom={(e.room==R)} P=({G.P.x:0},{G.P.y:0}) active={(G.DUN.active==R)} wave={R.wave}/{R.waves}");
-                Console.WriteLine($"  room {i} {R.type}: reached={ok} cleared={R.cleared} in {simT - t0:0.0}s kills={G.S.kills}");
-                if (i == 1 && lv is 1 or 2 or 5) Shot($"2{lv + 1}-sk-0-{lv}-fight");
+                if (!R.cleared) foreach (var e in G.enemies) Console.WriteLine($"    stuck: {e.type} at ({e.x:0},{e.y:0}) hp={e.hp:0}/{e.max:0} st={e.st}");
+                if (!R.cleared) { Console.WriteLine($"    P=({G.P.x:0},{G.P.y:0}) R=({R.x:0},{R.y:0},{R.w:0},{R.h:0}) prev=({path[i - 1].x:0},{path[i - 1].y:0}) inWater={G.inWater(G.P.x, G.P.y)}"); foreach (var rv in G.RIVERS) Console.WriteLine($"    river {rv.axis} base={rv.@base:0} lo={rv.lo:0} hi={rv.hi:0} room=({rv.room.x:0},{rv.room.y:0}) bridges={string.Join(",", rv.bridges.Select(b => b.u.ToString("0")))}"); foreach (var o in G.OBS.Where(o => G.hypot(o.x - G.P.x, o.y - G.P.y) < 80)) Console.WriteLine($"    near obs {o.type} ({o.x:0},{o.y:0}) r={o.r}"); Shot("40-stuck"); }
+                Console.WriteLine($"  room {i} {R.type}: cleared={R.cleared} in {simT - t0:0.0}s kills={G.S.kills} piv={G.S.piv} goo={G.goo.Count}");
+                if (i == 1) Shot($"2{lv + 1}-sk-0-{lv}-fight-{G.P.w}");
+                if (!riverShot && G.RIVERS.Any(r => r.room == R)) { riverShot = true; Console.WriteLine($"    river room: crates left={G.OBS.Count(o => o.type == "crate")}"); }
             }
         }
-        var opt = G.DUN.rooms.FirstOrDefault(r => r.type == "bossopt");
-        if (opt != null)
+        // комнаты в стороне: дойти через комнату, к которой пристроена, и вернуться
+        void Visit(Room X, Action inside)
         {
-            var link = opt.cors[0]; var from = link.a == opt ? link.b : link.a;
-            WalkTo(from.cx, from.cy); WalkTo(opt.cx, opt.cy); double t0 = simT;
+            var link = X.cors[0]; var from = link.a == X ? link.b : link.a;
+            Along(path.IndexOf(from)); WalkTo(X.cx, X.cy + 40); inside(); WalkTo(from.cx, from.cy);
+        }
+        var shopR = G.DUN.rooms.FirstOrDefault(r => r.type == "shop"); var chestR = G.DUN.rooms.FirstOrDefault(r => r.type == "chest"); var opt = G.DUN.rooms.FirstOrDefault(r => r.type == "bossopt");
+        if (shopR != null) Visit(shopR, () =>
+        {
+            long before = G.S.piv; int items = G.pickups.Count(p => p.price > 0);
+            var it = G.pickups.FirstOrDefault(p => p.price > 0 && p.kind == "skw");
+            if (it != null) { WalkTo(it.x, it.y + 6, 4); Tick(); G.interact(); }
+            if (lv == 1) Shot("30-sk-shop");
+            Console.WriteLine($"  shop: items={items} piv {before}->{G.S.piv} bag={string.Join(",", G.P.bag)} on floor={G.pickups.Count(p => p.kind == "skw" && p.price == 0)}");
+        });
+        if (chestR != null) Visit(chestR, () =>
+        {
+            var o = G.OBS.First(x => x.type == "skchest"); WalkTo(o.x, o.y + 40, 4); for (int i = 0; i < 40; i++) Tick();
+            if (lv == 1) Shot("31-sk-chest");
+            var w = G.pickups.FirstOrDefault(p => p.kind == "skw" && p.price == 0 && G.hypot(p.x - o.x, p.y - o.y) < 80);
+            Console.WriteLine($"  chest: open={o.open} weapon={w?.wid}");
+            if (w != null) { WalkTo(w.x, w.y + 4, 4); Tick(); G.interact(); Console.WriteLine($"    took -> bag={string.Join(",", G.P.bag)}"); }
+        });
+        if (opt != null) Visit(opt, () =>
+        {
+            WalkTo(opt.cx, opt.cy); double t0 = simT;
             while (!opt.cleared && simT - t0 < 120) Tick();
             Console.WriteLine($"  optional boss: cleared={opt.cleared} eggs={Store.SAVE.eggs}");
-            WalkTo(from.cx, from.cy); var endR = path[^1]; foreach (var r in path.SkipWhile(r => r != from).Skip(1)) WalkTo(r.cx, r.cy);
-        }
+        });
+        Along(path.Count - 1);
         var portal = G.DUN.portals[0];
-        Console.WriteLine($"  portal on={portal.on}");
+        Console.WriteLine($"  portal on={portal.on} passives={string.Join(",", G.S.skPass)}");
         WalkTo(portal.x, portal.y); Tick(); Tick();
     }
-    Console.WriteLine($"SK finished: mode={G.S.mode} lv={G.S.skLv} coins={Store.SAVE.coins} eggs={Store.SAVE.eggs} time={simT:0}s");
+    Console.WriteLine($"SK finished: mode={G.S.mode} lv={G.S.skLv} coins={Store.SAVE.coins} eggs={Store.SAVE.eggs} time={simT:0}s passives={string.Join(",", G.S.skPass)} bagMax={G.P.bagMax}");
     G.toMenu(); Run(.5); Shot("29-menu-after-sk");
 }
 Console.WriteLine("done -> " + outDir);

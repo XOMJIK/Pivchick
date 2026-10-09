@@ -188,7 +188,27 @@ public static class Overlays
             SetRow(Txt(T("Тряска экрана от взрывов"), 15, FontWeight.ExtraBold), Toggle(SET.shake, () => { SET.shake = !SET.shake; saveSet(); if (SET.shake) G.S.shake = Math.Max(G.S.shake, 6); mv.Show("setOv", Settings(mv), 8); })),
         };
         if (!G.COARSE)
-            rows.Add(SetRow(Col(2, Txt(T("Автонаводка"), 15, FontWeight.ExtraBold), Txt(T("стреляет сама по ближнему врагу (T)"), 12, FontWeight.SemiBold, B("#b32b1d14"))), Toggle(SET.autoAim, mv.ToggleAuto)));
+            rows.Add(SetRow(Col(2, Txt(T("Автонаводка"), 15, FontWeight.ExtraBold), Txt(T("стреляет сама по ближнему врагу") + " (" + G.keyHint("auto") + ")", 12, FontWeight.SemiBold, B("#b32b1d14"))), Toggle(SET.autoAim, mv.ToggleAuto)));
+        if (DisplayMode.Available(mv))
+        {
+            var row = new UniformGrid { Rows = 1 };
+            foreach (var (id, nm) in DisplayMode.MODES)
+            {
+                bool on = SET.display == id; var t = Txt(T(nm), 13, FontWeight.ExtraBold, InkB, TextAlignment.Center); t.VerticalAlignment = VerticalAlignment.Center;
+                var p = new Press(t, on ? YolkB : PaperB, 0, 0, new Thickness(6, 9), 0) { MinHeight = 38 };
+                if (row.Children.Count > 0) { p.BorderBrush = InkB; p.BorderThickness = new Thickness(2.5, 0, 0, 0); }
+                p.Click += () => { DisplayMode.Set(mv, id); mv.Show("setOv", Settings(mv), 8); };
+                row.Children.Add(p);
+            }
+            var seg2 = Box(row, PaperB, 2.5, 12); seg2.ClipToBounds = true;
+            rows.Add(Box(Col(8, Row(8, Txt(T("Экран"), 15, FontWeight.ExtraBold), Txt(G.keyHint("full") + T(" — полный экран"), 12, FontWeight.SemiBold, B("#b32b1d14"))), seg2), StrawB, 0, 14, new Thickness(12, 10)));
+        }
+        if (!G.COARSE)
+        {
+            var kb = new Press(Txt(T("Настроить"), 14, FontWeight.ExtraBold, InkB, wrap: false), YolkB, 2.5, 12, new Thickness(12, 8), 2);
+            kb.Click += () => OpenKeys(mv);
+            rows.Add(SetRow(Col(2, Txt(T("Управление"), 15, FontWeight.ExtraBold), Txt(T("свои клавиши для бега, гранаты, ульты…"), 12, FontWeight.SemiBold, B("#b32b1d14"))), kb));
+        }
         rows.Add(Btn(T("Готово"), () => mv.Hide("setOv")));
         var card = Box(Col(10, rows.ToArray()), PaperB, 4, 24, new Thickness(18, 20, 18, 18), 8); card.MaxWidth = 440;
         return Ov(mv, card, true);
@@ -199,6 +219,165 @@ public static class Overlays
         SET.lang = l; L.Lang = l; saveSet();
         mv.RebuildAll();
         Sfx.pick();
+    }
+
+    // ---------- управление: переназначение клавиш ----------
+    public static void OpenKeys(MainView mv) { Audio.Init(); mv.Show("keysOv", Keys(mv), 9); }
+    static Control Keys(MainView mv)
+    {
+        var list = Col(5);
+        foreach (var a in G.ACTIONS)
+        {
+            var ks = G.keysOf(a.id); var g = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 6 };
+            var nm = Txt(a.name, 14, FontWeight.ExtraBold); nm.VerticalAlignment = VerticalAlignment.Center; g.Children.Add(nm);
+            for (int i = 0; i < 2; i++)
+            {
+                int slot = i; bool wait = mv.Capture is { } cp && cp.act == a.id && cp.slot == i;
+                var t = Txt(wait ? T("Нажми клавишу…") : G.keyName(ks[i]), 13, FontWeight.ExtraBold, wait ? White : InkB, TextAlignment.Center, false);
+                t.VerticalAlignment = VerticalAlignment.Center;
+                var p = new Press(t, wait ? BarnB : i == 0 ? PaperB : B("#fffaf0"), 2.5, 10, new Thickness(8, 4), wait ? 0 : 2) { MinWidth = 86, MinHeight = 32 };
+                p.Click += () => { mv.Capture = (a.id, slot); mv.Show("keysOv", Keys(mv), 9); };
+                Grid.SetColumn(p, i + 1); g.Children.Add(p);
+            }
+            list.Children.Add(Box(g, StrawB, 0, 12, new Thickness(10, 4)));
+        }
+        var hint = Txt(T("Нажми на клавишу действия, потом — новую. Esc — отмена. Если клавиша была занята другим действием, там она освободится. В подземелье 1, 2, 3 выбирают оружие в рюкзаке."), 12, FontWeight.SemiBold, B("#b32b1d14"));
+        var reset = Btn(T("Как было"), () => { G.resetKeys(); mv.Capture = null; Sfx.pick(); mv.Show("keysOv", Keys(mv), 9); }, "alt");
+        var done = Btn(T("Готово"), () => { mv.Capture = null; mv.Hide("keysOv"); if (mv.Shown("setOv")) mv.Show("setOv", Settings(mv), 8); });
+        var pair = new UniformGrid { Rows = 1, ColumnSpacing = 8 }; pair.Children.Add(reset); pair.Children.Add(done);
+        var card = Box(Col(10, Logo(T("Управление"), LogoSize(mv)), list, hint, pair), PaperB, 4, 24, new Thickness(18, 20, 18, 18), 8); card.MaxWidth = 480;
+        return Ov(mv, card, true);
+    }
+
+    // ---------- свойства героя: характеристики и улучшение / способности ----------
+    public static string hiId; static string hiTab = "stats";
+    public static void SetHeroTab(string t) => hiTab = t;
+    public static void OpenHeroInfo(MainView mv, string id) { hiId = id; Audio.Init(); mv.Show("heroInfo", HeroInfo(mv, id), 8); }
+    static Control HeroInfo(MainView mv, string id)
+    {
+        var H = HEROES[id]; SAVE.heroes.TryGetValue(id, out var own); int lv = own?.lv ?? 1; var R = RAR[H.rar];
+        var pv = Panels.Pv(Panels.HeroPv(id, 160, 104, 1.6), own != null ? "grass" : "dark", own != null ? T("Ур. ") + lv : null, own == null ? T("Не открыт") : null);
+        pv.Width = 170; pv.HorizontalAlignment = HorizontalAlignment.Left;
+        var head = new DockPanel(); DockPanel.SetDock(pv, Dock.Left); pv.Margin = new Thickness(0, 0, 12, 0); head.Children.Add(pv);
+        head.Children.Add(Col(5, Badges(Rar(R.name, R.c), Rar(CLASSES[H.cls].name, CLASSES[H.cls].c)), Txt(H.name, 18, FontWeight.Black), Txt(H.perk, 12.5, FontWeight.Medium, B("#cc2b1d14"))));
+        // вкладки
+        var tabs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        foreach (var (k, nm) in new[] { ("stats", T("Характеристики")), ("abil", T("Способности")) })
+        {
+            bool on = hiTab == k; var p = new Press(Txt(nm, 14, FontWeight.ExtraBold, on ? InkB : PaperB, wrap: false), on ? YolkB : Brushes.Transparent, 0, 10, new Thickness(14, 9), 0);
+            p.Click += () => { hiTab = k; mv.Show("heroInfo", HeroInfo(mv, id), 8); }; tabs.Children.Add(p);
+        }
+        var tabsB = Box(tabs, InkB, 0, 14, new Thickness(4)); tabsB.HorizontalAlignment = HorizontalAlignment.Left;
+        Control content = hiTab == "abil" ? HeroAbil(H, own != null ? lv : 0) : HeroStatsTab(mv, id, own);
+        var close = Btn(T("Закрыть"), () => mv.Hide("heroInfo"));
+        var card = Box(Col(12, Eyebrow(T("Свойства героя")), head, tabsB, content, close), PaperB, 4, 24, new Thickness(18, 18, 18, 16), 8);
+        card.MaxWidth = 560;
+        return Ov(mv, card, true);
+    }
+    static string Num(double v, string fmt = "0.##") => v.ToString(fmt, L.Culture);
+    static Control HeroStatsTab(MainView mv, string id, LvRec own)
+    {
+        var H = HEROES[id]; int lv = own?.lv ?? 1; bool max = lv >= 10; var a = G.heroStats(id, lv); var b = G.heroStats(id, Math.Min(10, lv + 1));
+        TextBlock d(double now, double next, string f, bool pctFmt = false)
+        {
+            if (max || Math.Abs(next - now) < 1e-9) return Cell("—");
+            var dv = next - now; return Cell("<b>+" + (pctFmt ? Num(dv * 100, "0.#") + "%" : Num(dv, f)) + "</b>");
+        }
+        var rows = new List<Control[]>
+        {
+            new Control[] { Cell(T("Здоровье")), Cell(Num(a.hp, "0")), d(a.hp, b.hp, "0") },
+            new Control[] { Cell(T("Урон")), Cell("×" + Num(a.dmg)), d(a.dmg, b.dmg, "0.##", true) },
+            new Control[] { Cell(T("Темп стрельбы")), Cell("×" + Num(a.rate)), d(a.rate, b.rate, "0.##", true) },
+            new Control[] { Cell(T("Скорость бега")), Cell(Num(a.spd, "0")), d(a.spd, b.spd, "0") },
+            new Control[] { Cell(T("Защита")), Cell(Num(a.armor * 100, "0") + "%"), d(a.armor, b.armor, "0", true) },
+        };
+        if (a.regen > 0) rows.Add(new Control[] { Cell(T("Лечение в секунду")), Cell(Num(a.regen, "0.#")), Cell("—") });
+        if (a.range > 1) rows.Add(new Control[] { Cell(T("Дальность пуль")), Cell("+" + Num((a.range - 1) * 100, "0") + "%"), Cell("—") });
+        var t1 = Table(new[] { T("Характеристика"), T("Ур. ") + lv, max ? T("Максимум") : T("Ур. ") + (lv + 1) }, rows);
+        var col = Col(10, t1);
+        // улучшение
+        if (own != null && !max)
+        {
+            int nc = needCards(id, lv), co = needCoins(id, lv); bool ok = own.cards >= nc && SAVE.coins >= co;
+            var prog = Col(3, ProgT(T("Карты до ур. ") + (lv + 1), own.cards + " / " + nc), Prog((double)own.cards / nc, RAR[H.rar].c));
+            string bonus = lv + 1 == 5 ? T("На ур. 5: пассивка «") + H.p5[0] + T("» и +3 золотых яйца") : lv + 1 == 10 ? T("На ур. 10: пассивка «") + H.p10[0] + T("» и +10 золотых яиц") : null;
+            var up = Panels.PBtn(T("Улучшить до ур. ") + (lv + 1) + " · " + Panels.coinTag(co), ok ? "go" : "poor", () => { Panels.UpgradeHero(mv, id); mv.Show("heroInfo", HeroInfo(mv, id), 8); });
+            col.Children.Add(Box(Col(8, prog, bonus == null ? null : Txt(bonus, 12.5, FontWeight.Bold, BarnB), up), StrawB, 0, 14, new Thickness(12, 10)));
+        }
+        else if (own != null) col.Children.Add(Box(Txt(T("Максимальный уровень · карт в запасе: ") + own.cards, 13, FontWeight.ExtraBold), StrawB, 0, 14, new Thickness(12, 10)));
+        else col.Children.Add(Box(Txt(T("Герой ещё не открыт — выпадает из сундуков. Таблица ниже — что даст прокачка."), 12.5, FontWeight.SemiBold), StrawB, 0, 14, new Thickness(12, 10)));
+        // все уровни: что даёт каждый и сколько стоит
+        var lvRows = new List<Control[]>();
+        for (int L0 = 1; L0 <= 10; L0++)
+        {
+            var s = G.heroStats(id, L0); bool cur = own != null && L0 == lv;
+            string extra = L0 == 5 ? " ★" : L0 == 10 ? " ★★" : "";
+            lvRows.Add(new Control[] { Cell((cur ? "<b>" : "") + L0 + extra + (cur ? "</b>" : ""), cur), Cell(Num(s.hp, "0")), Cell("×" + Num(s.dmg)), Cell(L0 == 1 ? "—" : needCards(id, L0 - 1).ToString()), Cell(L0 == 1 ? "—" : "<i class=\"coin\"></i>" + needCoins(id, L0 - 1)) });
+        }
+        col.Children.Add(Table(new[] { T("Ур."), T("Здоровье"), T("Урон"), T("Карты"), T("Зёрна") }, lvRows));
+        col.Children.Add(Txt(T("Каждый уровень: +6% здоровья и +5% урона. ★ — пассивки на 5-м и 10-м уровне. Карты и зёрна — цена перехода на этот уровень."), 12, FontWeight.SemiBold, B("#bf2b1d14")));
+        return col;
+    }
+    static Control HeroAbil(Hero H, int lv)
+    {
+        Control ab(string html, string bg, bool off, string note = null)
+        {
+            var b = Box(Col(3, Rich(html, 13, FontWeight.Medium), note == null ? null : Txt(note, 11.5, FontWeight.Bold, BarnB)), B(bg), 0, 12, new Thickness(10, 8)); if (off) b.Opacity = .6; return b;
+        }
+        var C = CLASSES[H.cls];
+        return Col(8,
+            ab("<span class=\"k\">" + C.name.ToUpper(L.Culture) + "</span>" + C.desc + T(". Оружие: <b>") + WEAP[gunOf(H.id)].name + "</b>", "#f6e3b8", false),
+            ab(T("<span class=\"k\">ОСОБЕННОСТЬ</span>") + H.perk, "#f6e3b8", false),
+            ab(T("<span class=\"k\">УЛЬТА</span><b>") + H.ult[0] + ".</b> " + H.ult[1], "#ffe9a8", false),
+            ab(T("<span class=\"k\">УР. 5</span><b>") + H.p5[0] + ".</b> " + H.p5[1], "#f6e3b8", lv < 5, lv < 5 ? T("Откроется на 5-м уровне") : null),
+            ab(T("<span class=\"k\">УР. 10</span><b>") + H.p10[0] + ".</b> " + H.p10[1], "#f6e3b8", lv < 10, lv < 10 ? T("Откроется на 10-м уровне") : null));
+    }
+
+    // ---------- Soul Knight: выбор пассивки в портале ----------
+    public static Control SkPick(MainView mv, List<string> ids)
+    {
+        bool sh = ShortLand(mv);
+        var grid = new UniformGrid { Columns = sh || mv.View.Width > 560 ? ids.Count : 1, ColumnSpacing = 10, RowSpacing = 10 };
+        foreach (var id in ids)
+        {
+            var p = SKP.Get(id); var pid = id;
+            var ic = new SkiaView((c, w, h) => DrawPassIcon(c, p.icon, w, h)) { Width = 54, Height = 54, HorizontalAlignment = HorizontalAlignment.Center };
+            var nm = Txt(p.name, 16, FontWeight.Black, InkB, TextAlignment.Center); var ds = Txt(p.desc, 12.5, FontWeight.SemiBold, B("#cc2b1d14"), TextAlignment.Center);
+            var col = Col(6, ic, nm, ds); if (p.once) col.Children.Add(Rar(T("Только один раз"), "#c0392b", 9));
+            ((Control)col.Children[^1]).HorizontalAlignment = HorizontalAlignment.Center;
+            var b = new Press(col, p.once ? B("#fff1c9") : PaperB, 3, 16, new Thickness(10, 12), 4);
+            b.Click += () => { mv.Hide("skPick"); G.skTakePassive(pid); };
+            grid.Children.Add(b);
+        }
+        var taken = G.S.skPass.Count > 0 ? Txt(T("Уже взято: ") + string.Join(", ", G.S.skPass.Select(x => SKP.Get(x)?.name)), 12, FontWeight.SemiBold, B("#b32b1d14"), TextAlignment.Center) : null;
+        var card = Box(Col(sh ? 8 : 12, Eyebrow(T("Режим Soul Knight") + " · " + T("переход на ") + G.skLvName(G.S.skLv + 1)), Logo(T("Выбери пассивку"), sh ? 26 : LogoSize(mv)),
+            Lead(T("Она действует до конца забега")), grid, taken), PaperB, 4, 24, new Thickness(18, 18, 18, 16), 8);
+        card.MaxWidth = 640;
+        return Ov(mv, card, true);
+    }
+    /// <summary>Значки пассивок: рисованные, без шрифтовых символов.</summary>
+    public static void DrawPassIcon(Ctx c, string icon, double w, double h)
+    {
+        double cx = w / 2, cy = h / 2, r = Math.Min(w, h) / 2 - 2;
+        var bg = icon switch { "heart" => "#ffb3a3", "stam" => "#bfe9ff", "piv" => "#ffe1a0", "shield" => "#d8dee4", "clover" => "#c9f2b0", "bag" => "#f6e3b8", "sword" => "#e6e3d6", _ => "#ffe9a8" };
+        c.fillStyle = bg; c.strokeStyle = G.INK; c.lineWidth = 2.5; c.beginPath(); c.arc(cx, cy, r, 0, Ctx.TAU); c.fill(); c.stroke();
+        c.save(); c.translate(cx, cy); c.lineWidth = 2; c.lineJoin = "round"; c.lineCap = "round";
+        switch (icon)
+        {
+            case "bag": c.fillStyle = "#a8622f"; G.rr(c, -11, -7, 22, 19, 5); c.fill(); c.stroke(); c.beginPath(); c.arc(0, -7, 6, Math.PI, Ctx.TAU); c.stroke(); c.fillStyle = "#c98a43"; G.rr(c, -7, 1, 14, 7, 2); c.fill(); c.stroke(); break;
+            case "heart": c.fillStyle = "#e8322a"; c.beginPath(); c.moveTo(0, 11); c.bezierCurveTo(-17, -1, -8, -15, 0, -6); c.bezierCurveTo(8, -15, 17, -1, 0, 11); c.closePath(); c.fill(); c.stroke(); break;
+            case "beak": c.fillStyle = "#f6a723"; c.beginPath(); c.moveTo(-10, -7); c.lineTo(13, 0); c.lineTo(-10, 7); c.closePath(); c.fill(); c.stroke(); G.seg(c, -10, 0, 6, 0); break;
+            case "rate": c.fillStyle = "#ffc93a"; c.beginPath(); c.moveTo(3, -13); c.lineTo(-7, 2); c.lineTo(0, 2); c.lineTo(-3, 13); c.lineTo(8, -3); c.lineTo(1, -3); c.closePath(); c.fill(); c.stroke(); break;
+            case "boot": c.fillStyle = "#fbfbf4"; c.beginPath(); c.ellipse(0, 0, 11, 8, -.3, 0, Ctx.TAU); c.fill(); c.stroke(); c.fillStyle = "#e6e3d6"; c.beginPath(); c.ellipse(-2, 1, 6, 4, -.3, 0, Ctx.TAU); c.fill(); c.stroke(); break;
+            case "stam": c.fillStyle = "#4cc3ff"; c.beginPath(); c.moveTo(0, -13); c.quadraticCurveTo(11, 2, 0, 11); c.quadraticCurveTo(-11, 2, 0, -13); c.fill(); c.stroke(); c.fillStyle = "#e3f7ff"; c.beginPath(); c.ellipse(-3, 2, 2, 3.5, 0, 0, Ctx.TAU); c.fill(); break;
+            case "shield": c.fillStyle = "#9aa3ad"; c.beginPath(); c.moveTo(0, -12); c.lineTo(10, -8); c.quadraticCurveTo(10, 6, 0, 12); c.quadraticCurveTo(-10, 6, -10, -8); c.closePath(); c.fill(); c.stroke(); break;
+            case "piv": Hud.Piv(c, 0, 0, 24); break;
+            case "sword": c.save(); c.rotate(-.8); c.translate(-14, 0); G.drawGun(c, "sword"); c.restore(); break;
+            case "egg": c.fillStyle = "#fffaf0"; c.beginPath(); c.ellipse(0, 1, 9, 12, 0, 0, Ctx.TAU); c.fill(); c.stroke(); c.fillStyle = "#c0392b"; c.fillRect(-8.5, -1, 17, 4); break;
+            case "star": c.fillStyle = "#ffd23a"; c.beginPath(); for (int i = 0; i < 10; i++) { double a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 == 1 ? 6 : 13; c.lineTo(Math.Cos(a) * q, Math.Sin(a) * q); } c.closePath(); c.fill(); c.stroke(); break;
+            case "clover": c.fillStyle = "#4fae36"; foreach (var (x, y) in new[] { (0.0, -6.0), (6.0, 0.0), (0.0, 6.0), (-6.0, 0.0) }) { c.beginPath(); c.arc(x, y, 5.5, 0, Ctx.TAU); c.fill(); c.stroke(); } break;
+        }
+        c.restore();
     }
 
     // ---------- Soul Knight: выбор героя ----------
@@ -235,7 +414,7 @@ public static class Overlays
                 Badges(Rar(RAR[Hp.rar].name, RAR[Hp.rar].c, 9.5), Rar(CLASSES[Hp.cls].name, CLASSES[Hp.cls].c, 9.5), Rar(T("Ур. ") + heroLv(skPick), "#6b5a48", 9.5)),
                 Txt(Hp.name, 16, FontWeight.Black),
                 Txt(T("Здоровье ") + pl.max + T(" · скорость ") + Math.Round(pl.spd) + T(" · урон ×") + f1(pl.dmgMul), 12.5, FontWeight.Bold),
-                Txt(T("Оружие: ") + WEAP[pl.prim].name + T(" + Деревянная палка (смена — кнопкой у оружия или F)"), 12.5, FontWeight.Medium),
+                Txt(T("Оружие сюжета остаётся дома: забег начинается с рогатки и палки, остальное — из сундуков и у торговца. Смена — кнопкой у оружия или ") + G.keyHint("swap") + ".", 12.5, FontWeight.Medium),
                 Rich(T("<b>Ульта: ") + Hp.ult[0] + ".</b> " + Hp.ult[1], 12.5, FontWeight.Medium),
                 Txt(Hp.perk, 12, FontWeight.Medium, B("#b32b1d14"))), StrawB, 0, 14, new Thickness(12, 10));
         }
@@ -279,8 +458,8 @@ public static class Overlays
             var t = Txt(text, 13.5, FontWeight.Medium); t.VerticalAlignment = VerticalAlignment.Center; d.Children.Add(t); return d;
         }
         var how = Box(Col(8, li("◀", "#5fcf3f", "#2b1d14", T("Левый палец — бежать")), li("●", "#c0392b", "#ffffff", T("Правый палец — целиться и стрелять. Держи на месте — бьёт по ближнему")),
-            li("", "#fff4dc", "#2b1d14", T("«Бум» — яйцо-граната")), li("★", "#ffc93a", "#2b1d14", T("Ульта копится от урона по врагам"))), StrawB, 0, 16, new Thickness(12));
-        var desk = Txt(T("На компьютере: WASD — бег, автонаводка стреляет сама (T — вкл/выкл), зажатая мышь — ручная стрельба, Q — граната, R — ульта"), 12, FontWeight.Medium, B("#b32b1d14"), TextAlignment.Center);
+            li("", "#fff4dc", "#2b1d14", T("«Бум» — яйцо-граната")), li("★", "#ffc93a", "#2b1d14", T("Ульта копится от урона по врагам")), li("◆", "#4cc3ff", "#2b1d14", T("Голубая полоска — стамина: выстрелы тратят её, а сама она понемногу восстанавливается"))), StrawB, 0, 16, new Thickness(12));
+        var desk = Txt(T("На компьютере: ") + G.keyHint("up") + G.keyHint("left") + G.keyHint("down") + G.keyHint("right") + T(" — бег, автонаводка стреляет сама (") + G.keyHint("auto") + T(" — вкл/выкл), зажатая мышь — ручная стрельба, ") + G.keyHint("nade") + T(" — граната, ") + G.keyHint("ult") + T(" — ульта, ") + G.keyHint("swap") + T(" — смена оружия, ") + G.keyHint("act") + T(" — взять или купить, ") + G.keyHint("full") + T(" — полный экран. Клавиши меняются в настройках."), 12, FontWeight.Medium, B("#b32b1d14"), TextAlignment.Center);
         var card = CardBox(380, Logo(T("Как играть"), LogoSize(mv)), how, desk, Best(T("Версия ") + GAME_VERSION), Btn(T("Понятно"), () => mv.Hide("helpOv")));
         mv.Show("helpOv", Ov(mv, card, true), 8);
     }
@@ -447,7 +626,7 @@ public static class Overlays
         foreach (var (id, n) in res.wcards)
         {
             var W = WEAP[id]; int lv = wLv(id); var wr = wRec(id); int nc = lv < 10 ? wNeed(id, lv) : 0;
-            R.Children.Add(row(framed(Panels.GunPv(id), "nest"), "+" + n + T(" карт · ") + W.name, lv < 10 ? wr.cards + " / " + nc + T(" до ур. ") + (lv + 1) + T(" · улучшай в магазине") : T("макс. уровень"), WRAR[W.rar].c));
+            R.Children.Add(row(framed(Panels.GunPv(id), "nest"), "+" + n + T(" карт · ") + W.name, lv < 10 ? wr.cards + " / " + nc + T(" до ур. ") + (lv + 1) + T(" · улучшай в разделе «Оружие»") : T("макс. уровень"), WRAR[W.rar].c));
         }
         if (res.heroes.Count == 0) { int left = HERO_IDS.Count(id => !SAVE.heroes.ContainsKey(id)); if (left > 0) R.Children.Add(row(null, G.StripIcon(T("<small>Героя в этот раз нет. Ещё не открыто: ")) + left, null)); }
         anim.takeT.Text = T("Забрать");

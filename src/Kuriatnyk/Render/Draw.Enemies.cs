@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Kuriatnyk.Render;
+using static Kuriatnyk.D;
 
 namespace Kuriatnyk;
 
@@ -254,6 +255,7 @@ public static partial class G
     }
     public static void drawObstacle(Ctx c, Obs o)
     {
+        if (drawSkObstacle(c, o)) return;
         c.save(); c.translate(o.x, o.y); c.strokeStyle = INK; c.lineWidth = 2.4; c.lineJoin = "round";
         double r = o.r;
         if (o.type == "hay")
@@ -310,6 +312,7 @@ public static partial class G
     static void drawPickup(Ctx c, Pickup p)
     {
         double bob = Math.Sin(p.ph * 4) * 3; if (p.t < 3 && Odd(p.t * 8)) return;
+        if (drawSkPickup(c, p)) return;
         c.save(); c.translate(p.x, p.y);
         c.strokeStyle = "rgba(255,236,150," + Inv(.5 + Math.Sin(p.ph * 6) * .3) + ")"; c.lineWidth = 3; c.beginPath(); c.ellipse(0, 0, 18, 7, 0, 0, TAU); c.stroke();
         c.translate(0, -14 + bob); c.strokeStyle = INK; c.lineWidth = 2.2; c.lineJoin = "round";
@@ -420,6 +423,17 @@ public static partial class G
         double top = Tt.fly ? -(60 * s) : -(t == "rat" ? 22 : t == "bigrat" ? 30 : t == "ferret" ? 32 : 52) * s;
         if (e.frozen > 0) { c.save(); c.globalAlpha = .7; c.fillStyle = "#d8f3ff"; c.strokeStyle = "#5fb2dc"; c.lineWidth = 2.5; rr(c, e.x - e.r * 1.3, e.y - e.r * 2.6 * s, e.r * 2.6, e.r * 2.7 * s, 6); c.fill(); c.stroke(); c.fillStyle = "rgba(255,255,255,.8)"; c.fillRect(e.x - e.r, e.y - e.r * 2.3 * s, 4, e.r * 1.6); c.restore(); }
         if (e.chill > 0) { c.save(); c.globalAlpha = .32; c.fillStyle = "#9fdcff"; c.beginPath(); c.ellipse(e.x, e.y + (Tt.fly ? -38 * s : -18 * s), e.r * 1.3, e.r * 1.15, 0, 0, TAU); c.fill(); c.restore(); }
+        if (e.honey > 0)
+        { // мёд и вонючая лужа: жёлтые капли стекают с врага
+            c.save(); c.fillStyle = "#f2a91f"; c.strokeStyle = INK; c.lineWidth = 1.2; c.globalAlpha = Math.Min(1, e.honey * 2);
+            for (int i = 0; i < 3; i++) { double x = e.x + (i - 1) * e.r * .55, y = e.y - e.r * 1.2 * s + ((S.t * 18 + i * 7) % 16); c.beginPath(); c.ellipse(x, y, 2.4, 3.4, 0, 0, TAU); c.fill(); c.stroke(); }
+            c.restore();
+        }
+        if (e.bubble > 0)
+        { // запертый в пузыре
+            double R = e.r * 1.7, cy = e.y - 18 * s; c.save(); c.globalAlpha = .35; c.fillStyle = "#ffd9f0"; c.beginPath(); c.arc(e.x, cy, R, 0, TAU); c.fill();
+            c.globalAlpha = .9; c.strokeStyle = "#ff8fc8"; c.lineWidth = 2; c.stroke(); c.fillStyle = "#fff"; c.beginPath(); c.ellipse(e.x - R * .4, cy - R * .45, R * .22, R * .12, -.6, 0, TAU); c.fill(); c.restore();
+        }
         if (e.stun > 0) drawStars(c, e.x, e.y + top + 4);
         if (e.kami)
         {

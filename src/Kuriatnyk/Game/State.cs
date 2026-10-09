@@ -26,7 +26,12 @@ public sealed class Player : Fighter
     public string hid, prim, w; public int hlv, nades;
     public double medMul, rangeMul, ammo, magnet, ultRate, inv, spin, svx, svy;
     public bool medic, revive, alive, wasFiring;
-    public string sec; public double swing, swingA; // Soul Knight: второе оружие (палка) и взмах
+    public double swing, swingA, swingR; // взмах ближним оружием
+    // стамина: тратится на выстрелы и понемногу восстанавливается; в сюжете при нехватке оружие стреляет вдвое реже
+    public double stam, stamMax, stamRegen, stamMul = 1, noStamT, stamT; // stamT — сколько секунд стамину не тратили
+    // Soul Knight: оружие в рюкзаке (до bagMax) и бонусы пассивок забега
+    public List<string> bag; public int slot, bagMax = 2;
+    public double crit, vamp, meleeMul = 1, pivMul = 1; public int luck; public bool magnetFar;
 }
 
 public sealed class Ally : Fighter
@@ -38,7 +43,7 @@ public sealed class Enemy : Unit
 {
     public string type, st = "walk", body, wing; public ET T;
     public double cd, ang, phase, flash, strafe, strafeT, bite, kx, ky, stun, burn, chill, burnDps, burnTick, tellT, dashT, dx, dy, dashLen,
-        atkT = 2.5, spin, spinA, burstT, emerge, kamiT, iceT, frozen, tgT, navT, s;
+        atkT = 2.5, spin, spinA, burstT, emerge, kamiT, iceT, frozen, tgT, navT, s, honey, bubble;
     public double? navBest;
     public int face = 1, pat = -1, burst, dashes, iceN, navAlt;
     public bool moving, dead, hop, kami, kamiRolled, endless, hitThis;
@@ -50,6 +55,7 @@ public sealed class Bullet
 {
     public double x, y, vx, vy, r, dmg, life, max, spin; public bool fromP, ally, frag; public string kind;
     public int pierce, bounce, shape; public List<Enemy> hits; public Ally owner;
+    public Weap w; public bool back; public double tick; // снаряд оружия Soul Knight: свойства берутся из w
 }
 
 public sealed class Part
@@ -58,11 +64,15 @@ public sealed class Part
 }
 
 public sealed class FText { public double x, y, size, t, max, vx; public string txt, col; }
-public sealed class Pickup { public double x, y, t, ph; public string kind; }
+/// <summary>Предмет на земле. kind: corn, nade, stam, piv (пивчики, n — сколько), skw (оружие wid), а также временные стволы.
+/// price &gt; 0 — товар у торговца, берётся кнопкой действия.</summary>
+public sealed class Pickup { public double x, y, t, ph, vx, vy, z, vz; public string kind, wid; public int n, price; }
 public sealed class Nade { public double x, y, z, vx, vy, vz, t, rot; }
-public sealed class Bomb { public double x, y, t, max, r, dmg, heal, sx, sy; public bool fromP, lob, quiet; }
+public sealed class Bomb { public double x, y, t, max, r, dmg, heal, sx, sy; public bool fromP, lob, quiet; public string kind; }
 public sealed class Hole { public double x, y, t, ct, life, spawnT; public string state; public int made, max; }
 public sealed class Zone { public double x, y, t, r, max; }
+/// <summary>Лужи и облака от оружия Soul Knight: poop — вонючая лужа, poison — ядовитое облако, roots — корни.</summary>
+public sealed class Goo { public double x, y, t, max, r, dps, tick; public string kind; public HashSet<Enemy> held; }
 
 public sealed class GState
 {
@@ -72,6 +82,7 @@ public sealed class GState
     public double comboT, deadT, winT; public long coins, tokens; public bool banked = true;
     public double holeT, bossT, kamiNext; public bool cleanup;
     public int skLv; public string skHero; // Soul Knight: уровень 0-N (0 — лагерь) и выбранный герой
+    public long piv; public List<string> skPass = new(); // пивчики забега и взятые пассивки
 }
 
 public static partial class G
@@ -106,6 +117,7 @@ public static partial class G
     public static List<FText> texts = new();
     public static List<Hole> holes = new();
     public static List<Zone> zones = new(), strikes = new(), puddles = new(); // puddles — лужи от Кря-волны; strikes — зона яичного дождя
+    public static List<Goo> goo = new();
     public static List<Ally> allies = new();
     public static Unit curTg;
     public static double camX, camY;
@@ -149,21 +161,39 @@ public static partial class G
             }
     }
 
+    /// <summary>Характеристики героя на уровне Lv (класс, прокачка и пассивки, которые меняют числа).</summary>
+    public sealed class HStats { public double hp, dmg, rate, spd, armor, regen, range; }
+    public static HStats heroStats(string id, int Lv)
+    {
+        var H = HEROES[id]; var C = H.cls;
+        return new HStats
+        {
+            hp = Math.Round(H.hp * (1 + .06 * (Lv - 1)) * (C == "tank" ? 1.25 : C == "sniper" ? .9 : 1), MidpointRounding.AwayFromZero),
+            dmg = H.dmg * (1 + .05 * (Lv - 1)) * (C == "sniper" ? 1.2 : 1),
+            rate = H.rate * (C == "assault" ? 1.1 : 1) * (id == "guinea" && Lv >= 10 ? 1.15 : 1),
+            spd = H.spd * (C == "assault" ? 1.1 : C == "tank" ? .92 : 1),
+            armor = H.armor + (id == "duck" && Lv >= 5 ? .1 : 0) + (id == "goose" && Lv >= 10 ? .15 : 0) + (C == "tank" ? .1 : 0),
+            regen = H.regen + (C == "medic" ? 1.2 : 0),
+            range = C == "sniper" ? 1.35 : 1,
+        };
+    }
+    // в подземелье стамина восстанавливается медленно и только когда 1,5 с не стреляешь — основное пополнение из кристаллов
+    public const double STAM_MAX = 50, STAM_REGEN = 5, SK_STAM_MAX = 100, SK_STAM_REGEN = .6, SK_STAM_PAUSE = 1.5;
+
     public static Player newPlayer(string heroId = null)
     {
         var id = heroId ?? SAVE.hero; var H = HEROES[id]; int Lv = heroLv(id);
         var C = H.cls; var gun = gunOf(id); double medMul = id == "nurse" && Lv >= 10 ? 2 : 1;
-        double max = Math.Round(H.hp * (1 + .06 * (Lv - 1)) * (C == "tank" ? 1.25 : C == "sniper" ? .9 : 1), MidpointRounding.AwayFromZero);
-        double armor = H.armor + (id == "duck" && Lv >= 5 ? .1 : 0) + (id == "goose" && Lv >= 10 ? .15 : 0) + (C == "tank" ? .1 : 0);
+        var st = heroStats(id, Lv);
         return new Player
         {
-            hid = id, cls = C, hlv = Lv, x = WW / 2, y = WH / 2 + 40, r = H.r, hp = max, max = max,
-            spd = H.spd * (C == "assault" ? 1.1 : C == "tank" ? .92 : 1), dmgMul = H.dmg * (1 + .05 * (Lv - 1)) * (C == "sniper" ? 1.2 : 1),
-            rateMul = H.rate * (C == "assault" ? 1.1 : 1) * (id == "guinea" && Lv >= 10 ? 1.15 : 1), armor = armor, regen = H.regen, medMul = medMul,
-            medic = C == "medic", rangeMul = C == "sniper" ? 1.35 : 1,
+            hid = id, cls = C, hlv = Lv, x = WW / 2, y = WH / 2 + 40, r = H.r, hp = st.hp, max = st.hp,
+            spd = st.spd, dmgMul = st.dmg, rateMul = st.rate, armor = st.armor, regen = H.regen, medMul = medMul,
+            medic = C == "medic", rangeMul = st.range,
             nades = Math.Min(6, 2 + H.nade), hop = id == "duck", kitT = 8, prim = gun, w = gun, ammo = double.PositiveInfinity, magnet = 20,
             ult = 0, ultRate = (id == "chick" && Lv >= 10) ? 1.4 : 1, revive = id == "duck" && Lv >= 10,
-            look = lookFor(id), lastHit = -9, face = 1, alive = true
+            look = lookFor(id), lastHit = -9, face = 1, alive = true,
+            stam = STAM_MAX, stamMax = STAM_MAX, stamRegen = STAM_REGEN
         };
     }
     public static bool hasP(int n) => P != null && P.hlv >= n;

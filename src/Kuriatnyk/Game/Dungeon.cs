@@ -32,7 +32,7 @@ public static partial class G
 {
     public static Dungeon DUN;
     public const int SK_LEVELS = 5;
-    const double WALL = 22, CORR_W = 96;
+    const double WALL = 22, CORR_W = 96, SK_SIZE = 2300; // уровень подземелья — мир 2300×2300, чтобы комнаты были просторными
     const string DUN_VOID = "#1b2018";
 
     /// <summary>Какие враги живут на уровне 0-lv (чем глубже, тем злее).</summary>
@@ -51,8 +51,12 @@ public static partial class G
     {
         if (heroId == null || !SAVE.heroes.ContainsKey(heroId)) heroId = SAVE.hero;
         lastBridge = null;
-        P = newPlayer(heroId); P.sec = "stick"; allies = new();
-        enemies = new(); bullets = new(); parts = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); holes = new(); zones = new(); strikes = new(); puddles = new();
+        P = newPlayer(heroId); allies = new();
+        // оружие сюжета сюда не берём: забег начинается с рогатки и палки
+        P.bag = new List<string>(SKW.START); P.slot = 0; P.w = P.prim = P.bag[0]; P.bagMax = 2;
+        P.stamMax = P.stam = SK_STAM_MAX; P.stamRegen = SK_STAM_REGEN;
+        enemies = new(); bullets = new(); parts = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); holes = new(); zones = new(); strikes = new(); puddles = new(); goo = new();
+        S.piv = 0; S.skPass = new();
         S.mode = "play"; S.kind = "sk"; S.skHero = heroId; S.lvIdx = 0; S.L = null; S.diff = 1; S.night = false; S.t = 0; S.score = 0; S.wave = 0; S.toSpawn = 0; S.spawnT = 0;
         S.between = 0; S.running = true; S.kills = 0; S.goalKills = 0; S.survT = 0; S.boss = null; S.bossT = 0; S.shake = 0;
         S.combo = 0; S.comboT = 0; S.deadT = 0; S.winT = 0; S.coins = 0; S.tokens = 0; S.banked = false; S.cleanup = false; S.kamiNext = 0;
@@ -63,14 +67,14 @@ public static partial class G
 
     static void resetField()
     {
-        enemies = new(); bullets = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); zones = new(); strikes = new(); puddles = new();
-        S.boss = null; bossBarOn = false; RIVERS = new(); RIVER = null;
+        enemies = new(); bullets = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); zones = new(); strikes = new(); puddles = new(); goo = new();
+        S.boss = null; bossBarOn = false; RIVERS = new(); RIVER = null; actPick = null; fish = new();
     }
     static void snapCamera() { double vw = VW / SC, vh = VH / SC; camX = P.x - vw / 2; camY = P.y - 28 - vh / 2; }
 
     static void enterHub()
     {
-        resetField(); S.skLv = 0;
+        resetField(); S.skLv = 0; WW = WH = MAP_SIZE;
         var D = new Dungeon { hub = true };
         var R = new Room { type = "hub", w = 560, h = 420, cleared = true }; R.x = WW / 2 - R.w / 2; R.y = WH / 2 - R.h / 2; D.rooms.Add(R);
         D.portals.Add(new Portal { x = R.cx, y = R.y + 120, on = true, kind = "start" });
@@ -84,7 +88,7 @@ public static partial class G
 
     static void enterLevel(int lv)
     {
-        resetField(); S.skLv = lv; S.lvIdx = lv; S.diff = 1 + (lv - 1) * 1.5;
+        resetField(); S.skLv = lv; S.lvIdx = lv; S.diff = 1 + (lv - 1) * 1.5; WW = WH = SK_SIZE;
         buildLevel(lv); renderDungeon();
         var st = DUN.rooms.First(r => r.type == "start");
         P.x = st.cx; P.y = st.cy + 30; P._px = P.x; P._py = P.y; P.buff = null; P.inv = 1;
@@ -98,24 +102,38 @@ public static partial class G
     static void buildLevel(int lv)
     {
         double cs = (WW - 2 * FENCE) / 3;
-        int len = lv switch { 1 => 4, 2 => 5, 3 => 5, 4 => 6, _ => 5 };
-        List<(int x, int y)> path = null;
-        for (int tries = 0; tries < 400 && path == null; tries++)
+        int len = lv switch { 1 => 4, _ => 5 };
+        // в стороне от пути: торговец и сундук на каждом уровне, на 0-4 ещё необязательный босс
+        var extraTypes = new List<string> { "shop", "chest" }; if (lv == 4) extraTypes.Insert(0, "bossopt");
+        List<(int x, int y)> path = null, any = null; List<((int x, int y) cell, int at, string type)> extras = null;
+        static IEnumerable<(int x, int y)> nbs((int x, int y) c) => new[] { (c.x + 1, c.y), (c.x - 1, c.y), (c.x, c.y + 1), (c.x, c.y - 1) }.Where(q => q.Item1 >= 0 && q.Item1 < 3 && q.Item2 >= 0 && q.Item2 < 3);
+        for (int tries = 0; tries < 600 && extras == null; tries++)
         {
             var p = new List<(int x, int y)> { ((int)(rnd() * 3), (int)(rnd() * 3)) };
             while (p.Count < len)
             {
-                var (x, y) = p[^1];
-                var nb = new[] { (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1) }.Where(c => c.Item1 >= 0 && c.Item1 < 3 && c.Item2 >= 0 && c.Item2 < 3 && !p.Contains(c)).ToList();
+                var nb = nbs(p[^1]).Where(c => !p.Contains(c)).ToList();
                 if (nb.Count == 0) break;
                 p.Add(nb[(int)(rnd() * nb.Count)]);
             }
-            if (p.Count == len) path = p;
+            if (p.Count != len) continue;
+            any = p;
+            var used = new HashSet<(int x, int y)>(p); var ex = new List<((int x, int y), int, string)>(); bool ok = true;
+            foreach (var t in extraTypes)
+            {
+                var opts = new List<((int x, int y) c, int at)>();
+                for (int i = t == "bossopt" ? 1 : 0; i < len - 1; i++) foreach (var c in nbs(p[i])) if (!used.Contains(c)) opts.Add((c, i));
+                if (opts.Count == 0) { ok = false; break; }
+                var o = opts[(int)(rnd() * opts.Count)]; used.Add(o.c); ex.Add((o.c, o.at, t));
+            }
+            if (ok) { path = p; extras = ex; }
         }
+        if (path == null) { path = any; extras = new(); } // не нашлось места — уровень без комнат в стороне
         var D = new Dungeon();
         Room mk((int x, int y) g, string type)
         {
-            double w = type is "start" or "end" ? 250 : type is "boss" or "bossopt" ? 410 : 350, h = type is "start" or "end" ? 230 : type is "boss" or "bossopt" ? 390 : 310;
+            double w = type is "start" or "end" ? 300 : type is "boss" or "bossopt" ? 660 : type is "shop" or "chest" ? 340 : 600,
+                h = type is "start" or "end" ? 270 : type is "boss" or "bossopt" ? 600 : type is "shop" or "chest" ? 300 : 520;
             var R = new Room { type = type, w = w, h = h };
             R.x = FENCE + cs * (g.x + .5) - w / 2; R.y = FENCE + cs * (g.y + .5) - h / 2; D.rooms.Add(R); return R;
         }
@@ -134,33 +152,54 @@ public static partial class G
             var R = mk(path[i], type); R.waves = lv <= 2 ? 2 : 3; rooms.Add(R);
             if (i > 0) link(rooms[i - 1], R);
         }
-        if (lv == 4)
-        { // необязательный босс — в стороне от пути, к нему ведёт отдельный коридор
-            for (int i = 1; i < path.Count - 1; i++)
-            {
-                var (x, y) = path[i];
-                var free = new[] { (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1) }.Where(c => c.Item1 >= 0 && c.Item1 < 3 && c.Item2 >= 0 && c.Item2 < 3 && !path.Contains(c)).ToList();
-                if (free.Count == 0) continue;
-                var B = mk(free[(int)(rnd() * free.Count)], "bossopt"); link(rooms[i], B); break;
-            }
-        }
+        foreach (var (cell, at, type) in extras) { var X = mk(cell, type); X.cleared = type != "bossopt"; link(rooms[at], X); } // отдельный коридор в сторону
         // укрытия в боевых комнатах
         OBS = new();
+        foreach (var R in D.rooms)
+        {
+            if (R.type == "chest") OBS.Add(new Obs { x = R.cx, y = R.cy - 6, r = 26, type = "skchest" });
+            if (R.type == "shop") OBS.Add(new Obs { x = R.cx, y = R.y + 82, r = 34, type = "counter" });
+        }
+        // речки на некоторых уровнях: в 0-2 и 0-4 — в двух боевых комнатах, в 0-3 — в одной
+        DUN = D; RIVERS = new(); RIVER = null;
+        int nRiv = lv is 2 or 4 ? 2 : lv == 3 ? 1 : 0;
+        foreach (var R in D.rooms.Where(r => r.type == "fight").OrderBy(_ => rnd()).Take(nRiv)) addRoomRiver(R);
+        foreach (var b in allBridges()) b.ends = bridgeEnds(b);
+        spawnFish();
         var kinds = new[] { "barrel", "rock", "stump", "bush", "barrel", "rock" };
+        bool free(double x, double y, double r) => !OBS.Any(o => hypot(o.x - x, o.y - y) < o.r + r + 60) && !nearWater(x, y, r + 30) && bridgeAt(x, y) == null;
         foreach (var R in D.rooms.Where(r => r.type is "fight" or "bossopt" or "boss"))
         {
-            int n = R.type == "fight" ? 2 + (int)(rnd() * 2) : 2;
-            for (int k = 0, tries = 0; k < n && tries < 60; tries++)
+            int n = R.type == "fight" ? 4 + (int)(rnd() * 2) : 3;
+            for (int k = 0, tries = 0; k < n && tries < 80; tries++)
             {
                 var t = kinds[(int)(rnd() * kinds.Length)]; double r = t == "barrel" ? 21 : t == "stump" ? 22 : 26;
-                double x = rand(R.x + 70, R.x + R.w - 70), y = rand(R.y + 70, R.y + R.h - 60);
-                if (hypot(x - R.cx, y - R.cy) < 80 || OBS.Any(o => hypot(o.x - x, o.y - y) < o.r + r + 60)) continue;
+                double x = rand(R.x + 80, R.x + R.w - 80), y = rand(R.y + 80, R.y + R.h - 70);
+                if (Math.Abs(x - R.cx) < 60 || Math.Abs(y - R.cy) < 60 || !free(x, y, r)) continue; // проходы к дверям — свободны
                 OBS.Add(new Obs { x = x, y = y, r = r, type = t }); k++;
+            }
+            // ящики, которые можно разбить
+            for (int k = 0, tries = 0; k < 3 && tries < 60; tries++)
+            {
+                double x = rand(R.x + 60, R.x + R.w - 60), y = rand(R.y + 60, R.y + R.h - 50);
+                if (Math.Abs(x - R.cx) < 55 || Math.Abs(y - R.cy) < 55 || !free(x, y, 20)) continue;
+                OBS.Add(newCrate(x, y)); k++;
             }
         }
         var end = rooms[^1];
         D.portals.Add(new Portal { x = end.cx, y = end.cy, on = end.type == "end", kind = "next" });
-        DUN = D;
+        foreach (var R in D.rooms) if (R.type == "shop") stockShop(R);
+    }
+    /// <summary>Речка поперёк боевой комнаты: в стороне от дверей, с мостом напротив прохода и ещё одним сбоку.</summary>
+    static void addRoomRiver(Room R)
+    {
+        bool hz = rnd() < .5; // h — течёт слева направо
+        var Rv = new River { axis = hz ? 'h' : 'v', amp = 10, freq = .02, phase = rand(0, TAU), hw = 30, room = R };
+        double along0 = hz ? R.x : R.y, len = hz ? R.w : R.h, across0 = hz ? R.y : R.x, across = hz ? R.h : R.w;
+        Rv.@base = across0 + across * (rnd() < .5 ? .27 : .73);
+        Rv.lo = along0 - 4; Rv.hi = along0 + len + 4;
+        Rv.bridges = new[] { along0 + len / 2, along0 + len * (rnd() < .5 ? .17 : .83) }.Select(u => new Bridge { u = u, hw = 34, R = Rv }).ToList();
+        RIVERS.Add(Rv); RIVER ??= Rv;
     }
 
     /* ---------- где можно ходить ---------- */
@@ -206,6 +245,8 @@ public static partial class G
     {
         var D = DUN; if (D == null || !P.alive) return;
         D.enterCd -= dt;
+        findAct();
+        foreach (var o in OBS) if (o.type == "skchest" && !o.open && hypot(o.x - P.x, o.y - P.y) < o.r + P.r + 16) openChest(o);
         foreach (var p in D.portals)
         {
             p.t += dt;
@@ -251,17 +292,22 @@ public static partial class G
         for (int i = 0; i < n; i++)
         {
             var type = pickFrom(mix); var Tt = ETYPE[type];
-            double x = R.cx, y = R.cy;
-            for (int t = 0; t < 30; t++)
+            // появляются подальше от героя (быстрые мыши и крысы — ещё дальше), не в воде и не в укрытиях
+            bool fast = type is "rat" or "bigrat" or "fox" or "wolf";
+            double x = R.cx, y = R.cy, bestD = -1, bx = R.cx, by = R.cy;
+            for (int t = 0; t < 40; t++)
             {
                 x = rand(R.x + 40, R.x + R.w - 40); y = rand(R.y + 40, R.y + R.h - 40);
-                if (hypot(x - P.x, y - P.y) > 150 && !OBS.Any(o => hypot(o.x - x, o.y - y) < o.r + Tt.r + 6)) break;
+                if (OBS.Any(o => hypot(o.x - x, o.y - y) < o.r + Tt.r + 6) || nearWater(x, y, Tt.r + 10) || bridgeAt(x, y) != null) continue;
+                var d = hypot(x - P.x, y - P.y); if (d > bestD) { bestD = d; bx = x; by = y; }
+                if (d > (fast ? 320 : 240)) break;
             }
-            int cnt = type == "rat" ? 3 : type == "bigrat" ? 2 : 1;
+            x = bx; y = by;
+            int cnt = type == "rat" ? 2 : 1;
             for (int k = 0; k < cnt; k++)
             {
                 var e = makeEnemy(type, clamp(x + (k == 0 ? 0 : rand(-26, 26)), R.x + 30, R.x + R.w - 30), clamp(y + (k == 0 ? 0 : rand(-26, 26)), R.y + 30, R.y + R.h - 30));
-                e.room = R; e.emerge = .55; ring(e.x, e.y, "#ff5a3c", 34, .5);
+                e.room = R; e.emerge = fast ? .9 : .6; ring(e.x, e.y, "#ff5a3c", 34, .5); // юркие вылезают дольше — успеешь отбежать
             }
         }
         if (R.wave > 1) ftext(P.x, P.y - 60, T("Волна ") + R.wave + "/" + R.waves, "#ffc93a", 14);
@@ -274,9 +320,12 @@ public static partial class G
         double r = rnd();
         if (r < .4) pickups.Add(new Pickup { x = R.cx, y = R.cy, kind = "corn", t = 60, ph = 0 });
         else if (r < .65) pickups.Add(new Pickup { x = R.cx, y = R.cy, kind = "nade", t = 60, ph = 0 });
+        if (rnd() < .35) pickups.Add(new Pickup { x = R.cx + 30, y = R.cy + 10, kind = "stam", t = 60, ph = 0 });
+        dropPiv(R.cx, R.cy, 5 + S.skLv * 2);
         if (R.type == "bossopt")
         {
             int eg = 2; SAVE.eggs += eg; S.coins += 60; persist();
+            var w = rollSkWeapon(S.skLv, P.luck + 2, skTaken()); dropWeapon(w, R.cx, R.cy + 40); dropPiv(R.cx, R.cy, 25);
             showBanner(T("Босс повержен!"), "+" + eg + T(" золотых яиц · +60 зёрен")); Music.Play("battle");
         }
         else if (R.type == "boss")
@@ -289,12 +338,17 @@ public static partial class G
     {
         Sfx.ult(); ring(P.x, P.y, "#b48cff", 120, .5); puff(P.x, P.y, "#d9c4ff", 12, 1.2);
         if (p.kind == "start") { enterLevel(1); return; }
-        if (S.skLv < SK_LEVELS) enterLevel(S.skLv + 1); else skFinish();
+        if (S.skLv >= SK_LEVELS) { skFinish(); return; }
+        // между уровнями — выбор одной пассивки из трёх
+        skOffer = rollPassives(3);
+        if (skOffer.Count == 0) { enterLevel(S.skLv + 1); return; }
+        S.mode = "pick"; sticks.move = sticks.aim = null; input.firing = false; Music.Duck(.5);
+        Ui.ShowSkPick(skOffer);
     }
     static void skFinish()
     {
         S.mode = "result"; sticks.move = sticks.aim = null; input.firing = false;
-        long sc = S.coins, st = S.tokens; bankCoins();
+        skCashPiv(); long sc = S.coins, st = S.tokens; bankCoins();
         bool first = !SAVE.eggMs.ContainsKey("skRun");
         long lc = 150, lt = 40; int le = first ? 10 : 0;
         SAVE.coins += lc; SAVE.tokens += lt; SAVE.eggs += le; if (first) { SAVE.eggMs["skRun"] = 1; SAVE.btokens++; }
@@ -313,43 +367,59 @@ public static partial class G
         return skLvName(S.skLv) + " · " + T("комнаты ") + f.Count(r => r.cleared) + "/" + f.Count;
     }
 
-    /* ---------- оружие: палка и смена ствола ---------- */
+    /* ---------- оружие: рюкзак и ближний бой ---------- */
+    /// <summary>Следующее оружие из рюкзака (F или кнопка у названия оружия).</summary>
     public static void swapWeapon()
     {
-        if (S.mode != "play" || P == null || !P.alive || P.sec == null) return;
-        if (P.w == P.sec) P.w = P.prim; else P.w = P.sec;
+        if (S.mode != "play" || P == null || !P.alive || P.bag == null || P.bag.Count < 2) return;
+        selectSlot((P.slot + 1) % P.bag.Count);
+    }
+    public static void selectSlot(int i)
+    {
+        if (S.mode != "play" || P == null || !P.alive || P.bag == null || i < 0 || i >= P.bag.Count || (i == P.slot && P.w == P.bag[i])) return;
+        P.slot = i; P.w = P.prim = P.bag[i]; P.spin = 0;
         P.ammo = double.PositiveInfinity; P.cd = Math.Max(P.cd, .15); Sfx.click();
         ftext(P.x, P.y - 54, WEAP[P.w].name, "#ffc93a", 13);
     }
     const double MELEE_R = 80, MELEE_ARC = 1.15;
-    /// <summary>Взмах палкой: бьёт всех врагов в секторе перед героем и отбивает вражеские яйца.</summary>
-    static void meleeSwing(double ang, double dmg)
+    /// <summary>Взмах ближним оружием: бьёт всех врагов в секторе перед героем и отбивает вражеские яйца
+    /// (сковородка — обратно во врагов). Меч-кладенец ещё и пускает волну.</summary>
+    static void meleeSwing(double ang, Weap W)
     {
-        P.swing = .22; P.swingA = ang;
+        double R = W.meleeR > 0 ? W.meleeR : MELEE_R, arc = W.arc > 0 ? W.arc : MELEE_ARC, dmg = W.dmg * P.dmgMul * P.meleeMul;
+        P.swing = .22; P.swingA = ang; P.swingR = R;
         double hx = P.x, hy = P.y; int hits = 0;
         for (int i = 0; i < enemies.Count; i++)
         {
             var e = enemies[i]; if (e.dead) continue;
-            double dx = e.x - hx, dy = e.y - hy, d = hypot(dx, dy); if (d - e.r > MELEE_R) continue;
+            double dx = e.x - hx, dy = e.y - hy, d = hypot(dx, dy); if (d - e.r > R) continue;
             var df = Math.Abs(((Math.Atan2(dy, dx) - ang + Math.PI * 3) % TAU) - Math.PI);
-            if (df > MELEE_ARC && d > e.r + P.r + 6) continue;
-            hitEnemy(e, dmg, dx, dy, true, 1.8); hits++;
+            if (df > arc && d > e.r + P.r + 6) continue;
+            hitEnemy(e, dmg, dx, dy, true, 1.8 * W.knock); hits++;
+            if (W.stun > 0 && !e.T.boss && !e.dead) e.stun = Math.Max(e.stun, W.stun);
         }
         for (int i = bullets.Count - 1; i >= 0; i--)
         {
             var b = bullets[i]; if (b.fromP) continue;
-            double dx = b.x - hx, dy = b.y - hy, d = hypot(dx, dy); if (d > MELEE_R + 10) continue;
-            var df = Math.Abs(((Math.Atan2(dy, dx) - ang + Math.PI * 3) % TAU) - Math.PI); if (df > MELEE_ARC) continue;
+            double dx = b.x - hx, dy = b.y - hy, d = hypot(dx, dy); if (d > R + 10) continue;
+            var df = Math.Abs(((Math.Atan2(dy, dx) - ang + Math.PI * 3) % TAU) - Math.PI); if (df > arc) continue;
+            if (W.reflect) { b.fromP = true; b.vx = Math.Cos(ang) * 620; b.vy = Math.Sin(ang) * 620; b.dmg = 26 * P.dmgMul; b.life = 1; b.kind = "refl"; b.pierce = 0; b.hits = null; puff(b.x, b.y, "#ffe066", 2, .5); continue; }
             puff(b.x, b.y, "#fff4dc", 2, .5); bullets.RemoveAt(i);
         }
-        parts.Add(new Part { k = "swing", x = hx, y = hy, a = ang, t = 0, max = .18, R = MELEE_R });
+        parts.Add(new Part { k = "swing", x = hx, y = hy, a = ang, t = 0, max = .18, R = R, s = arc, col = W.id == "sword" ? "#9fe3ff" : null });
+        if (W.wave > 0)
+        {
+            var b = skBullet(W, P.x + Math.Cos(ang) * 30, P.y + Math.Sin(ang) * 30, ang, 700, W.wave * P.dmgMul * P.meleeMul, 0);
+            b.kind = "wave"; b.r = 16; b.life = b.max = .45; b.pierce = 99; b.hits = new();
+        }
+        hitCratesArea(hx, hy, R, dmg, ang, arc);
         if (hits > 0) { S.shake += 3; Platform.Buzz(15); }
     }
 
     /* ---------- отрисовка ---------- */
     static void renderDungeon()
     {
-        double res = COARSE ? 1 : 2;
+        double res = COARSE ? 1 : WW > MAP_SIZE ? 1.35 : 2; // большой уровень — чуть ниже разрешение, чтобы картинка не разрасталась
         var info = new SKImageInfo((int)(WW * res), (int)(WH * res), SKColorType.Rgba8888, SKAlphaType.Premul);
         using var surf = SKSurface.Create(info);
         var g = new Ctx(); g.Begin(surf.Canvas); g.scale(res, res);
@@ -389,6 +459,11 @@ public static partial class G
             g.fillStyle = wallFace; g.fillRect(R.x, R.y - 2, R.w, 14); g.fillStyle = "rgba(0,0,0,.18)"; g.fillRect(R.x, R.y + 12, R.w, 5); // лицевая сторона верхней стены
         }
         foreach (var c in DUN.cors) floorRect(c.x, c.y, c.w, c.h, true);
+        if (RIVERS.Count > 0)
+        { // речки в комнатах — только по полу своих комнат, не на стенах
+            g.save(); g.beginPath(); foreach (var Rv in RIVERS) g.rect(Rv.room.x, Rv.room.y, Rv.room.w, Rv.room.h); g.clip();
+            paintRivers(g, "#8a7a55", "#3d8fb8", "#2f7aa0"); g.restore();
+        }
         if (hub)
         { // закрытая дверь в стене лагеря
             double dx = DUN.doorX, dy = DUN.doorY;

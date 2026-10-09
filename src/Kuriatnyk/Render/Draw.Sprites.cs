@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Kuriatnyk.Render;
+using static Kuriatnyk.D;
 
 namespace Kuriatnyk;
 
@@ -42,6 +43,7 @@ public static partial class G
 
     public static void drawGun(Ctx c, string type)
     {
+        if (drawSkGun(c, type)) return;
         c.strokeStyle = INK; c.lineWidth = 2; c.lineJoin = "round";
         void box(double x, double y, double w, double h, double r, string f) { c.fillStyle = f; rr(c, x, y, w, h, r); c.fill(); c.stroke(); }
         if (type == "pistol" || type == "eggun")
@@ -398,7 +400,7 @@ public static partial class G
         if (adren && !fl) { c.fillStyle = "#ffd23a"; c.lineWidth = 1.2; c.beginPath(); c.moveTo(0, -24); c.lineTo(-4, -18.5); c.lineTo(-1.5, -18.5); c.lineTo(-4, -14); c.lineTo(2, -20); c.lineTo(-.5, -20); c.closePath(); c.fill(); c.stroke(); }
         c.restore();
         c.translate(o.face * 3 * s, sp.gy * s - bob); c.rotate(o.ang); if (Math.Cos(o.ang) < 0) c.scale(1, -1);
-        if (o.gun == "stick") c.rotate(o.swing > 0 ? -1.5 + 3 * (1 - o.swing) : -.75); // палка поднята, при ударе — размах сверху вниз
+        if (o.gun != null && WEAP.TryGetValue(o.gun, out var gw) && gw.special == "melee") c.rotate(o.swing > 0 ? -1.5 + 3 * (1 - o.swing) : -.75); // ближнее оружие поднято, при ударе — размах сверху вниз
         drawGun(c, o.gun);
         c.strokeStyle = INK; c.lineWidth = 2; circ(c, 6, 1, 4.2, fl ? "#fff" : o.wing);
         c.restore();

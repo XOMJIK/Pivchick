@@ -36,6 +36,8 @@ public static class Hud
             case "ult": useUlt(); break;
             case "pause": Sfx.click(); pauseGame(); break;
             case "swap": swapWeapon(); break;
+            case "act": interact(); break;
+            case "slot0": selectSlot(0); break; case "slot1": selectSlot(1); break; case "slot2": selectSlot(2); break;
             case "mute": SET.muted = !SET.muted; saveSet(); Audio.ApplyVolume(); Sfx.click(); break;
         }
     }
@@ -58,6 +60,13 @@ public static class Hud
         c.fillStyle = YOLK; c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.arc(x, y, s / 2 - 1, 0, TAU); c.fill(); c.stroke();
         c.fillStyle = "#fff3b8"; c.beginPath(); c.arc(x - s * .15, y - s * .15, s * .2, 0, TAU); c.fill();
     }
+    /// <summary>Пивчик — янтарная монетка с пенной шапкой.</summary>
+    public static void Piv(Ctx c, double x, double y, double s)
+    {
+        c.fillStyle = "#e89a1c"; c.strokeStyle = INK; c.lineWidth = Math.Max(1.4, s * .14); c.beginPath(); c.arc(x, y, s / 2 - 1, 0, TAU); c.fill(); c.stroke();
+        c.fillStyle = "#ffd25a"; c.beginPath(); c.arc(x, y + s * .06, s * .3, 0, TAU); c.fill();
+        c.fillStyle = "#fffaf0"; c.beginPath(); c.arc(x - s * .14, y - s * .14, s * .14, 0, TAU); c.arc(x + s * .02, y - s * .2, s * .15, 0, TAU); c.arc(x + s * .17, y - s * .13, s * .12, 0, TAU); c.fill();
+    }
     public static void Tok(Ctx c, double x, double y, double s, string col = "#4cc3ff", string dot = "#e3f7ff")
     {
         c.save(); c.translate(x, y); c.rotate(Math.PI / 4); var h = s * .82 / 2;
@@ -72,6 +81,7 @@ public static class Hud
         RRect(c, x, y, w, h, 9, bg, bordered ? 2 : 0);
         if (icon == "coin") Coin(c, x + padX + 6, y + h / 2, 12.4);
         else if (icon == "tok") Tok(c, x + padX + 6, y + h / 2, 12.4);
+        else if (icon == "piv") Piv(c, x + padX + 6, y + h / 2, 13.4);
         c.fillStyle = fg; c.textAlign = "left"; c.fillText(text, x + padX + iw, y + h / 2 + 4.6);
         return w;
     }
@@ -79,10 +89,13 @@ public static class Hud
     /// <summary>Подсказка клавиши на кнопке (ПК): маленькая «клавиша» с буквой.</summary>
     static void KeyCap(Ctx c, double x, double y, string key)
     {
-        RRect(c, x, y, 22, 22, 6, INK, 0, 0);
-        RRect(c, x + 2, y + 2, 18, 16, 4, PAPER, 0, 0);
-        c.font = "900 12px Rubik"; c.textAlign = "center"; c.fillStyle = INK; c.fillText(key, x + 11, y + 14.5);
+        c.font = "900 12px Rubik"; double w = Math.Max(22, c.measureText(key) + 10);
+        RRect(c, x, y, w, 22, 6, INK, 0, 0);
+        RRect(c, x + 2, y + 2, w - 4, 16, 4, PAPER, 0, 0);
+        c.textAlign = "center"; c.fillStyle = INK; c.fillText(key, x + w / 2, y + 14.5);
     }
+    /// <summary>Цвет редкости оружия Soul Knight.</summary>
+    public static string Rc(string r) => r switch { "common" => "#e3e8ec", "rare" => "#7cc8f2", "epic" => "#cfa8ff", "legendary" => "#ffb547", _ => PAPER }; // светлее, чем RAR — на тёмной плашке
 
     static void EggPath(Ctx c, double cx, double top, double w, double h)
     {   // border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%
@@ -103,8 +116,16 @@ public static class Hud
         c.fillStyle = P.hp < P.max * .3 ? "#ff5a3c" : HP; c.fillRect(Lf, Tp, hw * Math.Max(0, P.hp / P.max), hh); c.restore();
         c.strokeStyle = INK; c.lineWidth = 3; rr(c, Lf + 1.5, Tp + 1.5, hw - 3, hh - 3, 10.5); c.stroke();
         Outlined(c, Math.Ceiling(P.hp) + " / " + P.max, Lf + hw / 2, Tp + hh / 2 + 4.5, "800 13px Rubik", "#fff", 1);
+        // --- стамина: тонкая голубая полоска под здоровьем ---
+        double sy = Tp + hh + 6, shh = 12; bool low = P.stam < shotCost(WEAP[P.w], WEAP[P.w].rate);
+        RRect(c, Lf, sy, hw, shh, 7, "#1d3a4a", 0, 2);
+        c.save(); rr(c, Lf, sy, hw, shh, 7); c.clip();
+        c.fillStyle = low && (long)(Clock * 6) % 2 == 1 ? "#ff8a6b" : "#4cc3ff"; c.fillRect(Lf, sy, hw * Math.Clamp(P.stam / Math.Max(1, P.stamMax), 0, 1), shh); c.restore();
+        c.strokeStyle = INK; c.lineWidth = 2; rr(c, Lf + 1, sy + 1, hw - 2, shh - 2, 6); c.stroke();
+        Outlined(c, Math.Floor(P.stam) + " / " + P.stamMax, Lf + hw / 2, sy + shh / 2 + 3.6, "800 10px Rubik", "#fff", 1);
+        c.font = "800 10px Rubik"; c.textAlign = "left"; c.fillStyle = PAPER; c.lineWidth = 2; c.strokeStyle = INK; c.strokeText(T("стамина"), Lf + hw + 6, sy + 10); c.fillText(T("стамина"), Lf + hw + 6, sy + 10);
         // --- фишки ---
-        double cx = Lf, cy = Tp + hh + 3 + 6, maxX = Math.Max(Lf + 150, VW - 150);
+        double cx = Lf, cy = sy + shh + 3 + 6, maxX = Math.Max(Lf + 150, VW - 150);
         void chip(string t, string bg, string fg, string icon = null, bool brd = false)
         {
             c.font = "700 13px Rubik"; double need = c.measureText(t) + (icon != null ? 16.4 : 0) + 18;
@@ -113,6 +134,7 @@ public static class Hud
         }
         chip(goalLabel(false), PAPER, INK, null, true);
         chip(S.score.ToString("#,0", L.Culture) + T(" очк."), INK, PAPER);
+        if (S.kind == "sk") chip(S.piv.ToString(), "#5a3410", "#ffd25a", "piv");
         chip(S.coins.ToString(), INK, PAPER, "coin");
         chip(S.tokens.ToString(), INK, PAPER, "tok");
         if (S.combo >= 4) chip(T("Комбо ×") + Math.Min(4, 1 + (S.combo - 1) / 3), YOLK, INK);
@@ -136,7 +158,7 @@ public static class Hud
         // --- полоса босса ---
         if (bossBarOn && S.boss != null && !S.boss.dead)
         {
-            double bw = Math.Min(320, VW * .62), bx = VW / 2 - bw / 2, by = sh ? SafeT + 12 : SafeT + 78;
+            double bw = Math.Min(320, VW * .62), bx = VW / 2 - bw / 2, by = sh ? SafeT + 12 : SafeT + 96;
             c.save(); Outlined(c, S.boss.T.name.ToUpper(L.Culture), VW / 2, by + 11, "900 13px Rubik", "#fff", 1.2); c.restore();
             double y2 = by + 17;
             RRect(c, bx, y2, bw, 14, 9, "#8e2a21", 0, 3);
@@ -147,23 +169,63 @@ public static class Hud
         }
         // --- оружие внизу ---
         {
-            var name = WEAP[P.w].name; var ammo = double.IsInfinity(P.ammo) ? "∞" : ((int)P.ammo).ToString();
+            var W = WEAP[P.w]; var name = W.name; var ammo = double.IsInfinity(P.ammo) ? "∞" : ((int)P.ammo).ToString();
+            double cost = shotCost(W, W.rate); string cs = cost > 0 ? (cost < 1 ? cost.ToString("0.#", L.Culture) : Math.Round(cost, 1).ToString("0.#", L.Culture)) : null;
+            if (W.coin) cs = null;
             c.font = "800 15px Rubik"; double nw = c.measureText(name); c.font = "900 15px Rubik"; double aw = c.measureText(ammo);
             if (ammo == "∞") aw = 14;
-            double w = nw + 10 + aw + 28, h = 31, x = VW / 2 - w / 2, y = B - h;
+            c.font = "900 12px Rubik"; double cw = cs != null ? c.measureText(cs) + 22 : W.coin ? 26 : 0;
+            double w = nw + 10 + aw + 28 + cw, h = 31, x = VW / 2 - w / 2, y = B - h;
+            bool bag = P.bag != null; double slotW = 46, slotsW = bag ? P.bagMax * (slotW + 5) : 0, swapW = bag && P.bag.Count > 1 ? 46 : 0;
+            if (bag) x = VW / 2 - (slotsW + w + swapW) / 2 + slotsW;
             RRect(c, x, y, w, h, 14, INK, 0);
-            c.font = "800 15px Rubik"; c.textAlign = "left"; c.fillStyle = PAPER; c.fillText(name, x + 14, y + 21);
-            if (ammo == "∞") { c.strokeStyle = YOLK; c.lineWidth = 2.6; double ix = x + 14 + nw + 10 + 7, iy = y + 16; c.beginPath(); c.ellipse(ix - 3.4, iy, 3.4, 3, 0, 0, TAU); c.stroke(); c.beginPath(); c.ellipse(ix + 3.4, iy, 3.4, 3, 0, 0, TAU); c.stroke(); }
-            else { c.font = "900 15px Rubik"; c.fillStyle = YOLK; c.fillText(ammo, x + 14 + nw + 10, y + 21); }
-            if (P.sec != null)
-            { // Soul Knight: кнопка смены оружия справа от названия (на ПК — клавиша F)
-                double sx = x + w + 6, sw = 40;
-                RRect(c, sx, y - 4, sw, h + 4, 12, YOLK, 3, 3);
-                c.strokeStyle = INK; c.lineWidth = 2.4; c.lineCap = "round"; double mx2 = sx + sw / 2, my2 = y + h / 2 - 2;
-                seg(c, mx2 - 9, my2 - 4, mx2 + 8, my2 - 4); seg(c, mx2 + 4, my2 - 8, mx2 + 8, my2 - 4); seg(c, mx2 + 4, my2, mx2 + 8, my2 - 4);
-                seg(c, mx2 + 9, my2 + 5, mx2 - 8, my2 + 5); seg(c, mx2 - 4, my2 + 1, mx2 - 8, my2 + 5); seg(c, mx2 - 4, my2 + 9, mx2 - 8, my2 + 5); c.lineCap = "butt";
-                if (!COARSE) KeyCap(c, sx + sw - 12, y - 14, "F");
-                btns["swap"] = (x, y - 4, w + 6 + sw, h + 4);
+            c.font = "800 15px Rubik"; c.textAlign = "left"; c.fillStyle = W.skr != null ? Rc(W.skr) : PAPER; c.fillText(name, x + 14, y + 21);
+            double ax = x + 14 + nw + 10;
+            if (ammo == "∞") { c.strokeStyle = YOLK; c.lineWidth = 2.6; double ix = ax + 7, iy = y + 16; c.beginPath(); c.ellipse(ix - 3.4, iy, 3.4, 3, 0, 0, TAU); c.stroke(); c.beginPath(); c.ellipse(ix + 3.4, iy, 3.4, 3, 0, 0, TAU); c.stroke(); }
+            else { c.font = "900 15px Rubik"; c.fillStyle = YOLK; c.fillText(ammo, ax, y + 21); }
+            if (cs != null)
+            { // цена выстрела в стамине: синяя капля
+                double dx = ax + aw + 12, dy = y + 15.5; c.fillStyle = "#4cc3ff"; c.beginPath(); c.moveTo(dx, dy - 7); c.quadraticCurveTo(dx + 6, dy, dx, dy + 6); c.quadraticCurveTo(dx - 6, dy, dx, dy - 7); c.fill();
+                c.font = "900 12px Rubik"; c.fillStyle = "#bfe9ff"; c.fillText(cs, dx + 7, y + 20);
+            }
+            else if (W.coin) Piv(c, ax + aw + 20, y + 15.5, 14);
+            if (bag)
+            { // Soul Knight: слоты рюкзака слева, кнопка смены справа
+                for (int i = 0; i < P.bagMax; i++)
+                {
+                    double bx = x - slotsW + i * (slotW + 5), by = y - 4; bool cur = i == P.slot && i < P.bag.Count;
+                    RRect(c, bx, by, slotW, h + 4, 10, i < P.bag.Count ? (cur ? YOLK : PAPER) : "rgba(255,244,220,.35)", cur ? 3 : 2, cur ? 0 : 2);
+                    if (i < P.bag.Count)
+                    {
+                        c.save(); c.translate(bx + slotW / 2 - 13, by + (h + 4) / 2 + 1); c.scale(.85, .85); drawGun(c, P.bag[i]); c.restore();
+                        c.fillStyle = Rc(WEAP[P.bag[i]].skr); c.fillRect(bx + 6, by + h - 1, slotW - 12, 3);
+                        if (!COARSE) { c.font = "900 10px Rubik"; c.textAlign = "left"; c.fillStyle = INK; c.fillText((i + 1).ToString(), bx + 5, by + 12); }
+                        btns["slot" + i] = (bx, by, slotW, h + 4);
+                    }
+                }
+                if (swapW > 0)
+                {
+                    double sx = x + w + 6, sw = 40;
+                    RRect(c, sx, y - 4, sw, h + 4, 12, YOLK, 3, 3);
+                    c.strokeStyle = INK; c.lineWidth = 2.4; c.lineCap = "round"; double mx2 = sx + sw / 2, my2 = y + h / 2 - 2;
+                    seg(c, mx2 - 9, my2 - 4, mx2 + 8, my2 - 4); seg(c, mx2 + 4, my2 - 8, mx2 + 8, my2 - 4); seg(c, mx2 + 4, my2, mx2 + 8, my2 - 4);
+                    seg(c, mx2 + 9, my2 + 5, mx2 - 8, my2 + 5); seg(c, mx2 - 4, my2 + 1, mx2 - 8, my2 + 5); seg(c, mx2 - 4, my2 + 9, mx2 - 8, my2 + 5); c.lineCap = "butt";
+                    if (!COARSE) KeyCap(c, sx + sw - 12, y - 14, keyHint("swap"));
+                    btns["swap"] = (x, y - 4, w + 6 + sw, h + 4);
+                }
+            }
+            // кнопка действия над оружием: взять, заменить или купить
+            var lbl = actLabel();
+            if (lbl != null)
+            {
+                var p = actPick; c.font = "900 15px Rubik"; double lw = c.measureText(lbl), pw = p.price > 0 ? c.measureText(p.price.ToString()) + 30 : 0;
+                double bw = lw + pw + 30 + (COARSE ? 0 : 26), bh = 38, bx = VW / 2 - bw / 2, by = y - 16 - bh;
+                bool poor = p.price > 0 && S.piv < p.price;
+                RRect(c, bx, by, bw, bh, 14, poor ? "#d9cdb4" : p.price > 0 ? "#3fa535" : YOLK, 3, 3);
+                double tx = bx + 15; if (!COARSE) { KeyCap(c, tx - 2, by + 8, keyHint("act")); tx += 26; }
+                c.textAlign = "left"; c.fillStyle = p.price > 0 && !poor ? "#fff" : INK; c.fillText(lbl, tx, by + 24.5);
+                if (p.price > 0) { Piv(c, tx + lw + 16, by + bh / 2, 16); c.fillText(p.price.ToString(), tx + lw + 27, by + 24.5); }
+                btns["act"] = (bx, by, bw, bh);
             }
         }
         // --- кнопка «Бум» (яйцо-граната) ---
@@ -180,7 +242,7 @@ public static class Hud
             c.fillStyle = INK; c.fillRect(x + 6, band, w - 12, 11); c.fillStyle = BARN; c.fillRect(x + 6, band + 2, w - 12, 7); c.restore();
             c.strokeStyle = INK; c.lineWidth = 3; EggPath(c, cxn, y + 1.5, w - 3, h - 3); c.stroke();
             c.font = "900 12px Rubik"; c.textAlign = "center"; c.fillStyle = INK; c.fillText(T("Бум"), cxn, band + 26);
-            if (pc) KeyCap(c, x - 6, y + h - 22, "Q");
+            if (pc) KeyCap(c, x - 6, y + h - 22, keyHint("nade"));
             double bx = x + w + 8 - 28, by = y - 8; RRect(c, bx, by, 28, 28, 14, YOLK, 3);
             c.font = "900 14px Rubik"; c.fillStyle = INK; c.fillText(P.nades.ToString(), bx + 14, by + 19);
             c.restore();
@@ -200,7 +262,7 @@ public static class Hud
             c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.arc(ucx, ucy, ir - 1, 0, TAU); c.stroke();
             var lbl = st == "live" ? Math.Ceiling(P.buffT) + T(" с") : st == "ready" ? T("УЛЬТА") : p + "%";
             c.font = "900 12.5px Rubik"; c.textAlign = "center"; c.fillStyle = st == "ready" ? "#fff" : INK; c.fillText(lbl, ucx, ucy + 4.5);
-            if (pc) KeyCap(c, x - 4, y + d - 20, "R");
+            if (pc) KeyCap(c, x - 4, y + d - 20, keyHint("ult"));
             btns["ult"] = (x, y, d, d);
         }
         DrawBanner(c);

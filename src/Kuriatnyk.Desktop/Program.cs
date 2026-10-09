@@ -16,7 +16,9 @@ static class Program
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 
-    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>().UsePlatformDetect().LogToTrace();
+    // кэш текстур видеокарты побольше: поле 3000×3000 (36 МБ) не влезало в стандартные ~28 МБ и грузилось в GPU заново каждый кадр
+    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>().UsePlatformDetect()
+        .With(new Avalonia.SkiaOptions { MaxGpuResourceSizeBytes = 256L * 1024 * 1024 }).LogToTrace();
 }
 
 /// <summary>Вывод звука через WASAPI (общий режим, ~40 мс задержки).</summary>

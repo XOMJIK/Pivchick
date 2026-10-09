@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using static Kuriatnyk.Store;
 
 namespace Kuriatnyk;
@@ -58,6 +59,67 @@ public static partial class G
     }
     public static void ReleaseAll() { input.keys.Clear(); input.firing = false; sticks.move = sticks.aim = null; }
 
+    /* ---------- клавиши: у каждого действия две (основная и запасная), их можно переназначить в настройках ---------- */
+    public sealed class Act { public string id, nameRu; public string[] def; public string name => L.T(nameRu); }
+    public static readonly Act[] ACTIONS =
+    {
+        new() { id = "up", nameRu = "Вверх", def = new[] { "KeyW", "ArrowUp" } },
+        new() { id = "down", nameRu = "Вниз", def = new[] { "KeyS", "ArrowDown" } },
+        new() { id = "left", nameRu = "Влево", def = new[] { "KeyA", "ArrowLeft" } },
+        new() { id = "right", nameRu = "Вправо", def = new[] { "KeyD", "ArrowRight" } },
+        new() { id = "nade", nameRu = "Яйцо-граната", def = new[] { "KeyQ", "Space" } },
+        new() { id = "ult", nameRu = "Ульта", def = new[] { "KeyR", "" } },
+        new() { id = "swap", nameRu = "Сменить оружие", def = new[] { "KeyF", "" } },
+        new() { id = "act", nameRu = "Взять или купить", def = new[] { "KeyE", "" } },
+        new() { id = "pause", nameRu = "Пауза", def = new[] { "KeyP", "" } },
+        new() { id = "auto", nameRu = "Автонаводка вкл/выкл", def = new[] { "KeyT", "" } },
+        new() { id = "full", nameRu = "Полный экран", def = new[] { "F11", "" } },
+    };
+    /// <summary>Клавиши действия: свои из настроек или по умолчанию. Всегда два элемента.</summary>
+    public static string[] keysOf(string act)
+    {
+        if (SET?.keys != null && SET.keys.TryGetValue(act, out var k) && k != null) return new[] { k.Count > 0 ? k[0] ?? "" : "", k.Count > 1 ? k[1] ?? "" : "" };
+        foreach (var a in ACTIONS) if (a.id == act) return a.def;
+        return new[] { "", "" };
+    }
+    public static bool held(string act) { foreach (var k in keysOf(act)) if (k.Length > 0 && input.keys.Contains(k)) return true; return false; }
+    public static string actionOf(string code)
+    {
+        if (string.IsNullOrEmpty(code)) return null;
+        foreach (var a in ACTIONS) foreach (var k in keysOf(a.id)) if (k == code) return a.id;
+        return null;
+    }
+    /// <summary>Назначить клавишу действию; если она была у другого действия — там она освобождается.</summary>
+    public static void bindKey(string act, int slot, string code)
+    {
+        foreach (var a in ACTIONS)
+        {
+            var ks = keysOf(a.id); bool ch = false;
+            for (int i = 0; i < 2; i++) if (ks[i] == code && !(a.id == act && i == slot)) { ks[i] = ""; ch = true; }
+            if (ch) SET.keys[a.id] = ks.ToList();
+        }
+        var mine = keysOf(act); mine[slot] = code ?? ""; SET.keys[act] = mine.ToList();
+        saveSet();
+    }
+    public static void resetKeys() { SET.keys = new(); saveSet(); }
+    /// <summary>Как подписать клавишу: «W», «↑», «Пробел», «F11».</summary>
+    public static string keyName(string code)
+    {
+        if (string.IsNullOrEmpty(code)) return "—";
+        if (code.StartsWith("Key") && code.Length == 4) return code[3..];
+        if (code.Length == 2 && code[0] == 'D' && char.IsDigit(code[1])) return code[1..];
+        if (code.StartsWith("NumPad")) return "Num " + code[6..];
+        return code switch
+        {
+            "ArrowUp" => "↑", "ArrowDown" => "↓", "ArrowLeft" => "←", "ArrowRight" => "→", "Space" => T("Пробел"), "Escape" => "Esc",
+            "LeftShift" => "L Shift", "RightShift" => "R Shift", "LeftCtrl" => "L Ctrl", "RightCtrl" => "R Ctrl", "LeftAlt" => "L Alt", "RightAlt" => "R Alt",
+            "Return" or "Enter" => "Enter", "Back" => "Backspace", "OemTilde" => "~", "OemMinus" => "-", "OemPlus" => "+", "OemComma" => ",", "OemPeriod" => ".",
+            _ => code
+        };
+    }
+    /// <summary>Подсказка на кнопке: основная клавиша действия.</summary>
+    public static string keyHint(string act) { var k = keysOf(act); return keyName(k[0].Length > 0 ? k[0] : k[1]); }
+
     /// <summary>Клавиша нажата; code — как KeyboardEvent.code в браузере (KeyW, ArrowUp, Space…).
     /// Возвращает true, если игра её обработала.</summary>
     public static bool KeyDown(string code)
@@ -66,9 +128,12 @@ public static partial class G
         bool handled = false;
         if (S.mode == "play")
         {
-            if (code is "KeyQ" or "KeyE" or "Space") { throwNade(); handled = true; }
-            if (code == "KeyR") { useUlt(); handled = true; }
-            if (code == "KeyF" && P?.sec != null) { swapWeapon(); handled = true; }
+            var a = actionOf(code);
+            if (a == "nade") { throwNade(); handled = true; }
+            if (a == "ult") { useUlt(); handled = true; }
+            if (a == "swap" && P?.bag != null) { swapWeapon(); handled = true; }
+            if (a == "act") { interact(); handled = true; }
+            if (P?.bag != null && code is "D1" or "D2" or "D3") { selectSlot(code[1] - '1'); handled = true; } // в подземелье 1-3 — слоты рюкзака
         }
         return handled;
     }

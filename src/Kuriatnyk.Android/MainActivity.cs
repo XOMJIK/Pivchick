@@ -27,7 +27,7 @@ public class MainActivity : AvaloniaMainActivity<App>
             if (v == null || !v.HasVibrator) return;
             v.Vibrate(VibrationEffect.CreateOneShot(ms, VibrationEffect.DefaultAmplitude));
         };
-        return base.CustomizeAppBuilder(builder);
+        return base.CustomizeAppBuilder(builder).With(new Avalonia.SkiaOptions { MaxGpuResourceSizeBytes = 128L * 1024 * 1024 }); // поле целиком держится в памяти видеокарты
     }
     protected override void OnCreate(Bundle savedInstanceState)
     {

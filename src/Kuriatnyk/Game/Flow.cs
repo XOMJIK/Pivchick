@@ -17,11 +17,13 @@ public interface IGameUi
     void ShowWin(WinInfo info);
     void OnMenu();
     void RefreshMenu();
+    void ShowSkPick(List<string> passives); // Soul Knight: выбор пассивки в портале
 }
 public sealed class NullUi : IGameUi
 {
     public void Toast(string msg) { } public void ToastClear() { } public void OnGameStart() { } public void ShowPause(bool show) { }
     public void ShowOver(OverInfo info) { } public void ShowWin(WinInfo info) { } public void OnMenu() { } public void RefreshMenu() { }
+    public void ShowSkPick(List<string> passives) => G.skTakePassive(passives[0]); // без интерфейса (Snap) — первая же
 }
 public sealed class OverInfo { public string lead, earnCoins, earnTokens, waveLabel, waveText; public long score; public int kills, wave; public bool record; }
 public sealed class WinRow { public string icon, text, sub; }
@@ -52,11 +54,12 @@ public static partial class G
 
     public static void toMenu()
     {
-        if (S.mode is "play" or "paused" or "dying") bankCoins();
+        if (S.mode is "play" or "paused" or "dying" or "pick") bankCoins();
         S.mode = "menu"; S.night = false; Music.Play("menu"); Music.Duck(1); clearBanner();
         bool wasDun = DUN != null; DUN = null;
-        if (MAP != menuMap() || ground == null || wasDun) buildWorld(menuMap());
-        P = newPlayer(); makeAllies(); enemies = new(); bullets = new(); nades = new(); bombs = new(); pickups = new(); texts = new(); parts = new(); holes = new(); zones = new(); strikes = new(); puddles = new();
+        if (MAP != menuMap() || ground == null || wasDun || WW != MAP_SIZE) buildWorld(menuMap());
+        OBS.RemoveAll(o => o.type == "crate");
+        P = newPlayer(); makeAllies(); enemies = new(); bullets = new(); nades = new(); bombs = new(); pickups = new(); texts = new(); parts = new(); holes = new(); zones = new(); strikes = new(); puddles = new(); goo = new();
         bossBarOn = false; S.boss = null;
         Ui.OnMenu();
     }

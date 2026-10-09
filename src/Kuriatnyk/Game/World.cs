@@ -16,7 +16,7 @@ public sealed class MapDef
     public string nameRu, grass, patch, @out, bank, water, deep; public string[] tuft, obs; public int flowers; public long seed;
     public RiverDef river, branch; public string name => L.T(nameRu);
 }
-public sealed class Obs { public double x, y, r; public string type; }
+public sealed class Obs { public double x, y, r, hp, hit; public string type; public bool open; } // open — сундук Soul Knight открыт; hp — у ящика, который разбивается
 public sealed class Bridge
 {
     public double u, hw = 32, wob; public bool rotten, broken; public int passes; public River R; public BEnd[] ends;
@@ -25,11 +25,14 @@ public sealed class BEnd { public double x, y; public int sd; public string reg;
 public sealed class River
 {
     public char axis; public double @base, amp, freq, phase, hw, lo, hi; public string end; public List<Bridge> bridges; public River parent; public int pside;
+    public Room room; // речка в комнате подземелья: берега считаются только внутри неё
 }
 
 public static partial class G
 {
-    public const double WW = 1500, WH = 1500, FENCE = 46;
+    // размер мира: карты сюжета 1500×1500, подземелье Soul Knight больше (комнаты просторнее)
+    public static double WW = 1500, WH = 1500;
+    public const double FENCE = 46, MAP_SIZE = 1500;
     public static List<Obs> OBS = new();
     public static SKImage ground;
     public static River RIVER;
@@ -70,7 +73,7 @@ public static partial class G
     public static (double u, double v) uvR(River R, double x, double y) => R.axis == 'h' ? (x, y) : (y, x);
     public static (double x, double y) xyR(River R, double u, double v) => R.axis == 'h' ? (u, v) : (v, u);
     public static int sideR(River R, double x, double y) { var (u, v) = uvR(R, x, y); return v < rcR(R, u) ? -1 : 1; }
-    static bool inDomain(River R, double x, double y) => R.parent == null || sideR(R.parent, x, y) == R.pside;
+    static bool inDomain(River R, double x, double y) => (R.room == null || (x >= R.room.x && x <= R.room.x + R.room.w && y >= R.room.y && y <= R.room.y + R.room.h)) && (R.parent == null || sideR(R.parent, x, y) == R.pside);
     public static Bridge bridgeAt(double x, double y)
     {
         foreach (var R in RIVERS)
@@ -235,7 +238,7 @@ public static partial class G
 
     public static void buildWorld(string key = "yard")
     {
-        MAP = MAPS.ContainsKey(key) ? key : "yard"; var M = MAPS[MAP];
+        WW = WH = MAP_SIZE; MAP = MAPS.ContainsKey(key) ? key : "yard"; var M = MAPS[MAP];
         makeRivers(M);
         var R = seeded(M.seed); OBS = new();
         var kinds = M.obs; double sx = WW / 2, sy = WH / 2 + 40;
@@ -253,8 +256,26 @@ public static partial class G
         }
         ground?.Dispose();
         ground = RenderGround(M);
+        spawnFish();
     }
 
+    /// <summary>Русла всех рек на картинке земли: сначала берега, потом вода, потом вода ещё раз без обводки — так устье притока сливается с руслом.</summary>
+    static void paintRivers(Ctx g, string bank, string water, string deep)
+    {
+        void band(River Rv, double off)
+        {
+            double u0 = Math.Max(Rv.lo, -20), u1 = Math.Min(Rv.hi, (Rv.axis == 'h' ? WW : WH) + 20); g.beginPath();
+            for (double u = u0; u <= u1; u += 8) { var p = xyR(Rv, u, rcR(Rv, u) - off); if (u == u0) g.moveTo(p.x, p.y); else g.lineTo(p.x, p.y); }
+            { var p = xyR(Rv, u1, rcR(Rv, u1) - off); g.lineTo(p.x, p.y); }
+            for (double u = u1; u >= u0; u -= 8) { var p = xyR(Rv, u, rcR(Rv, u) + off); g.lineTo(p.x, p.y); }
+            { var p = xyR(Rv, u0, rcR(Rv, u0) + off); g.lineTo(p.x, p.y); }
+            g.closePath();
+        }
+        foreach (var Rv in RIVERS) { band(Rv, Rv.hw + 11); g.fillStyle = bank; g.fill(); g.strokeStyle = "rgba(43,29,20,.35)"; g.lineWidth = 2; g.stroke(); }
+        foreach (var Rv in RIVERS) { band(Rv, Rv.hw); g.fillStyle = water; g.fill(); g.strokeStyle = INK; g.lineWidth = 5; g.stroke(); }
+        foreach (var Rv in RIVERS) { band(Rv, Rv.hw); g.fillStyle = water; g.fill(); }
+        foreach (var Rv in RIVERS) { band(Rv, Rv.hw * .45); g.fillStyle = deep; g.fill(); }
+    }
     static SKImage RenderGround(MapDef M)
     {
         // на ПК земля рисуется в двойном разрешении: на большом мониторе поле увеличено и в 1× травинки расплываются
@@ -283,20 +304,7 @@ public static partial class G
             for (int p = 0; p < 5; p++) { g.beginPath(); g.arc(x + Math.Cos(p * 1.256) * 2.6, y + Math.Sin(p * 1.256) * 2.6, 1.8, 0, TAU); g.fill(); }
             g.fillStyle = "#f2a91f"; g.beginPath(); g.arc(x, y, 1.4, 0, TAU); g.fill();
         }
-        // реки: сначала берега, потом вода, потом вода ещё раз без обводки — так устье притока сливается с руслом
-        void band(River Rv, double off)
-        {
-            double u0 = Math.Max(Rv.lo, -20), u1 = Math.Min(Rv.hi, (Rv.axis == 'h' ? WW : WH) + 20); g.beginPath();
-            for (double u = u0; u <= u1; u += 8) { var p = xyR(Rv, u, rcR(Rv, u) - off); if (u == u0) g.moveTo(p.x, p.y); else g.lineTo(p.x, p.y); }
-            { var p = xyR(Rv, u1, rcR(Rv, u1) - off); g.lineTo(p.x, p.y); }
-            for (double u = u1; u >= u0; u -= 8) { var p = xyR(Rv, u, rcR(Rv, u) + off); g.lineTo(p.x, p.y); }
-            { var p = xyR(Rv, u0, rcR(Rv, u0) + off); g.lineTo(p.x, p.y); }
-            g.closePath();
-        }
-        foreach (var Rv in RIVERS) { band(Rv, Rv.hw + 11); g.fillStyle = M.bank; g.fill(); g.strokeStyle = "rgba(43,29,20,.35)"; g.lineWidth = 2; g.stroke(); }
-        foreach (var Rv in RIVERS) { band(Rv, Rv.hw); g.fillStyle = M.water; g.fill(); g.strokeStyle = INK; g.lineWidth = 5; g.stroke(); }
-        foreach (var Rv in RIVERS) { band(Rv, Rv.hw); g.fillStyle = M.water; g.fill(); }
-        foreach (var Rv in RIVERS) { band(Rv, Rv.hw * .45); g.fillStyle = M.deep; g.fill(); }
+        paintRivers(g, M.bank, M.water, M.deep);
         g.strokeStyle = "rgba(255,255,255,.45)"; g.lineWidth = 2;
         foreach (var Rv in RIVERS)
         {
@@ -370,6 +378,7 @@ public static partial class G
             }
         }
         c.restore();
+        drawFishWater(c); // плавники пираний — под мостами
         foreach (var b in allBridges())
         {
             var R = b.R; double rc(double u) => rcR(R, u);

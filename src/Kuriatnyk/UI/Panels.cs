@@ -187,18 +187,20 @@ public abstract class BoardPanel : Grid
     protected abstract void Build();
 }
 
-/* ---------- магазин ---------- */
-public sealed class ShopPanel : BoardPanel
+/* ---------- оружие: стволы сюжета (покупка, выбор, улучшение) и справочник оружия Soul Knight ---------- */
+public sealed class WeaponsPanel : BoardPanel
 {
-    static string tab = "guns";
-    public ShopPanel(MainView mv) : base(mv, "Магазин") { Render(); }
+    static string tab = "main";
+    public WeaponsPanel(MainView mv) : base(mv, "Оружие") { Render(); }
+    public static void ShowTab(MainView mv, string t) { tab = t; mv.OpenPanel("weapons"); }
     protected override void Build()
     {
         tabsHost.Children.Clear();
-        tabsHost.Children.Add(Tabs(new[] { (T("Оружие"), tab == "guns", (Action)(() => { tab = "guns"; scroll.Offset = default; Render(); }), false), (T("Золотые яйца"), tab == "gems", () => { tab = "gems"; scroll.Offset = default; Render(); }, false) }));
-        if (tab == "gems") { Gems(); return; }
+        tabsHost.Children.Add(Tabs(new[] { (T("Сюжет и бой"), tab == "main", (Action)(() => { tab = "main"; scroll.Offset = default; Render(); }), false), (T("Soul Knight"), tab == "sk", () => { tab = "sk"; scroll.Offset = default; Render(); }, false) }));
+        if (tab == "sk") { SkCatalog(); return; }
         var myC = clsOf(SAVE.hero);
         body.Children.Add(Note(T("У каждого класса своё оружие: герой берёт в бой только стволы своего класса. Сейчас в бою ") + HEROES[SAVE.hero].name + T(" — класс «") + CLASSES[myC].name + T("». Патроны у основного ствола бесконечные.")));
+        body.Children.Add(Note(T("Выстрелы тратят стамину (голубая полоска под здоровьем, в бою её 50). Обычные стволы почти не устают, редкие и легендарные — быстрее; без стамины оружие стреляет вдвое реже, пока она не накопится.")));
         var order = new[] { myC }.Concat(CLASS_ORDER.Where(k => k != myC)).ToList();
         for (int oi = 0; oi < order.Count; oi++)
         {
@@ -215,7 +217,8 @@ public sealed class ShopPanel : BoardPanel
                     Panels.Pv(Panels.Preview(140, 90, (c, w, h) => { c.translate(w / 2 - 32, h / 2 + 2); c.scale(2.1, 2.1); G.drawGun(c, id); }), "grass", owned ? T("Ур. ") + lv : null, null, null, WR.c),
                     Badges(Rar(C.name, C.c), Rar(WR.name, WR.c)),
                     Panels.H4(W.name), Panels.P(W.desc),
-                    Panels.Meta(W.meta ?? (T("Урон ") + W.dmg + (W.pellets > 1 ? "×" + W.pellets : "") + " · " + (1 / W.rate).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + T(" выстр/с · ≈") + Math.Round(W.dmg * W.pellets / W.rate) + T(" в сек")))
+                    Panels.Meta(W.meta ?? (T("Урон ") + W.dmg + (W.pellets > 1 ? "×" + W.pellets : "") + " · " + (1 / W.rate).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + T(" выстр/с · ≈") + Math.Round(W.dmg * W.pellets / W.rate) + T(" в сек"))),
+                    Panels.Meta(T("Стамина: ") + (W.rar == "legendary" ? 7 : W.rar == "rare" ? 5 : 2.5).ToString("0.#", L.Culture) + T(" в секунду стрельбы"))
                 };
                 if (owned)
                 {
@@ -238,6 +241,88 @@ public sealed class ShopPanel : BoardPanel
             }
             body.Children.Add(g);
         }
+    }
+    /// <summary>Справочник оружия Soul Knight: его не покупают здесь — оно падает в подземелье.</summary>
+    void SkCatalog()
+    {
+        body.Children.Add(Note(T("Это оружие есть только в режиме Soul Knight: оно падает из сундуков в подземелье и продаётся у торговца за пивчики. С собой можно нести 2 ствола (пассивка «Рюкзак» даёт третье место). Стамины в забеге 100: рогатка, водный пистолет и почти всё ближнее оружие её не тратят.")));
+        var groups = new[] { ("melee", T("Ближний бой")), ("gun", T("Стрелковое")), ("staff", T("Посохи")) };
+        for (int gi = 0; gi < groups.Length; gi++)
+        {
+            var (key, title) = groups[gi];
+            var ids = SKW.LIST.Where(w => SKW.Group(w) == key).OrderBy(w => Array.IndexOf(new[] { "common", "rare", "epic", "legendary" }, w.skr)).ToList();
+            var sect = Sect(title + " · " + ids.Count); if (gi > 0) sect.Margin = new Thickness(0, 18, 0, 10); body.Children.Add(sect);
+            var g = new AutoGrid { Min = 170, Gap = 12 };
+            foreach (var W in ids)
+            {
+                var R = RAR[W.skr];
+                string dps = W.special == "melee" ? T("Урон ") + W.dmg + " · " + (1 / W.rate).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + T(" удар/с")
+                    : W.special == "chain" ? T("Урон ") + W.dmg + T(" · цепь на ") + W.chain
+                    : T("Урон ") + W.dmg + (W.pellets > 1 ? "×" + W.pellets : W.ring > 0 ? "×" + W.ring : "") + " · " + (1 / W.rate).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + T(" выстр/с");
+                string cost = W.coin ? T("1 пивчик за выстрел") : W.stam > 0 ? T("Стамина ") + W.stam.ToString("0.##", L.Culture) + T(" за выстрел") : T("Без стамины");
+                var top = new List<Control>
+                {
+                    Panels.Pv(Panels.Preview(140, 80, (c, w, h) => { c.translate(w / 2 - 34, h / 2 + 2); c.scale(1.9, 1.9); G.drawGun(c, W.id); }), "grass", null, null, null, R.c),
+                    Badges(Rar(R.name, R.c), Rar(T("В лавке: ") + SKW.PRICE[W.skr], "#6b4428")),
+                    Panels.H4(W.name), Panels.P(W.desc), Panels.Meta(dps), Panels.Meta(cost, true)
+                };
+                if (SKW.START.Contains(W.id)) top.Add(Panels.Meta(T("С ним начинается забег")));
+                g.Children.Add(Panels.Item(top, Array.Empty<Control>()));
+            }
+            body.Children.Add(g);
+        }
+    }
+}
+
+/* ---------- магазин: карточки дня и золотые яйца ---------- */
+public sealed class ShopPanel : BoardPanel
+{
+    static string tab = "cards";
+    public ShopPanel(MainView mv) : base(mv, "Магазин") { Render(); }
+    protected override void Build()
+    {
+        tabsHost.Children.Clear();
+        tabsHost.Children.Add(Tabs(new[] { (T("Карточки"), tab == "cards", (Action)(() => { tab = "cards"; scroll.Offset = default; Render(); }), false), (T("Золотые яйца"), tab == "gems", () => { tab = "gems"; scroll.Offset = default; Render(); }, false) }));
+        if (tab == "gems") Gems(); else Cards();
+    }
+    void Cards()
+    {
+        var left = Offers.Left; var offers = Offers.Get();
+        body.Children.Add(Note(T("Каждый день — две случайные пачки карт для твоих героев и стволов. Карты сразу идут в прокачку. Новые карточки через ") + (int)left.TotalHours + T(" ч ") + left.Minutes + T(" мин.")));
+        var more = new Press(Txt(T("Оружие — во вкладке «Оружие»"), 13, FontWeight.ExtraBold, InkB, wrap: false), PaperB, 2, 10, new Thickness(12, 7), 2) { HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 12) };
+        more.Click += () => mv.OpenPanel("weapons"); body.Children.Add(more);
+        if (offers.Count == 0) { body.Children.Add(Note(T("Все герои и стволы на максимальном уровне — карточек сегодня нет."))); return; }
+        var g = new AutoGrid { Min = 210, Gap = 12 };
+        foreach (var o in offers)
+        {
+            bool hero = o.kind == "hero"; string name, rarN, rarC; int lv, have, need;
+            Control pv;
+            if (hero)
+            {
+                var H = HEROES[o.id]; var R = RAR[H.rar]; name = H.name; rarN = R.name; rarC = R.c; lv = heroLv(o.id); have = SAVE.heroes[o.id].cards; need = lv < 10 ? needCards(o.id, lv) : 0;
+                pv = Panels.Pv(Panels.HeroPv(o.id, 200, 110, 1.75), "grass", T("Ур. ") + lv, null, null, R.c);
+            }
+            else
+            {
+                var W = WEAP[o.id]; var R = WRAR[W.rar]; name = W.name; rarN = R.name; rarC = R.c; lv = wLv(o.id); have = wRec(o.id).cards; need = lv < 10 ? wNeed(o.id, lv) : 0;
+                pv = Panels.Pv(Panels.Preview(160, 110, (c, w, h) => { c.translate(w / 2 - 32, h / 2 + 2); c.scale(2.1, 2.1); G.drawGun(c, o.id); }), "nest", T("Ур. ") + lv, null, null, R.c);
+            }
+            var top = new List<Control>
+            {
+                pv, Badges(Rar(rarN, rarC), Rar(hero ? T("Карты героя") : T("Карты оружия"), hero ? "#c0392b" : "#6b4428")),
+                Panels.H4("+" + o.n + T(" карт · ") + name),
+            };
+            if (lv < 10) top.Add(Col(3, ProgT(T("До ур. ") + (lv + 1), have + " / " + need), Prog((double)have / need, have >= need ? "#5fcf3f" : rarC)));
+            var oo = o;
+            var btn = o.bought ? Panels.PBtn(T("Куплено"), "on", null)
+                : Panels.PBtn(Panels.coinTag(o.price), SAVE.coins >= o.price ? "buy" : "poor", () =>
+                {
+                    if (SAVE.coins < oo.price) { mv.Toast(T("Не хватает ") + L.Fmt(oo.price - SAVE.coins) + T(" зёрен")); Sfx.hurt(); return; }
+                    if (Offers.Buy(oo)) { Sfx.buy(); mv.Toast("+" + oo.n + T(" карт · ") + name); mv.AfterChange(); }
+                });
+            g.Children.Add(Panels.Item(top, new Control[] { btn }));
+        }
+        body.Children.Add(g);
     }
     void Gems()
     {
@@ -299,11 +384,11 @@ public sealed class HeroesPanel : BoardPanel
                     {
                         Panels.Pv(Panels.BirdPv(look, g0, 140, 92, 1.45), "grass", T("Ур. ") + heroLv(id)),
                         Panels.H4(HEROES[id].name), Panels.P(T("Место ") + (k + 1) + " · " + CLASSES[clsOf(id)].name + T(" · ульта: ") + HEROES[id].ult[0]),
-                        Panels.Meta(T("Оружие: <b>") + WEAP[g0].name + "</b>" + (opts.Count > 1 ? "" : T(" · купи ещё стволы класса в магазине")))
+                        Panels.Meta(T("Оружие: <b>") + WEAP[g0].name + "</b>" + (opts.Count > 1 ? "" : T(" · купи ещё стволы класса в разделе «Оружие»")))
                     };
                     var wb = Panels.PBtn(T("Сменить оружие"), opts.Count > 1 ? "go" : "poor", () =>
                     {
-                        if (opts.Count < 2) { mv.Toast(T("У класса «") + CLASSES[clsOf(id)].name + T("» пока один ствол — купи ещё в магазине")); return; }
+                        if (opts.Count < 2) { mv.Toast(T("У класса «") + CLASSES[clsOf(id)].name + T("» пока один ствол — купи ещё в разделе «Оружие»")); return; }
                         var nx = opts[(opts.IndexOf(g0) + 1) % opts.Count]; Panels.Equip(mv, () => SAVE.squadGun[id] = nx, HEROES[id].name + ": " + WEAP[nx].name);
                     });
                     var rm = Panels.PBtn(T("Убрать из отряда"), "eq", () => Panels.Equip(mv, () => SAVE.squad.RemoveAt(kk), T("Боец ушёл из отряда")), true);
@@ -330,17 +415,19 @@ public sealed class HeroesPanel : BoardPanel
         foreach (var id in HERO_IDS.OrderByDescending(x => SAVE.heroes.ContainsKey(x) ? 1 : 0))
         {
             var H = HEROES[id]; SAVE.heroes.TryGetValue(id, out var own); bool eq = SAVE.hero == id; var R = RAR[H.rar];
+            // карточка компактная: характеристики, улучшения и способности — в окне по кнопке «Свойства»
+            var st = G.heroStats(id, own?.lv ?? 1);
+            var props = new Press(Row(6, InfoDot(), Txt(T("Свойства"), 12.5, FontWeight.ExtraBold, InkB, wrap: false)), PaperB, 2, 999, new Thickness(6, 6, 11, 6), 2)
+            { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(8) };
+            props.Click += () => Overlays.OpenHeroInfo(mv, id);
             var top = new List<Control>
             {
-                Panels.Pv(Panels.HeroPv(id, 200, 120, 1.85), own != null ? "grass" : "dark", own != null ? T("Ур. ") + own.lv : null, own == null ? T("Не открыт") : null),
+                Panels.Pv(Panels.HeroPv(id, 200, 120, 1.85), own != null ? "grass" : "dark", own != null ? T("Ур. ") + own.lv : null, null, props),
                 Badges(Rar(R.name, R.c), Rar(CLASSES[H.cls].name, CLASSES[H.cls].c)),
-                Panels.H4(H.name), Panels.P(H.perk + " · " + H.hp + T(" здоровья")),
-                Ab("<span class=\"k\">" + CLASSES[H.cls].name.ToUpper(L.Culture) + "</span>" + CLASSES[H.cls].desc + T(". Оружие: <b>") + WEAP[gunOf(id)].name + "</b>", "#f6e3b8"),
+                Panels.H4(H.name), Panels.P(H.perk),
+                Panels.Meta(T("Здоровье ") + st.hp + T(" · урон ×") + st.dmg.ToString("0.##", L.Culture) + T(" · ульта: ") + H.ult[0]),
             };
-            int lv = own?.lv ?? 0;
-            top.Add(Col(5, Ab(T("<span class=\"k\">УЛЬТА</span><b>") + H.ult[0] + ".</b> " + H.ult[1], "#ffe9a8"),
-                Ab(T("<span class=\"k\">УР. 5</span><b>") + H.p5[0] + ".</b> " + H.p5[1], "#f6e3b8", lv < 5),
-                Ab(T("<span class=\"k\">УР. 10</span><b>") + H.p10[0] + ".</b> " + H.p10[1], "#f6e3b8", lv < 10)));
+            if (own == null) top.Add(Panels.Meta(T("Не открыт"), true));
             var bottom = new List<Control>();
             if (own != null)
             {
@@ -375,9 +462,11 @@ public sealed class HeroesPanel : BoardPanel
         }
         body.Children.Add(g);
     }
-    static Control Ab(string html, string bg, bool off = false)
+    /// <summary>Кружок «i» на кнопке «Свойства».</summary>
+    public static Control InfoDot()
     {
-        var b = Box(Rich(html, 12, FontWeight.Medium), B(bg), 0, 10, new Thickness(8, 6)); if (off) b.Opacity = .55; return b;
+        var iTxt = Txt("i", 12, FontWeight.Black, YolkB, TextAlignment.Center); iTxt.VerticalAlignment = VerticalAlignment.Center; iTxt.FontStyle = FontStyle.Italic;
+        var ib = Box(iTxt, InkB, 0, 9); ib.Width = 18; ib.Height = 18; return ib;
     }
 }
 
