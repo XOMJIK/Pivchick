@@ -17,6 +17,11 @@ namespace Kuriatnyk.UI;
 public sealed partial class MainView : UserControl, IGameUi
 {
     readonly Grid root = new();
+    readonly LayoutTransformControl scaler = new();
+    /// <summary>Во сколько раз увеличен интерфейс и поле на большом экране (1 — телефон и обычный монитор).</summary>
+    public static double UiScale = 1;
+    /// <summary>Размер экрана в логических пикселях интерфейса (после масштаба).</summary>
+    public Size View => root.Bounds.Size;
     public readonly GameView Game = new();
     readonly Grid layer = new();          // всё поверх поля
     Lobby lobby;
@@ -28,7 +33,8 @@ public sealed partial class MainView : UserControl, IGameUi
     public MainView()
     {
         Background = B(Grass);
-        Content = root;
+        scaler.Child = root; Content = scaler;
+        SizeChanged += (_, e) => Rescale(e.NewSize);
         root.Children.Add(Game);
         root.Children.Add(layer);
         var tt = Txt("", 15, FontWeight.ExtraBold, PaperB, TextAlignment.Center);
@@ -56,7 +62,7 @@ public sealed partial class MainView : UserControl, IGameUi
             if (ins != null)
             {
                 try { ins.DisplayEdgeToEdge = true; ins.IsSystemBarVisible = false; } catch { }
-                void apply() { var p = ins.SafeAreaPadding; Hud.SafeL = p.Left; Hud.SafeT = p.Top; Hud.SafeR = p.Right; Hud.SafeB = p.Bottom; layer.Margin = default; }
+                void apply() { safeRaw = ins.SafeAreaPadding; ApplySafe(); }
                 ins.SafeAreaChanged += (_, _) => apply(); apply();
             }
         }
@@ -64,6 +70,19 @@ public sealed partial class MainView : UserControl, IGameUi
         G.buildWorld(G.menuMap()); G.P = G.newPlayer(); G.toMenu();
     }
     public Thickness Safe => new(Hud.SafeL, Hud.SafeT, Hud.SafeR, Hud.SafeB);
+    Thickness safeRaw;
+    void ApplySafe() { var k = UiScale; Hud.SafeL = safeRaw.Left / k; Hud.SafeT = safeRaw.Top / k; Hud.SafeR = safeRaw.Right / k; Hud.SafeB = safeRaw.Bottom / k; }
+
+    /// <summary>Большой экран: всё (меню, окна, поле и HUD) увеличивается целиком, как будто экран 1280×800.
+    /// Так кнопки и текст не теряются на мониторе 2K/4K или на планшете, а раскладка остаётся привычной.</summary>
+    void Rescale(Size s)
+    {
+        if (s.Width < 1 || s.Height < 1) return;
+        double k = Math.Clamp(Math.Min(s.Width / 1280, s.Height / 800), 1, 3);
+        k = Math.Floor(k * 20) / 20; // шаг 0,05 — чтобы при перетаскивании окна всё не пересобиралось на каждый пиксель
+        if (Math.Abs(k - UiScale) < .001 && scaler.LayoutTransform != null) return;
+        UiScale = k; scaler.LayoutTransform = new ScaleTransform(k, k); ApplySafe();
+    }
 
     /// <summary>Свернули приложение (visibilitychange): ставим бой на паузу.</summary>
     public void OnBackground() { if (G.S.mode == "play") G.pauseGame(); G.ReleaseAll(); }
@@ -107,6 +126,7 @@ public sealed partial class MainView : UserControl, IGameUi
         if (Shown("brief")) Overlays.OpenBrief(this, Overlays.briefIdx);
         if (Shown("chestInfoOv") && Overlays.ciTier >= 0) Overlays.OpenChestInfo(this, Overlays.ciTier);
         if (Shown("bgOv")) Overlays.OpenBg(this);
+        if (Shown("skSel")) Overlays.OpenSkSelect(this);
         if (Shown("pause")) Show("pause", Overlays.Pause(this));
         if (Shown("setOv")) Show("setOv", Overlays.Settings(this), 8);
         RefreshMenu();
@@ -115,7 +135,7 @@ public sealed partial class MainView : UserControl, IGameUi
     // ---------- IGameUi ----------
     public void Toast(string msg)
     {
-        ((TextBlock)toast.Child).Text = msg; toast.Opacity = 1; toast.MaxWidth = Math.Max(120, Bounds.Width - 32);
+        ((TextBlock)toast.Child).Text = msg; toast.Opacity = 1; toast.MaxWidth = Math.Max(120, View.Width - 32);
         toastTimer?.Stop(); toastTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1800) };
         toastTimer.Tick += (_, _) => { toast.Opacity = 0; toastTimer.Stop(); }; toastTimer.Start();
     }
@@ -123,7 +143,7 @@ public sealed partial class MainView : UserControl, IGameUi
     public void OnGameStart()
     {
         ClosePanels(); ShowLobby(false);
-        foreach (var id in new[] { "over", "pause", "win", "brief", "chestOv", "setOv" }) Hide(id);
+        foreach (var id in new[] { "over", "pause", "win", "brief", "chestOv", "setOv", "skSel" }) Hide(id);
     }
     public void ShowPause(bool show) { if (show) Show("pause", Overlays.Pause(this)); else { Hide("pause"); Hide("setOv"); } }
     public void ShowOver(OverInfo info) => Show("over", Overlays.Over(this, info));
@@ -152,9 +172,10 @@ public sealed partial class MainView : UserControl, IGameUi
         if (code == "KeyT") ToggleAuto();
         if (code == "Escape")
         {
-            foreach (var id in new[] { "bgOv", "chestInfoOv", "setOv", "infoOv", "helpOv", "brief" })
+            foreach (var id in new[] { "bgOv", "chestInfoOv", "setOv", "infoOv", "helpOv", "brief", "skSel" })
                 if (Shown(id)) { Hide(id); e.Handled = true; return; }
             if (AnyPanel) { ClosePanels(); RefreshMenu(); e.Handled = true; return; }
+            if (G.S.mode == "menu" && lobby != null && lobby.Back()) { e.Handled = true; return; }
         }
         if (code is "Escape" or "KeyP")
         {

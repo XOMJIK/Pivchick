@@ -23,7 +23,7 @@ public sealed class NullUi : IGameUi
     public void Toast(string msg) { } public void ToastClear() { } public void OnGameStart() { } public void ShowPause(bool show) { }
     public void ShowOver(OverInfo info) { } public void ShowWin(WinInfo info) { } public void OnMenu() { } public void RefreshMenu() { }
 }
-public sealed class OverInfo { public string lead, earnCoins, earnTokens, waveLabel; public long score; public int kills, wave; public bool record; }
+public sealed class OverInfo { public string lead, earnCoins, earnTokens, waveLabel, waveText; public long score; public int kills, wave; public bool record; }
 public sealed class WinRow { public string icon, text, sub; }
 public sealed class WinInfo { public string eyebrow, lead, nextLabel; public bool hasNext; public List<WinRow> rows = new(); }
 
@@ -41,6 +41,7 @@ public static partial class G
     public static string goalLabel(bool lng)
     {
         if (S.kind == "endless") return T("Волна ") + Math.Max(1, S.wave);
+        if (S.kind == "sk") return skGoal();
         var g = S.L.goal;
         if (g.type == "waves") return T("Волна ") + Math.Max(1, S.wave) + "/" + g.n;
         if (g.type == "kill") { var w = killN(g.what) ?? ETYPE[g.what].name; return lng ? T("Победи: ") + w.ToLower(L.Culture) + " ×" + g.n : w + " " + S.goalKills + "/" + g.n; }
@@ -53,7 +54,8 @@ public static partial class G
     {
         if (S.mode is "play" or "paused" or "dying") bankCoins();
         S.mode = "menu"; S.night = false; Music.Play("menu"); Music.Duck(1); clearBanner();
-        if (MAP != menuMap() || ground == null) buildWorld(menuMap());
+        bool wasDun = DUN != null; DUN = null;
+        if (MAP != menuMap() || ground == null || wasDun) buildWorld(menuMap());
         P = newPlayer(); makeAllies(); enemies = new(); bullets = new(); nades = new(); bombs = new(); pickups = new(); texts = new(); parts = new(); holes = new(); zones = new(); strikes = new(); puddles = new();
         bossBarOn = false; S.boss = null;
         Ui.OnMenu();
@@ -73,7 +75,8 @@ public static partial class G
         bool rec = false;
         if (S.kind == "endless") { rec = S.score > SAVE.best.score; if (rec) { SAVE.best = new Best { score = S.score, wave = S.wave }; persist(); } }
         var info = new OverInfo { score = S.score, kills = S.kills, record = rec, earnCoins = S.coins.ToString(), earnTokens = S.tokens.ToString() };
-        if (S.kind == "story") { info.wave = S.lvIdx + 1; info.waveLabel = T("Уровень"); info.lead = T("Уровень «") + S.L.name + T("» не пройден. Попробуй ещё раз!"); }
+        if (S.kind == "sk") { info.waveText = skLvName(S.skLv); info.waveLabel = T("Уровень"); info.lead = T("Забег окончен на уровне ") + skLvName(S.skLv) + T(". Попробуй ещё раз!"); }
+        else if (S.kind == "story") { info.wave = S.lvIdx + 1; info.waveLabel = T("Уровень"); info.lead = T("Уровень «") + S.L.name + T("» не пройден. Попробуй ещё раз!"); }
         else { info.wave = S.wave; info.waveLabel = T("Волна"); info.lead = T("Курятник пал на волне ") + S.wave + "."; }
         Ui.ShowOver(info);
     }
@@ -108,7 +111,7 @@ public static partial class G
             nextLabel = Lv.i == 19 ? T("Глава ") + (Lv.ch + 2) : T("Уровень ") + (Lv.i + 2)
         };
         w.rows.Add(new WinRow { icon = "coin", text = "+" + (lc + sc) + T(" зёрен"), sub = first ? T("награда за первое прохождение") : T("повторное прохождение") });
-        w.rows.Add(new WinRow { icon = "tok", text = "+" + (lt + st) + T(" жетонов"), sub = T("на обычный сундук: ") + Math.Min(SAVE.tokens, 100) + "/100" });
+        w.rows.Add(new WinRow { icon = "tok", text = "+" + (lt + st) + T(" жетонов"), sub = T("на обычный сундук: ") + L.Fmt(SAVE.tokens) + "/100" });
         if (le > 0) w.rows.Add(new WinRow { icon = "gegg", text = "+" + le + T(" золотых яиц"), sub = T("только за первое прохождение") });
         if (sup) w.rows.Add(new WinRow { icon = "sch", text = StripIcon(T("<i class=\"sch\"></i>Сверхбольшой сундук!")), sub = T("за финального босса главы · открой в «Сундуках»") });
         if (big) w.rows.Add(new WinRow { icon = "btok", text = StripIcon(T("<i class=\"btok\"></i>+1 большой жетон")), sub = T("на большой сундук: ") + SAVE.btokens + "/10" });

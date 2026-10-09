@@ -17,6 +17,7 @@ public static partial class G
         double px = double.NaN, py = 0; bool hop = false;
         if (e is Fighter f) { px = f._px; py = f._py; hop = f.hop; } else if (e is Enemy en) { px = en._px; py = en._py; hop = en.hop; }
         if (!noObs && RIVER != null && !double.IsNaN(px) && !hop) waterBlock(e, px, py); // курицы и куриные боссы перелетают воду
+        if (DUN != null) dunCollide(e);
     }
     public static bool onScreen(Unit e, double m = 24)
     {
@@ -66,6 +67,8 @@ public static partial class G
     /* ---------- game flow ---------- */
     public static void startGame(string kind = "endless", int idx = 0)
     {
+        if (kind == "sk") { startSK(S.skHero ?? SAVE.hero); return; } // «Ещё раз» и «Заново» в Soul Knight — новый забег из лагеря
+        DUN = null;
         var mk2 = kind == "story" ? MAP_OF_CH[STORY[idx].ch] : "yard"; buildWorld(mk2); lastBridge = null;
         P = newPlayer(); makeAllies(); enemies = new(); bullets = new(); parts = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); holes = new(); zones = new(); strikes = new(); puddles = new();
         S.holeT = rand(8, 12);
@@ -144,6 +147,7 @@ public static partial class G
         };
         if (type == "hen") { var c = T.cols[(int)Math.Floor(rnd() * T.cols.Length)]; e.body = c[0]; e.wing = c[1]; }
         if (T.s > 0) e.s = T.s; if (T.hop) e.hop = true;
+        if (DUN != null) e.room = DUN.active;
         enemies.Add(e); puff(x, y, "#e9dcc0", 8, T.boss ? 2 : 1.2); return e;
     }
     static void spawnEnemy(string type)

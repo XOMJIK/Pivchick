@@ -68,6 +68,7 @@ public static partial class G
         {
             if (code is "KeyQ" or "KeyE" or "Space") { throwNade(); handled = true; }
             if (code == "KeyR") { useUlt(); handled = true; }
+            if (code == "KeyF" && P?.sec != null) { swapWeapon(); handled = true; }
         }
         return handled;
     }

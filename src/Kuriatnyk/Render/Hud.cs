@@ -34,8 +34,9 @@ public static class Hud
         {
             case "nade": throwNade(); break;
             case "ult": useUlt(); break;
-            case "pause": pauseGame(); break;
-            case "mute": SET.muted = !SET.muted; saveSet(); Audio.ApplyVolume(); break;
+            case "pause": Sfx.click(); pauseGame(); break;
+            case "swap": swapWeapon(); break;
+            case "mute": SET.muted = !SET.muted; saveSet(); Audio.ApplyVolume(); Sfx.click(); break;
         }
     }
 
@@ -73,6 +74,14 @@ public static class Hud
         else if (icon == "tok") Tok(c, x + padX + 6, y + h / 2, 12.4);
         c.fillStyle = fg; c.textAlign = "left"; c.fillText(text, x + padX + iw, y + h / 2 + 4.6);
         return w;
+    }
+
+    /// <summary>Подсказка клавиши на кнопке (ПК): маленькая «клавиша» с буквой.</summary>
+    static void KeyCap(Ctx c, double x, double y, string key)
+    {
+        RRect(c, x, y, 22, 22, 6, INK, 0, 0);
+        RRect(c, x + 2, y + 2, 18, 16, 4, PAPER, 0, 0);
+        c.font = "900 12px Rubik"; c.textAlign = "center"; c.fillStyle = INK; c.fillText(key, x + 11, y + 14.5);
     }
 
     static void EggPath(Ctx c, double cx, double top, double w, double h)
@@ -146,17 +155,32 @@ public static class Hud
             c.font = "800 15px Rubik"; c.textAlign = "left"; c.fillStyle = PAPER; c.fillText(name, x + 14, y + 21);
             if (ammo == "∞") { c.strokeStyle = YOLK; c.lineWidth = 2.6; double ix = x + 14 + nw + 10 + 7, iy = y + 16; c.beginPath(); c.ellipse(ix - 3.4, iy, 3.4, 3, 0, 0, TAU); c.stroke(); c.beginPath(); c.ellipse(ix + 3.4, iy, 3.4, 3, 0, 0, TAU); c.stroke(); }
             else { c.font = "900 15px Rubik"; c.fillStyle = YOLK; c.fillText(ammo, x + 14 + nw + 10, y + 21); }
+            if (P.sec != null)
+            { // Soul Knight: кнопка смены оружия справа от названия (на ПК — клавиша F)
+                double sx = x + w + 6, sw = 40;
+                RRect(c, sx, y - 4, sw, h + 4, 12, YOLK, 3, 3);
+                c.strokeStyle = INK; c.lineWidth = 2.4; c.lineCap = "round"; double mx2 = sx + sw / 2, my2 = y + h / 2 - 2;
+                seg(c, mx2 - 9, my2 - 4, mx2 + 8, my2 - 4); seg(c, mx2 + 4, my2 - 8, mx2 + 8, my2 - 4); seg(c, mx2 + 4, my2, mx2 + 8, my2 - 4);
+                seg(c, mx2 + 9, my2 + 5, mx2 - 8, my2 + 5); seg(c, mx2 - 4, my2 + 1, mx2 - 8, my2 + 5); seg(c, mx2 - 4, my2 + 9, mx2 - 8, my2 + 5); c.lineCap = "butt";
+                if (!COARSE) KeyCap(c, sx + sw - 12, y - 14, "F");
+                btns["swap"] = (x, y - 4, w + 6 + sw, h + 4);
+            }
         }
         // --- кнопка «Бум» (яйцо-граната) ---
+        // на телефоне — над правым стиком; на ПК стиков нет, поэтому «Бум» и ульта стоят в правом нижнем углу с подсказками клавиш
+        bool pc = !COARSE;
+        double nadeX;
         {
-            double w = sh ? 62 : 68, h = sh ? 72 : 80, x = VW - SafeR - (sh ? 22 : 18) - w, y = VH - SafeB - (sh ? 150 : 200) - h, cxn = x + w / 2;
+            double w = pc ? 60 : sh ? 62 : 68, h = pc ? 70 : sh ? 72 : 80, x = VW - SafeR - (pc ? 20 : sh ? 22 : 18) - w, y = pc ? B - h : VH - SafeB - (sh ? 150 : 200) - h, cxn = x + w / 2;
+            nadeX = x;
             c.save(); if (P.nades <= 0) c.globalAlpha = .45;
             c.fillStyle = INK; c.save(); c.translate(0, 4); EggPath(c, cxn, y, w, h); c.fill(); c.restore();
             EggPath(c, cxn, y, w, h); c.fillStyle = PAPER; c.fill();
-            c.save(); EggPath(c, cxn, y, w, h); c.clip(); double band = y + (sh ? 30 : 34);
+            c.save(); EggPath(c, cxn, y, w, h); c.clip(); double band = y + (pc || sh ? 30 : 34);
             c.fillStyle = INK; c.fillRect(x + 6, band, w - 12, 11); c.fillStyle = BARN; c.fillRect(x + 6, band + 2, w - 12, 7); c.restore();
             c.strokeStyle = INK; c.lineWidth = 3; EggPath(c, cxn, y + 1.5, w - 3, h - 3); c.stroke();
             c.font = "900 12px Rubik"; c.textAlign = "center"; c.fillStyle = INK; c.fillText(T("Бум"), cxn, band + 26);
+            if (pc) KeyCap(c, x - 6, y + h - 22, "Q");
             double bx = x + w + 8 - 28, by = y - 8; RRect(c, bx, by, 28, 28, 14, YOLK, 3);
             c.font = "900 14px Rubik"; c.fillStyle = INK; c.fillText(P.nades.ToString(), bx + 14, by + 19);
             c.restore();
@@ -164,7 +188,7 @@ public static class Hud
         }
         // --- ульта ---
         {
-            double d = sh ? 68 : 78, x = VW - SafeR - 100 - d, y = VH - SafeB - (sh ? 178 : 212) - d, ucx = x + d / 2, ucy = y + d / 2, r = d / 2;
+            double d = pc ? 66 : sh ? 68 : 78, x = pc ? nadeX - 22 - d : VW - SafeR - 100 - d, y = pc ? B - d - 4 : VH - SafeB - (sh ? 178 : 212) - d, ucx = x + d / 2, ucy = y + d / 2, r = d / 2;
             int p = (int)Math.Floor(P.ult); string st = P.buff != null ? "live" : p >= 100 ? "ready" : "charge";
             if (st == "ready") { double k = (Clock % 1.0); double gl = Math.Sin(k * Math.PI) * 9; c.save(); c.globalAlpha = .9 * (1 - k); c.fillStyle = YOLK; c.beginPath(); c.arc(ucx, ucy + 4, r + gl, 0, TAU); c.fill(); c.restore(); }
             c.fillStyle = INK; c.beginPath(); c.arc(ucx, ucy + 4, r, 0, TAU); c.fill();
@@ -176,6 +200,7 @@ public static class Hud
             c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.arc(ucx, ucy, ir - 1, 0, TAU); c.stroke();
             var lbl = st == "live" ? Math.Ceiling(P.buffT) + T(" с") : st == "ready" ? T("УЛЬТА") : p + "%";
             c.font = "900 12.5px Rubik"; c.textAlign = "center"; c.fillStyle = st == "ready" ? "#fff" : INK; c.fillText(lbl, ucx, ucy + 4.5);
+            if (pc) KeyCap(c, x - 4, y + d - 20, "R");
             btns["ult"] = (x, y, d, d);
         }
         DrawBanner(c);

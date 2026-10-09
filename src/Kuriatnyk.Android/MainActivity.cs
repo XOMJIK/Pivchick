@@ -11,7 +11,8 @@ namespace Kuriatnyk.Android;
 
 /// <summary>Главное окно Android: настраивает Avalonia и платформенные мелочи (звук, вибрация, сенсорный ввод).</summary>
 [Activity(Label = "Боевой Курятник", Theme = "@style/KurTheme", Icon = "@drawable/icon", MainLauncher = true,
-    ScreenOrientation = ScreenOrientation.FullSensor, LaunchMode = LaunchMode.SingleTask,
+    ScreenOrientation = ScreenOrientation.SensorLandscape, // только горизонтально (обе стороны)
+    LaunchMode = LaunchMode.SingleTask,
     ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Keyboard | ConfigChanges.KeyboardHidden)]
 public class MainActivity : AvaloniaMainActivity<App>
 {

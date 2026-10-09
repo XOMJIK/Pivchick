@@ -7,7 +7,7 @@ namespace Kuriatnyk;
 /// <summary>То, что рисует drawBird: поза + образ (в JS это был объект {...P.look, x, y, …}).</summary>
 public sealed class Sprite
 {
-    public double x, y, ang, phase, flash; public int face = 1; public bool moving, blink, swim, ghost, robo;
+    public double x, y, ang, phase, flash, swing; public int face = 1; public bool moving, blink, swim, ghost, robo;
     public string kind, gun, buff, sp, special, body, wing, tail, head, hat;
     public Sprite With(Look l)
     {
@@ -163,6 +163,15 @@ public static partial class G
         else if (type == "smg")
         {
             box(2, -4.5, 19, 8, 2, "#3d3f4a"); box(10, 2, 4.5, 10, 1, "#2a2b33"); box(20, -2.5, 6, 4, 1, "#2a2b33");
+        }
+        else if (type == "stick")
+        { // деревянная палка с сучком и листиком
+            c.lineCap = "round"; c.strokeStyle = INK; c.lineWidth = 7.5; seg(c, -2, 0, 31, 0); seg(c, 17, 0, 22, -7);
+            c.strokeStyle = "#a8743d"; c.lineWidth = 4.6; seg(c, -2, 0, 31, 0); seg(c, 17, 0, 22, -7);
+            c.strokeStyle = "#c9935a"; c.lineWidth = 1.4; seg(c, 2, -1.2, 27, -1.2);
+            c.fillStyle = "#7a4a24"; c.beginPath(); c.arc(9, .5, 1.3, 0, TAU); c.arc(25, .4, 1.1, 0, TAU); c.fill();
+            c.fillStyle = "#6db343"; c.strokeStyle = INK; c.lineWidth = 1.2; c.beginPath(); c.ellipse(24.5, -9.5, 4, 2.2, -.6, 0, TAU); c.fill(); c.stroke();
+            c.lineCap = "butt";
         }
         else if (type == "blunder")
         {
@@ -389,6 +398,7 @@ public static partial class G
         if (adren && !fl) { c.fillStyle = "#ffd23a"; c.lineWidth = 1.2; c.beginPath(); c.moveTo(0, -24); c.lineTo(-4, -18.5); c.lineTo(-1.5, -18.5); c.lineTo(-4, -14); c.lineTo(2, -20); c.lineTo(-.5, -20); c.closePath(); c.fill(); c.stroke(); }
         c.restore();
         c.translate(o.face * 3 * s, sp.gy * s - bob); c.rotate(o.ang); if (Math.Cos(o.ang) < 0) c.scale(1, -1);
+        if (o.gun == "stick") c.rotate(o.swing > 0 ? -1.5 + 3 * (1 - o.swing) : -.75); // палка поднята, при ударе — размах сверху вниз
         drawGun(c, o.gun);
         c.strokeStyle = INK; c.lineWidth = 2; circ(c, 6, 1, 4.2, fl ? "#fff" : o.wing);
         c.restore();

@@ -1,0 +1,445 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Kuriatnyk.Render;
+using SkiaSharp;
+using static Kuriatnyk.D;
+using static Kuriatnyk.Store;
+
+namespace Kuriatnyk;
+
+// Режим Soul Knight: лагерь с порталом, затем подземелье из пяти уровней 0-1 … 0-5.
+// Уровень — комнаты на сетке 3×3, соединённые коридорами. Заходишь в боевую комнату — двери закрываются,
+// пока не победишь все волны. В последней комнате портал на следующий уровень.
+// На 0-4 есть необязательная комната с боссом в стороне от пути, на 0-5 босс стоит перед порталом.
+
+public sealed class Room
+{
+    public double x, y, w, h; public string type; // start, fight, end, boss (обязательный), bossopt (необязательный), hub
+    public bool cleared; public int wave, waves; public double waveT; public Enemy boss;
+    public List<Corr> cors = new();
+    public double cx => x + w / 2; public double cy => y + h / 2;
+}
+public sealed class Corr { public double x, y, w, h; public bool horiz; public Room a, b; }
+public sealed class Portal { public double x, y, t; public bool on; public string kind; } // kind: start (из лагеря) или next
+public sealed class Dungeon
+{
+    public List<Room> rooms = new(); public List<Corr> cors = new(); public List<Portal> portals = new();
+    public Room active; public bool hub; public double doorX, doorY, enterCd, doorMsgT;
+}
+
+public static partial class G
+{
+    public static Dungeon DUN;
+    public const int SK_LEVELS = 5;
+    const double WALL = 22, CORR_W = 96;
+    const string DUN_VOID = "#1b2018";
+
+    /// <summary>Какие враги живут на уровне 0-lv (чем глубже, тем злее).</summary>
+    static Dictionary<string, double> skMix(int lv) => lv switch
+    {
+        1 => new() { ["hen"] = 1, ["rat"] = .6, ["fox"] = .6 },
+        2 => new() { ["hen"] = .8, ["fox"] = .7, ["crow"] = .5, ["raccoon"] = .4, ["rat"] = .4 },
+        3 => new() { ["fox"] = .7, ["turkey"] = .4, ["bigrat"] = .6, ["crow"] = .5, ["raccoon"] = .5 },
+        4 => new() { ["wolf"] = .8, ["owl"] = .5, ["bigrat"] = .5, ["fox"] = .5, ["turkey"] = .3 },
+        _ => new() { ["wolf"] = .7, ["ferret"] = .7, ["robohen"] = .5, ["owl"] = .5, ["raccoon"] = .4 },
+    };
+    public static string skLvName(int lv) => "0-" + lv;
+
+    /* ---------- запуск режима ---------- */
+    public static void startSK(string heroId)
+    {
+        if (heroId == null || !SAVE.heroes.ContainsKey(heroId)) heroId = SAVE.hero;
+        lastBridge = null;
+        P = newPlayer(heroId); P.sec = "stick"; allies = new();
+        enemies = new(); bullets = new(); parts = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); holes = new(); zones = new(); strikes = new(); puddles = new();
+        S.mode = "play"; S.kind = "sk"; S.skHero = heroId; S.lvIdx = 0; S.L = null; S.diff = 1; S.night = false; S.t = 0; S.score = 0; S.wave = 0; S.toSpawn = 0; S.spawnT = 0;
+        S.between = 0; S.running = true; S.kills = 0; S.goalKills = 0; S.survT = 0; S.boss = null; S.bossT = 0; S.shake = 0;
+        S.combo = 0; S.comboT = 0; S.deadT = 0; S.winT = 0; S.coins = 0; S.tokens = 0; S.banked = false; S.cleanup = false; S.kamiNext = 0;
+        sticks.move = sticks.aim = null; clearBanner(); Ui.ToastClear(); bossBarOn = false;
+        enterHub();
+        Ui.OnGameStart();
+    }
+
+    static void resetField()
+    {
+        enemies = new(); bullets = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); zones = new(); strikes = new(); puddles = new();
+        S.boss = null; bossBarOn = false; RIVERS = new(); RIVER = null;
+    }
+    static void snapCamera() { double vw = VW / SC, vh = VH / SC; camX = P.x - vw / 2; camY = P.y - 28 - vh / 2; }
+
+    static void enterHub()
+    {
+        resetField(); S.skLv = 0;
+        var D = new Dungeon { hub = true };
+        var R = new Room { type = "hub", w = 560, h = 420, cleared = true }; R.x = WW / 2 - R.w / 2; R.y = WH / 2 - R.h / 2; D.rooms.Add(R);
+        D.portals.Add(new Portal { x = R.cx, y = R.y + 120, on = true, kind = "start" });
+        D.doorX = R.x + R.w - 70; D.doorY = R.y + 6; // закрытая дверь в стене: здесь в будущем что-то появится
+        OBS = new() { new Obs { x = R.x + 60, y = R.y + R.h - 60, r = 34, type = "hay" }, new Obs { x = R.x + R.w - 60, y = R.y + R.h - 60, r = 22, type = "barrel" }, new Obs { x = R.x + 56, y = R.y + 90, r = 22, type = "barrel" } };
+        DUN = D; renderDungeon(); D.enterCd = 1;
+        P.x = R.cx; P.y = R.y + R.h - 110; P._px = P.x; P._py = P.y; snapCamera();
+        Music.Play("menu");
+        showBanner(T("Лагерь"), T("Зайди в портал — начнётся забег"));
+    }
+
+    static void enterLevel(int lv)
+    {
+        resetField(); S.skLv = lv; S.lvIdx = lv; S.diff = 1 + (lv - 1) * 1.5;
+        buildLevel(lv); renderDungeon();
+        var st = DUN.rooms.First(r => r.type == "start");
+        P.x = st.cx; P.y = st.cy + 30; P._px = P.x; P._py = P.y; P.buff = null; P.inv = 1;
+        if (lv > 1) { var h = Math.Round(P.max * .25); P.hp = Math.Min(P.max, P.hp + h); } // между уровнями немного лечимся
+        snapCamera(); DUN.enterCd = 1.2;
+        Music.Play("battle"); Sfx.wave();
+        showBanner(skLvName(lv), lv == SK_LEVELS ? T("Логово главаря") : T("Лесное подземелье"));
+    }
+
+    /* ---------- генерация уровня ---------- */
+    static void buildLevel(int lv)
+    {
+        double cs = (WW - 2 * FENCE) / 3;
+        int len = lv switch { 1 => 4, 2 => 5, 3 => 5, 4 => 6, _ => 5 };
+        List<(int x, int y)> path = null;
+        for (int tries = 0; tries < 400 && path == null; tries++)
+        {
+            var p = new List<(int x, int y)> { ((int)(rnd() * 3), (int)(rnd() * 3)) };
+            while (p.Count < len)
+            {
+                var (x, y) = p[^1];
+                var nb = new[] { (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1) }.Where(c => c.Item1 >= 0 && c.Item1 < 3 && c.Item2 >= 0 && c.Item2 < 3 && !p.Contains(c)).ToList();
+                if (nb.Count == 0) break;
+                p.Add(nb[(int)(rnd() * nb.Count)]);
+            }
+            if (p.Count == len) path = p;
+        }
+        var D = new Dungeon();
+        Room mk((int x, int y) g, string type)
+        {
+            double w = type is "start" or "end" ? 250 : type is "boss" or "bossopt" ? 410 : 350, h = type is "start" or "end" ? 230 : type is "boss" or "bossopt" ? 390 : 310;
+            var R = new Room { type = type, w = w, h = h };
+            R.x = FENCE + cs * (g.x + .5) - w / 2; R.y = FENCE + cs * (g.y + .5) - h / 2; D.rooms.Add(R); return R;
+        }
+        void link(Room a, Room b)
+        {
+            bool hz = Math.Abs(a.cy - b.cy) < 1;
+            Corr c;
+            if (hz) { var (l, r) = a.cx < b.cx ? (a, b) : (b, a); c = new Corr { horiz = true, x = l.x + l.w - 12, w = r.x - (l.x + l.w) + 24, y = l.cy - CORR_W / 2, h = CORR_W }; }
+            else { var (t, bt) = a.cy < b.cy ? (a, b) : (b, a); c = new Corr { horiz = false, y = t.y + t.h - 12, h = bt.y - (t.y + t.h) + 24, x = t.cx - CORR_W / 2, w = CORR_W }; }
+            c.a = a; c.b = b; a.cors.Add(c); b.cors.Add(c); D.cors.Add(c);
+        }
+        var rooms = new List<Room>();
+        for (int i = 0; i < path.Count; i++)
+        {
+            string type = i == 0 ? "start" : i == path.Count - 1 ? (lv == SK_LEVELS ? "boss" : "end") : "fight";
+            var R = mk(path[i], type); R.waves = lv <= 2 ? 2 : 3; rooms.Add(R);
+            if (i > 0) link(rooms[i - 1], R);
+        }
+        if (lv == 4)
+        { // необязательный босс — в стороне от пути, к нему ведёт отдельный коридор
+            for (int i = 1; i < path.Count - 1; i++)
+            {
+                var (x, y) = path[i];
+                var free = new[] { (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1) }.Where(c => c.Item1 >= 0 && c.Item1 < 3 && c.Item2 >= 0 && c.Item2 < 3 && !path.Contains(c)).ToList();
+                if (free.Count == 0) continue;
+                var B = mk(free[(int)(rnd() * free.Count)], "bossopt"); link(rooms[i], B); break;
+            }
+        }
+        // укрытия в боевых комнатах
+        OBS = new();
+        var kinds = new[] { "barrel", "rock", "stump", "bush", "barrel", "rock" };
+        foreach (var R in D.rooms.Where(r => r.type is "fight" or "bossopt" or "boss"))
+        {
+            int n = R.type == "fight" ? 2 + (int)(rnd() * 2) : 2;
+            for (int k = 0, tries = 0; k < n && tries < 60; tries++)
+            {
+                var t = kinds[(int)(rnd() * kinds.Length)]; double r = t == "barrel" ? 21 : t == "stump" ? 22 : 26;
+                double x = rand(R.x + 70, R.x + R.w - 70), y = rand(R.y + 70, R.y + R.h - 60);
+                if (hypot(x - R.cx, y - R.cy) < 80 || OBS.Any(o => hypot(o.x - x, o.y - y) < o.r + r + 60)) continue;
+                OBS.Add(new Obs { x = x, y = y, r = r, type = t }); k++;
+            }
+        }
+        var end = rooms[^1];
+        D.portals.Add(new Portal { x = end.cx, y = end.cy, on = end.type == "end", kind = "next" });
+        DUN = D;
+    }
+
+    /* ---------- где можно ходить ---------- */
+    static bool inRoom(Room R, double x, double y, double m) => x >= R.x + m && x <= R.x + R.w - m && y >= R.y + m && y <= R.y + R.h - m;
+    static bool inCorr(Corr c, double x, double y, double m) => c.horiz ? x >= c.x && x <= c.x + c.w && y >= c.y + m && y <= c.y + c.h - m : y >= c.y && y <= c.y + c.h && x >= c.x + m && x <= c.x + c.w - m;
+    public static bool dunWalk(double x, double y, double m)
+    {
+        if (DUN == null) return true;
+        if (DUN.active != null) return inRoom(DUN.active, x, y, m);
+        foreach (var R in DUN.rooms) if (inRoom(R, x, y, m)) return true;
+        foreach (var c in DUN.cors) if (inCorr(c, x, y, m)) return true;
+        return false;
+    }
+    static void clampRoom(Unit e, Room R, double m) { e.x = clamp(e.x, R.x + m, R.x + R.w - m); e.y = clamp(e.y, R.y + m, R.y + R.h - m); }
+    /// <summary>Стены подземелья: враги заперты в своей комнате, игрок скользит вдоль стен.</summary>
+    static void dunCollide(Unit e)
+    {
+        if (e is Enemy en) { var R = en.room ?? DUN.active; if (R != null) clampRoom(e, R, en.r * .8); return; }
+        double m = e.r * .8;
+        if (dunWalk(e.x, e.y, m)) return;
+        double px = e is Fighter f ? f._px : double.NaN, py = e is Fighter f2 ? f2._py : double.NaN;
+        if (!double.IsNaN(px))
+        {
+            if (dunWalk(e.x, py, m)) { e.y = py; return; }
+            if (dunWalk(px, e.y, m)) { e.x = px; return; }
+            if (dunWalk(px, py, m)) { e.x = px; e.y = py; return; }
+        }
+        if (DUN.active != null) { clampRoom(e, DUN.active, m); return; }
+        // занесло в стену (отдача, отброс) — в ближайшую комнату или коридор
+        double bd = 1e9, bx = e.x, by = e.y;
+        void tryRect(double x, double y, double w, double h)
+        {
+            double qx = clamp(e.x, x + m, x + w - m), qy = clamp(e.y, y + m, y + h - m), d = hypot(qx - e.x, qy - e.y);
+            if (d < bd) { bd = d; bx = qx; by = qy; }
+        }
+        foreach (var R in DUN.rooms) tryRect(R.x, R.y, R.w, R.h);
+        foreach (var c in DUN.cors) tryRect(c.x, c.y, c.w, c.h);
+        e.x = bx; e.y = by;
+    }
+
+    /* ---------- ход уровня ---------- */
+    static void updateSK(double dt)
+    {
+        var D = DUN; if (D == null || !P.alive) return;
+        D.enterCd -= dt;
+        foreach (var p in D.portals)
+        {
+            p.t += dt;
+            if (p.on && D.enterCd <= 0 && hypot(P.x - p.x, P.y - p.y) < 30) { usePortal(p); return; }
+        }
+        if (D.hub)
+        {
+            D.doorMsgT -= dt;
+            if (D.doorMsgT <= 0 && hypot(P.x - D.doorX, P.y - D.doorY) < 80) { D.doorMsgT = 3; ftext(D.doorX, D.doorY + 10, T("Закрыто · скоро откроется"), "#e8d3a8", 13); Sfx.creak(); }
+            return;
+        }
+        if (D.active == null)
+        {
+            foreach (var R in D.rooms)
+                if (!R.cleared && R.type is "fight" or "boss" or "bossopt" && inRoom(R, P.x, P.y, P.r + 22)) { lockRoom(R); break; }
+            return;
+        }
+        var A = D.active;
+        if (A.boss != null && A.boss.dead)
+        { // босс повержен — его свита разбегается
+            foreach (var e in enemies) if (!e.dead) { puff(e.x, e.y, "#ffffff", 6, 1); e.dead = true; }
+            S.cleanup = true; A.boss = null; A.wave = A.waves;
+        }
+        if (enemies.Any(e => !e.dead) || A.boss != null) return;
+        if (A.wave < A.waves) { A.waveT -= dt; if (A.waveT <= 0) spawnRoomWave(A); }
+        else clearRoom(A);
+    }
+    static void lockRoom(Room R)
+    {
+        DUN.active = R; R.wave = 0; R.waveT = .6; Sfx.chest(); S.shake += 5;
+        if (R.type is "boss" or "bossopt")
+        {
+            var type = R.type == "boss" ? "ataman" : "gturkey";
+            var e = makeEnemy(type, R.cx, R.y + 110); e.room = R; e.atkT = 2; e.hp = e.max = R.type == "boss" ? 1700 : 950;
+            R.boss = e; S.boss = e; bossBarOn = true; R.waves = 0; Music.Play("boss"); S.shake += 8; Sfx.gobble();
+            showBanner(ETYPE[type].name, R.type == "boss" ? T("Победи главаря — откроется портал") : T("Необязательный босс · награда — золотые яйца"));
+        }
+    }
+    static void spawnRoomWave(Room R)
+    {
+        R.wave++; R.waveT = .9; int lv = S.skLv; var mix = skMix(lv);
+        int n = 3 + lv + (rnd() < .5 ? 1 : 0) + (R.wave == R.waves ? 1 : 0);
+        for (int i = 0; i < n; i++)
+        {
+            var type = pickFrom(mix); var Tt = ETYPE[type];
+            double x = R.cx, y = R.cy;
+            for (int t = 0; t < 30; t++)
+            {
+                x = rand(R.x + 40, R.x + R.w - 40); y = rand(R.y + 40, R.y + R.h - 40);
+                if (hypot(x - P.x, y - P.y) > 150 && !OBS.Any(o => hypot(o.x - x, o.y - y) < o.r + Tt.r + 6)) break;
+            }
+            int cnt = type == "rat" ? 3 : type == "bigrat" ? 2 : 1;
+            for (int k = 0; k < cnt; k++)
+            {
+                var e = makeEnemy(type, clamp(x + (k == 0 ? 0 : rand(-26, 26)), R.x + 30, R.x + R.w - 30), clamp(y + (k == 0 ? 0 : rand(-26, 26)), R.y + 30, R.y + R.h - 30));
+                e.room = R; e.emerge = .55; ring(e.x, e.y, "#ff5a3c", 34, .5);
+            }
+        }
+        if (R.wave > 1) ftext(P.x, P.y - 60, T("Волна ") + R.wave + "/" + R.waves, "#ffc93a", 14);
+    }
+    static void clearRoom(Room R)
+    {
+        R.cleared = true; DUN.active = null; Sfx.pick(); S.shake += 3;
+        int bonus = 6 + S.skLv * 3; S.coins += bonus;
+        ftext(P.x, P.y - 62, T("Комната зачищена!") + " +" + bonus, "#9cf27a", 15);
+        double r = rnd();
+        if (r < .4) pickups.Add(new Pickup { x = R.cx, y = R.cy, kind = "corn", t = 60, ph = 0 });
+        else if (r < .65) pickups.Add(new Pickup { x = R.cx, y = R.cy, kind = "nade", t = 60, ph = 0 });
+        if (R.type == "bossopt")
+        {
+            int eg = 2; SAVE.eggs += eg; S.coins += 60; persist();
+            showBanner(T("Босс повержен!"), "+" + eg + T(" золотых яиц · +60 зёрен")); Music.Play("battle");
+        }
+        else if (R.type == "boss")
+        {
+            foreach (var p in DUN.portals) p.on = true;
+            showBanner(T("Главарь повержен!"), T("Портал открыт")); Music.Play("battle");
+        }
+    }
+    static void usePortal(Portal p)
+    {
+        Sfx.ult(); ring(P.x, P.y, "#b48cff", 120, .5); puff(P.x, P.y, "#d9c4ff", 12, 1.2);
+        if (p.kind == "start") { enterLevel(1); return; }
+        if (S.skLv < SK_LEVELS) enterLevel(S.skLv + 1); else skFinish();
+    }
+    static void skFinish()
+    {
+        S.mode = "result"; sticks.move = sticks.aim = null; input.firing = false;
+        long sc = S.coins, st = S.tokens; bankCoins();
+        bool first = !SAVE.eggMs.ContainsKey("skRun");
+        long lc = 150, lt = 40; int le = first ? 10 : 0;
+        SAVE.coins += lc; SAVE.tokens += lt; SAVE.eggs += le; if (first) { SAVE.eggMs["skRun"] = 1; SAVE.btokens++; }
+        persist();
+        var w = new WinInfo { eyebrow = T("Режим Soul Knight") + " · " + skLvName(SK_LEVELS), lead = T("Подземелье пройдено! Лис-атаман повержен."), hasNext = false };
+        w.rows.Add(new WinRow { icon = "coin", text = "+" + (lc + sc) + T(" зёрен"), sub = T("за забег и врагов") });
+        w.rows.Add(new WinRow { icon = "tok", text = "+" + (lt + st) + T(" жетонов"), sub = T("на обычный сундук: ") + L.Fmt(SAVE.tokens) + "/100" });
+        if (first) { w.rows.Add(new WinRow { icon = "gegg", text = "+" + le + T(" золотых яиц"), sub = T("только за первое прохождение") }); w.rows.Add(new WinRow { icon = "btok", text = StripIcon(T("<i class=\"btok\"></i>+1 большой жетон")), sub = T("на большой сундук: ") + SAVE.btokens + "/10" }); }
+        Ui.ShowWin(w);
+    }
+    /// <summary>Подпись цели в HUD: «Лагерь» или «0-3 · комнаты 1/3».</summary>
+    static string skGoal()
+    {
+        if (DUN == null || DUN.hub) return T("Лагерь");
+        var f = DUN.rooms.Where(r => r.type is "fight" or "boss").ToList();
+        return skLvName(S.skLv) + " · " + T("комнаты ") + f.Count(r => r.cleared) + "/" + f.Count;
+    }
+
+    /* ---------- оружие: палка и смена ствола ---------- */
+    public static void swapWeapon()
+    {
+        if (S.mode != "play" || P == null || !P.alive || P.sec == null) return;
+        if (P.w == P.sec) P.w = P.prim; else P.w = P.sec;
+        P.ammo = double.PositiveInfinity; P.cd = Math.Max(P.cd, .15); Sfx.click();
+        ftext(P.x, P.y - 54, WEAP[P.w].name, "#ffc93a", 13);
+    }
+    const double MELEE_R = 80, MELEE_ARC = 1.15;
+    /// <summary>Взмах палкой: бьёт всех врагов в секторе перед героем и отбивает вражеские яйца.</summary>
+    static void meleeSwing(double ang, double dmg)
+    {
+        P.swing = .22; P.swingA = ang;
+        double hx = P.x, hy = P.y; int hits = 0;
+        for (int i = 0; i < enemies.Count; i++)
+        {
+            var e = enemies[i]; if (e.dead) continue;
+            double dx = e.x - hx, dy = e.y - hy, d = hypot(dx, dy); if (d - e.r > MELEE_R) continue;
+            var df = Math.Abs(((Math.Atan2(dy, dx) - ang + Math.PI * 3) % TAU) - Math.PI);
+            if (df > MELEE_ARC && d > e.r + P.r + 6) continue;
+            hitEnemy(e, dmg, dx, dy, true, 1.8); hits++;
+        }
+        for (int i = bullets.Count - 1; i >= 0; i--)
+        {
+            var b = bullets[i]; if (b.fromP) continue;
+            double dx = b.x - hx, dy = b.y - hy, d = hypot(dx, dy); if (d > MELEE_R + 10) continue;
+            var df = Math.Abs(((Math.Atan2(dy, dx) - ang + Math.PI * 3) % TAU) - Math.PI); if (df > MELEE_ARC) continue;
+            puff(b.x, b.y, "#fff4dc", 2, .5); bullets.RemoveAt(i);
+        }
+        parts.Add(new Part { k = "swing", x = hx, y = hy, a = ang, t = 0, max = .18, R = MELEE_R });
+        if (hits > 0) { S.shake += 3; Platform.Buzz(15); }
+    }
+
+    /* ---------- отрисовка ---------- */
+    static void renderDungeon()
+    {
+        double res = COARSE ? 1 : 2;
+        var info = new SKImageInfo((int)(WW * res), (int)(WH * res), SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var surf = SKSurface.Create(info);
+        var g = new Ctx(); g.Begin(surf.Canvas); g.scale(res, res);
+        bool hub = DUN.hub;
+        string floor = hub ? "#b88a57" : "#7d8b63", floor2 = hub ? "#a97c4b" : "#74825b", wallTop = hub ? "#6b4a2b" : "#4c5a44", wallFace = hub ? "#523620" : "#36412f";
+        g.fillStyle = DUN_VOID; g.fillRect(0, 0, WW, WH);
+        var Gr = seeded(4242 + S.skLv * 17 + (long)(rnd() * 1000));
+        void wallRect(double x, double y, double w, double h)
+        {
+            g.fillStyle = wallTop; g.strokeStyle = INK; g.lineWidth = 3; rr(g, x - WALL, y - WALL - 10, w + WALL * 2, h + WALL * 2 + 10, 8); g.fill(); g.stroke();
+            g.fillStyle = "rgba(255,255,255,.08)"; for (double bx = x - WALL + 6; bx < x + w + WALL - 20; bx += 34) g.fillRect(bx, y - WALL - 6, 26, 6);
+        }
+        void floorRect(double x, double y, double w, double h, bool tiles)
+        {
+            g.fillStyle = floor; g.fillRect(x, y, w, h);
+            if (hub)
+            { // деревянный пол лагеря
+                for (double py = y; py < y + h; py += 28) { g.fillStyle = Gr() < .5 ? floor : floor2; g.fillRect(x, py, w, 26); g.fillStyle = "rgba(43,29,20,.25)"; g.fillRect(x, py + 26, w, 2); }
+                return;
+            }
+            if (!tiles) return;
+            for (double ty = y; ty < y + h; ty += 40)
+                for (double tx = x; tx < x + w; tx += 40)
+                {
+                    if (Gr() < .35) { g.fillStyle = Gr() < .5 ? floor2 : "rgba(255,255,255,.05)"; g.fillRect(tx + 1, ty + 1, Math.Min(38, x + w - tx - 1), Math.Min(38, y + h - ty - 1)); }
+                    g.fillStyle = "rgba(0,0,0,.13)"; g.fillRect(tx, ty, Math.Min(40, x + w - tx), 1.5); g.fillRect(tx, ty, 1.5, Math.Min(40, y + h - ty));
+                }
+            g.strokeStyle = "#5f9e3c"; g.lineWidth = 1.6; g.lineCap = "round";
+            for (int i = 0; i < w * h / 2600; i++) { double px = x + Gr() * w, py = y + Gr() * h; g.beginPath(); g.moveTo(px, py); g.lineTo(px - 2, py - 5); g.moveTo(px + 2, py); g.lineTo(px + 3, py - 4); g.stroke(); }
+            g.fillStyle = "rgba(60,50,40,.35)"; for (int i = 0; i < w * h / 5000; i++) { g.beginPath(); g.arc(x + Gr() * w, y + Gr() * h, 1.5 + Gr() * 2, 0, TAU); g.fill(); }
+        }
+        foreach (var R in DUN.rooms) wallRect(R.x, R.y, R.w, R.h);
+        foreach (var c in DUN.cors) wallRect(c.x, c.y, c.w, c.h);
+        foreach (var R in DUN.rooms)
+        {
+            floorRect(R.x, R.y, R.w, R.h, true);
+            g.fillStyle = wallFace; g.fillRect(R.x, R.y - 2, R.w, 14); g.fillStyle = "rgba(0,0,0,.18)"; g.fillRect(R.x, R.y + 12, R.w, 5); // лицевая сторона верхней стены
+        }
+        foreach (var c in DUN.cors) floorRect(c.x, c.y, c.w, c.h, true);
+        if (hub)
+        { // закрытая дверь в стене лагеря
+            double dx = DUN.doorX, dy = DUN.doorY;
+            g.fillStyle = "#6b4a2b"; g.strokeStyle = INK; g.lineWidth = 3; rr(g, dx - 34, dy - 40, 68, 52, 10); g.fill(); g.stroke();
+            g.fillStyle = "#8a5a2b"; rr(g, dx - 26, dy - 32, 52, 44, 6); g.fill(); g.stroke();
+            g.strokeStyle = "rgba(43,29,20,.6)"; g.lineWidth = 2; foreach (var ox in new[] { -9.0, 9.0 }) seg(g, dx + ox, dy - 30, dx + ox, dy + 10);
+            g.fillStyle = "#c9a227"; g.strokeStyle = INK; g.lineWidth = 2; rr(g, dx - 8, dy - 12, 16, 14, 3); g.fill(); g.stroke();
+            g.beginPath(); g.arc(dx, dy - 12, 5, Math.PI, TAU); g.stroke();
+            // коврик и костёр-фонарь для уюта
+            g.fillStyle = "#c0392b"; g.strokeStyle = INK; g.lineWidth = 2; var R0 = DUN.rooms[0]; rr(g, R0.cx - 90, R0.y + R0.h - 150, 180, 90, 18); g.fill(); g.stroke();
+            g.strokeStyle = "#ffc93a"; g.lineWidth = 3; rr(g, R0.cx - 80, R0.y + R0.h - 140, 160, 70, 14); g.stroke();
+        }
+        surf.Canvas.Flush();
+        ground?.Dispose(); ground = surf.Snapshot();
+    }
+    /// <summary>Порталы и закрытые двери поверх пола (меняются каждый кадр).</summary>
+    static void drawDungeonDyn(Ctx c)
+    {
+        if (DUN == null) return;
+        foreach (var p in DUN.portals)
+        {
+            double k = p.on ? 1 : .35, t = S.t;
+            c.save(); c.translate(p.x, p.y);
+            if (p.on) { var g = c.createRadialGradient(0, 0, 0, 0, 0, 70); g.addColorStop(0, "rgba(180,140,255,.55)"); g.addColorStop(1, "rgba(180,140,255,0)"); c.fillStyle = g; c.beginPath(); c.arc(0, 0, 70, 0, TAU); c.fill(); }
+            c.globalAlpha = k;
+            c.fillStyle = INK; c.beginPath(); c.ellipse(0, 3, 40, 20, 0, 0, TAU); c.fill();
+            c.fillStyle = p.on ? "#5a2aa8" : "#4a4458"; c.beginPath(); c.ellipse(0, 0, 38, 18, 0, 0, TAU); c.fill();
+            c.lineWidth = 3; c.lineCap = "round";
+            for (int i = 0; i < 3; i++)
+            {
+                double q = (t * .8 + i / 3.0) % 1, r = 36 * (1 - q);
+                c.strokeStyle = p.on ? (i % 2 == 0 ? "#d9c4ff" : "#8f5cff") : "#8a8494"; c.globalAlpha = k * (.3 + q * .7);
+                c.beginPath(); c.ellipse(0, 0, r, r * .47, 0, t * (2 + i), t * (2 + i) + 4.2); c.stroke();
+            }
+            c.globalAlpha = k;
+            if (p.on) for (int i = 0; i < 4; i++) { double a = t * 1.5 + i * TAU / 4, z = 10 + ((t * 30 + i * 13) % 40); c.fillStyle = "#e8dcff"; c.beginPath(); c.arc(Math.Cos(a) * 24, Math.Sin(a) * 10 - z, 2.2, 0, TAU); c.fill(); }
+            c.restore();
+        }
+        var A = DUN.active; if (A == null) return;
+        foreach (var co in A.cors)
+        { // решётки на выходах из запертой комнаты
+            double x, y, w, h;
+            if (co.horiz) { bool right = co.x > A.cx; x = right ? A.x + A.w - 6 : A.x - 6; y = co.y; w = 12; h = co.h; }
+            else { bool down = co.y > A.cy; y = down ? A.y + A.h - 6 : A.y - 6; x = co.x; w = co.w; h = 12; }
+            c.save(); c.fillStyle = "rgba(43,29,20,.55)"; c.fillRect(x - 2, y - 2, w + 4, h + 4);
+            c.strokeStyle = INK; c.lineWidth = 5; c.lineCap = "round";
+            if (co.horiz) for (double yy = y + 8; yy < y + h; yy += 14) seg(c, x + w / 2, yy - 6, x + w / 2, yy + 4);
+            c.strokeStyle = "#9aa3ad"; c.lineWidth = 3;
+            if (co.horiz) { seg(c, x + w / 2, y, x + w / 2, y + h); for (double yy = y + 10; yy < y + h; yy += 18) seg(c, x - 4, yy, x + w + 4, yy); }
+            else { seg(c, x, y + h / 2, x + w, y + h / 2); for (double xx = x + 10; xx < x + w; xx += 18) seg(c, xx, y - 6, xx, y + h + 6); }
+            c.restore();
+        }
+    }
+}

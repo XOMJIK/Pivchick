@@ -257,9 +257,11 @@ public static partial class G
 
     static SKImage RenderGround(MapDef M)
     {
-        var info = new SKImageInfo((int)WW, (int)WH, SKColorType.Rgba8888, SKAlphaType.Premul);
+        // на ПК земля рисуется в двойном разрешении: на большом мониторе поле увеличено и в 1× травинки расплываются
+        double res = COARSE ? 1 : 2;
+        var info = new SKImageInfo((int)(WW * res), (int)(WH * res), SKColorType.Rgba8888, SKAlphaType.Premul);
         using var surf = SKSurface.Create(info);
-        var g = new Ctx(); g.Begin(surf.Canvas);
+        var g = new Ctx(); g.Begin(surf.Canvas); g.scale(res, res);
         g.fillStyle = M.grass; g.fillRect(0, 0, WW, WH);
         var Gr = seeded(77 + M.seed % 97);
         for (int i = 0; i < 26; i++) { g.fillStyle = Gr() < .5 ? "rgba(255,255,200,.07)" : "rgba(30,80,10,.07)"; g.beginPath(); g.ellipse(Gr() * WW, Gr() * WH, 60 + Gr() * 160, 40 + Gr() * 110, Gr() * 3, 0, TAU); g.fill(); }

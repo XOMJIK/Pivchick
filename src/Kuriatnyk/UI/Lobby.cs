@@ -44,9 +44,9 @@ public sealed class Lobby : Grid
     readonly MainView mv;
     readonly Border shadeV = new() { IsHitTestVisible = false }, shadeH = new() { IsHitTestVisible = false };
     readonly Grid grid = new();
-    Control top, hero, modes, nav; Border plate; Control turn;
+    Control top, hero, modes, nav; Border plate;
     TextBlock heroName, heroLine, storySub, bestText; WrapPanel heroBadges; StackPanel wallet; Border chestBadge;
-    StackPanel modesStack; Grid navGrid;
+    Grid navGrid;
     readonly OutlineText logo = new() { Display = true, FontSize = 34, Stroke = 1.6, ShadowY = 3 };
 
     public Lobby(MainView mv)
@@ -66,11 +66,13 @@ public sealed class Lobby : Grid
         logo.Text = T("Боевой Курятник");
         var ver = new Press(Txt("v" + GAME_VERSION, 12, FontWeight.Black, YolkB, wrap: false), InkB, 2, 8, new Thickness(9, 5), 0, YolkB) { VerticalAlignment = VerticalAlignment.Center };
         ver.Click += () => Overlays.OpenInfo(mv);
+        var brand = Row(8, logo, ver); brand.VerticalAlignment = VerticalAlignment.Center;
+        wallet = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        // настройки — в правом верхнем углу, после кошелька (как в большинстве игр)
         var gear = new Press(Svg.Gear(26), BarnB, 2.5, 12, new Thickness(5), 3) { Width = 40, Height = 40, VerticalAlignment = VerticalAlignment.Center };
         gear.Click += () => Overlays.OpenSettings(mv);
-        var brand = Row(8, logo, ver, gear); brand.VerticalAlignment = VerticalAlignment.Center;
-        wallet = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
-        var topP = new SpaceBetweenWrap(); topP.Children.Add(brand); topP.Children.Add(wallet);
+        var right = Row(10, wallet, gear); right.VerticalAlignment = VerticalAlignment.Center;
+        var topP = new SpaceBetweenWrap(); topP.Children.Add(brand); topP.Children.Add(right);
         top = topP;
 
         // --- сцена с героем: табличка с именем ---
@@ -94,24 +96,27 @@ public sealed class Lobby : Grid
     }
 
     bool builtShort;
-    /// <summary>Кнопки режимов; на низком экране (max-height:500px, landscape) — компактнее.</summary>
+    /// <summary>Какой экран режимов открыт: главный (одиночная / многопользовательская) или выбор одиночного режима.</summary>
+    bool single;
+    Control rootModes, singleModes;
+    /// <summary>Кнопки режимов: сначала «Одиночная игра» и «Многопользовательская игра»,
+    /// внутри одиночной — «Сюжет», «Бесконечный бой» и закрытый пока Soul Knight. На низком экране — компактнее.</summary>
     Control BuildModes(bool sh)
     {
-        storySub = Txt("", 12, FontWeight.SemiBold, B("#e6ffffff"));
-        var storyT = new OutlineText { Text = T("Сюжет"), Display = true, FontSize = sh ? 24 : 28, Fill = White, Stroke = 1, ShadowY = 0 };
-        var storyCol = Col(sh ? 1 : 3, storyT, storySub);
-        var arrow = new SkiaView((c, w, h) => { c.fillStyle = G.INK; c.beginPath(); c.moveTo(0, 2); c.lineTo(16, 13); c.lineTo(0, 24); c.closePath(); c.fill(); c.fillStyle = "#ffc93a"; c.beginPath(); c.moveTo(0, 0); c.lineTo(16, 11); c.lineTo(0, 22); c.closePath(); c.fill(); }) { Width = 16, Height = 24, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
-        var storyG = new Grid(); storyG.Children.Add(storyCol); storyG.Children.Add(arrow);
-        // красная кнопка с косой светлой полосой (linear-gradient 100deg в .mode.main)
-        var shine = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(1, .18, RelativeUnit.Relative) };
-        foreach (var (c, at) in new[] { ("#c0392b", 0.0), ("#c0392b", .6), ("#c85144", .6), ("#c85144", .7), ("#c0392b", .7), ("#c0392b", 1.0) }) shine.GradientStops.Add(new GradientStop(Color.Parse(c), at));
-        var story = new Press(storyG, shine, 3, 16, sh ? new Thickness(16, 8, 26, 8) : new Thickness(18, 12, 26, 12), 4) { MinHeight = sh ? 58 : 70 };
-        story.Click += () => mv.OpenPanel("storyP");
-        bestText = Txt("", 12, FontWeight.SemiBold, B("#b32b1d14"));
         var pad = sh ? new Thickness(14, 7) : new Thickness(16, 11);
         double tsz = sh ? 15 : 17, minH = sh ? 46 : 54;
-        var endless = new Press(Col(3, Txt(T("Бесконечный бой"), tsz, FontWeight.Black), bestText), PaperB, 3, 16, pad, 4) { MinHeight = minH };
-        endless.Click += () => { Audio.Init(); G.startGame("endless"); };
+        // большая красная кнопка с косой светлой полосой (linear-gradient 100deg в .mode.main) и жёлтой стрелкой
+        Press bigRed(string title, TextBlock sub, Action click)
+        {
+            var t = new OutlineText { Text = title, Display = true, FontSize = sh ? 24 : 28, Fill = White, Stroke = 1, ShadowY = 0 };
+            var col = Col(sh ? 1 : 3, t, sub); col.Margin = new Thickness(0, 0, 22, 0);
+            var arrow = new SkiaView((c, w, h) => { c.fillStyle = G.INK; c.beginPath(); c.moveTo(0, 2); c.lineTo(16, 13); c.lineTo(0, 24); c.closePath(); c.fill(); c.fillStyle = "#ffc93a"; c.beginPath(); c.moveTo(0, 0); c.lineTo(16, 11); c.lineTo(0, 22); c.closePath(); c.fill(); }) { Width = 16, Height = 24, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+            var g = new Grid(); g.Children.Add(col); g.Children.Add(arrow);
+            var shine = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(1, .18, RelativeUnit.Relative) };
+            foreach (var (c, at) in new[] { ("#c0392b", 0.0), ("#c0392b", .6), ("#c85144", .6), ("#c85144", .7), ("#c0392b", .7), ("#c0392b", 1.0) }) shine.GradientStops.Add(new GradientStop(Color.Parse(c), at));
+            var p = new Press(g, shine, 3, 16, sh ? new Thickness(16, 8, 26, 8) : new Thickness(18, 12, 26, 12), 4) { MinHeight = sh ? 58 : 70 };
+            p.Click += click; return p;
+        }
         Control locked(string title, string msg)
         {
             var soon = Box(Txt(T("Скоро").ToUpper(L.Culture), 10.5, FontWeight.ExtraBold, B("#f6e3b8"), wrap: false), B("#6b5a48"), 0, 6, new Thickness(7, 2));
@@ -121,10 +126,42 @@ public sealed class Lobby : Grid
             var p = new Press(row, B(Poor), 3, 16, pad, 4, B("#6b5a48")) { MinHeight = minH };
             p.Click += () => mv.Toast(T(msg)); return p;
         }
-        turn = Txt(T("Удобнее играть, повернув телефон горизонтально"), 13, FontWeight.Bold, PaperB, TextAlignment.Center);
-        turn.IsVisible = !Land;
-        modesStack = Col(9, story, endless, locked("Многопользовательская игра", "Многопользовательская игра появится в одном из следующих обновлений"), locked("Режим Soul Knight", "Режим Soul Knight пока в разработке — следи за обновлениями"), turn);
-        return modesStack;
+
+        // --- главный экран режимов ---
+        var soloSub = Txt(T("Сюжет и бесконечный бой"), 12, FontWeight.SemiBold, B("#e6ffffff"));
+        var solo = bigRed(T("Одиночная игра"), soloSub, () => ShowSingle(true));
+        rootModes = Col(9, solo, locked("Многопользовательская игра", "Многопользовательская игра появится в одном из следующих обновлений"));
+
+        // --- одиночная игра: заголовок с кнопкой «назад» и режимы ---
+        var back = new Press(Txt("‹", 20, FontWeight.Black, InkB, TextAlignment.Center), PaperB, 3, 12, new Thickness(0, 0, 0, 3), 3) { Width = 40, Height = 40 };
+        ((TextBlock)back.Child).VerticalAlignment = VerticalAlignment.Center;
+        back.Click += () => ShowSingle(false);
+        var head = new OutlineText { Text = T("Одиночная игра"), Display = true, FontSize = sh ? 20 : 24, Fill = YolkB, Stroke = 1.4, ShadowY = 2, VerticalAlignment = VerticalAlignment.Center, NoWrap = true };
+        var headRow = Row(10, back, head);
+        storySub = Txt("", 12, FontWeight.SemiBold, B("#e6ffffff"));
+        var story = bigRed(T("Сюжет"), storySub, () => mv.OpenPanel("storyP"));
+        bestText = Txt("", 12, FontWeight.SemiBold, B("#b32b1d14"));
+        var endless = new Press(Col(3, Txt(T("Бесконечный бой"), tsz, FontWeight.Black), bestText), PaperB, 3, 16, pad, 4) { MinHeight = minH };
+        endless.Click += () => { Audio.Init(); G.startGame("endless"); };
+        var skSub = Txt(T("Подземелья 0-1 … 0-5 · ближний бой"), 12, FontWeight.SemiBold, B("#b32b1d14"));
+        var sk = new Press(Col(3, Txt(T("Режим Soul Knight"), tsz, FontWeight.Black), skSub), B("#e9dcff"), 3, 16, pad, 4) { MinHeight = minH };
+        sk.Click += () => Overlays.OpenSkSelect(mv);
+        singleModes = Col(9, headRow, story, endless, sk);
+
+        var host = new Grid(); host.Children.Add(rootModes); host.Children.Add(singleModes);
+        rootModes.IsVisible = !single; singleModes.IsVisible = single;
+        return host;
+    }
+    public void ShowSingle(bool on)
+    {
+        single = on;
+        if (rootModes != null) { rootModes.IsVisible = !on; singleModes.IsVisible = on; }
+    }
+    /// <summary>Esc в меню: из выбора одиночного режима — назад к главному. true, если шаг назад был.</summary>
+    public bool Back()
+    {
+        if (!IsVisible || !single) return false;
+        ShowSingle(false); return true;
     }
     /// <summary>Нижние разделы: герои, сундуки, магазин, об игре, как играть.</summary>
     Control BuildNav(bool sh)
@@ -169,7 +206,6 @@ public sealed class Lobby : Grid
             modes = BuildModes(sh); nav = BuildNav(sh); grid.Children.Add(modes); grid.Children.Add(nav); Refresh();
         }
         logo.FontSize = sh ? 24 : Math.Clamp(W * .07, 24, 34); logo.InvalidateMeasure();
-        turn.IsVisible = !land;
         if (!land)
         {
             grid.RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"); grid.RowSpacing = 12;
@@ -180,7 +216,9 @@ public sealed class Lobby : Grid
         }
         else
         {
-            double right = Math.Max(270, W * .36);
+            // ширина колонки режимов — от ширины содержимого (без полей), иначе на широком экране она съедала колонку героя
+            double inner = W - side * 2 - safe.Left - safe.Right;
+            double right = Math.Min(Math.Max(270, inner * .4), Math.Max(270, inner - 360));
             grid.ColumnDefinitions = new ColumnDefinitions($"*,{right.ToString(System.Globalization.CultureInfo.InvariantCulture)}"); grid.ColumnSpacing = sh ? 14 : 18;
             grid.RowDefinitions = new RowDefinitions("Auto,*,Auto"); grid.RowSpacing = sh ? 8 : 10;
             Place(top, 0, 0, 1, 2); Place(hero, 1, 0, 1, 1); Place(nav, 2, 0, 1, 1); Place(modes, 1, 1, 2, 1);
@@ -219,8 +257,8 @@ public sealed class Lobby : Grid
         if (heroName == null) return;
         logo.Text = T("Боевой Курятник"); logo.InvalidateMeasure(); logo.InvalidateVisual();
         wallet.Children.Clear();
-        wallet.Children.Add(Pill("coin", L.Fmt(SAVE.coins))); wallet.Children.Add(Pill("tok", L.Fmt(SAVE.tokens), "/100"));
-        wallet.Children.Add(Pill("btok", SAVE.btokens.ToString(), "/10")); wallet.Children.Add(Pill("gegg", SAVE.eggs.ToString()));
+        wallet.Children.Add(Pill("coin", L.Fmt(SAVE.coins))); wallet.Children.Add(Pill("tok", L.Fmt(SAVE.tokens)));
+        wallet.Children.Add(Pill("btok", SAVE.btokens.ToString())); wallet.Children.Add(Pill("gegg", SAVE.eggs.ToString()));
         var H = HEROES[SAVE.hero]; int sq = squadIds().Count;
         heroName.Text = H.name;
         heroLine.Text = T("Ур. ") + heroLv(SAVE.hero) + " · " + WEAP[gunOf(SAVE.hero)].name + (sq > 0 ? T(" · отряд: ") + sq : "");

@@ -48,38 +48,43 @@ public static partial class G
 
     static void updateFlow(double dt)
     {
-        updateHoles(dt);
-        if (isWaves())
+        if (S.kind == "sk") updateSK(dt);
+        else
         {
-            if (S.bossT > 0) { S.bossT -= dt; if (S.bossT <= 0) spawnEndlessBoss(); }
-            if (S.between > 0) { S.between -= dt; if (S.between <= 0) startWave(); }
+            updateHoles(dt);
+            if (isWaves())
+            {
+                if (S.bossT > 0) { S.bossT -= dt; if (S.bossT <= 0) spawnEndlessBoss(); }
+                if (S.between > 0) { S.between -= dt; if (S.between <= 0) startWave(); }
+                else
+                {
+                    S.spawnT -= dt;
+                    if (S.spawnT <= 0 && S.toSpawn > 0 && enemies.Count(e => e.type != "mole") < Math.Min(6 + S.diff, 16)) { spawnEnemy(pickType()); S.toSpawn--; S.spawnT = Math.Max(.35, 1.3 - S.diff * .08); }
+                    if (S.toSpawn == 0 && enemies.Count == 0 && S.wave > 0 && !(S.bossT > 0))
+                    {
+                        if (S.kind == "story" && S.wave >= S.L.goal.n) { victory(); return; }
+                        S.between = 3; var h = Math.Min(10, P.max - P.hp); P.hp += h;
+                        int bonus = 5 + S.wave * 3; S.coins += bonus; S.tokens += 3;
+                        if (S.kind == "endless" && S.wave % 10 == 0) { SAVE.btokens++; persist(); Later(.9, () => Ui.Toast(T("+1 большой жетон за 10 волн"))); }
+                        showBanner(T("Двор чист!"), "+" + bonus + T(" зёрен · +3 жетона") + (h > 0 ? " · +" + Math.Round(h, MidpointRounding.AwayFromZero) + T(" здоровья") : "")); Sfx.pick();
+                    }
+                }
+            }
             else
             {
-                S.spawnT -= dt;
-                if (S.spawnT <= 0 && S.toSpawn > 0 && enemies.Count(e => e.type != "mole") < Math.Min(6 + S.diff, 16)) { spawnEnemy(pickType()); S.toSpawn--; S.spawnT = Math.Max(.35, 1.3 - S.diff * .08); }
-                if (S.toSpawn == 0 && enemies.Count == 0 && S.wave > 0 && !(S.bossT > 0))
+                var g = S.L.goal;
+                if (S.between > 0) { S.between -= dt; if (S.between <= 0) { S.running = true; showBanner(S.L.name, goalLabel(true)); Sfx.wave(); if (g.type == "boss") spawnBoss(g.boss); } }
+                else if (S.running)
                 {
-                    if (S.kind == "story" && S.wave >= S.L.goal.n) { victory(); return; }
-                    S.between = 3; var h = Math.Min(10, P.max - P.hp); P.hp += h;
-                    int bonus = 5 + S.wave * 3; S.coins += bonus; S.tokens += 3;
-                    if (S.kind == "endless" && S.wave % 10 == 0) { SAVE.btokens++; persist(); Later(.9, () => Ui.Toast(T("+1 большой жетон за 10 волн"))); }
-                    showBanner(T("Двор чист!"), "+" + bonus + T(" зёрен · +3 жетона") + (h > 0 ? " · +" + Math.Round(h, MidpointRounding.AwayFromZero) + T(" здоровья") : "")); Sfx.pick();
+                    S.spawnT -= dt;
+                    double cap = g.type == "boss" ? Math.Min(3 + Math.Floor(S.diff / 2), 7) : Math.Min(Math.Round(5 + S.diff, MidpointRounding.AwayFromZero), 15);
+                    int alive = enemies.Count(e => !e.T.boss && e.type != "mole");
+                    if (S.spawnT <= 0 && alive < cap) { spawnEnemy(pickType()); S.spawnT = Math.Max(.45, (g.type == "boss" ? 2.6 : 1.5) - S.diff * .08); }
+                    if (g.type == "survive") { S.survT -= dt; if (S.survT <= 0) { S.survT = 0; victory(); return; } }
                 }
             }
         }
-        else
-        {
-            var g = S.L.goal;
-            if (S.between > 0) { S.between -= dt; if (S.between <= 0) { S.running = true; showBanner(S.L.name, goalLabel(true)); Sfx.wave(); if (g.type == "boss") spawnBoss(g.boss); } }
-            else if (S.running)
-            {
-                S.spawnT -= dt;
-                double cap = g.type == "boss" ? Math.Min(3 + Math.Floor(S.diff / 2), 7) : Math.Min(Math.Round(5 + S.diff, MidpointRounding.AwayFromZero), 15);
-                int alive = enemies.Count(e => !e.T.boss && e.type != "mole");
-                if (S.spawnT <= 0 && alive < cap) { spawnEnemy(pickType()); S.spawnT = Math.Max(.45, (g.type == "boss" ? 2.6 : 1.5) - S.diff * .08); }
-                if (g.type == "survive") { S.survT -= dt; if (S.survT <= 0) { S.survT = 0; victory(); return; } }
-            }
-        }
+        if (S.mode != "play") return;
         if (S.comboT > 0) { S.comboT -= dt; if (S.comboT <= 0) S.combo = 0; }
         for (int i = pickups.Count - 1; i >= 0; i--)
         {
@@ -119,6 +124,12 @@ public static partial class G
         }
         else if (input.mouse) { double wx = camX + input.mx / SC, wy = camY + input.my / SC; P.ang = Math.Atan2(wy - (P.y - 19), wx - P.x); }
         else if (P.moving) P.ang = Math.Atan2(my, mx);
+        if (firing && WEAP[P.w].special == "melee" && !(input.mouse && input.firing) && !(sticks.aim != null && hypot(stickVal(sticks.aim).x, stickVal(sticks.aim).y) > .38))
+        { // палкой сам машет только когда враг рядом, а не по всем на экране
+            var t = nearestTarget();
+            if (t == null || hypot(t.x - P.x, t.y - P.y) - t.r > MELEE_R + 20) firing = false; else P.ang = Math.Atan2(t.y - P.y, t.x - P.x);
+        }
+        if (P.swing > 0) P.swing -= dt;
         P.face = Math.Cos(P.ang) >= 0 ? 1 : -1;
         foreach (var e in enemies) { if (e.T.fly) continue; double dx = P.x - e.x, dy = P.y - e.y, d = hypot(dx, dy); if (d == 0) d = 1; double m = P.r + e.r; if (d < m) { P.x += dx / d * (m - d) * .5; P.y += dy / d * (m - d) * .5; } }
         collideWorld(P);
@@ -194,7 +205,7 @@ public static partial class G
             if (!alive) { vx = -dx / d * .4; vy = -dy / d * .4; }
             else if (e.kami)
             {
-                vx = dx / d; vy = dy / d; spdMul *= 1.55; noSep = true; e.kamiT -= dt;
+                vx = dx / d; vy = dy / d; spdMul *= 2.2; noSep = true; e.kamiT -= dt; // камикадзе несётся заметно быстрее обычного
                 if (rnd() < dt * 25) parts.Add(new Part { k = "puff", x = e.x + rand(-4, 4), y = e.y, z = rand(30, 44) * (e.s > 0 ? e.s : 1), vx = rand(-20, 20), vy = 0, vz = 60, t = 0, max = .25, r = 2, col = rnd() < .5 ? "#ffd23a" : "#ff7a1a" });
                 double fq = e.kamiT < 1.2 ? 8 : 4;
                 if (Math.Floor(e.kamiT * fq) != Math.Floor((e.kamiT + dt) * fq)) Sfx.beep();
@@ -249,7 +260,7 @@ public static partial class G
             }
             else if (e.type == "turkey")
             {
-                if (d > 110) { vx = dx / d; vy = dy / d; }
+                if (d > 110 || !see) { vx = dx / d; vy = dy / d; } // не видит цель из-за укрытия — обходит, а не стоит
                 if (d < e.r + tg.r + 5) bite(e, T.melee, .9);
                 e.cd -= dt; if (e.cd <= 0) { if (see && d < T.range && onScreen(e)) { enemyShoot(e, T, 3); e.cd = rand(T.cd[0], T.cd[1]); } else e.cd = .4; }
             }
@@ -394,7 +405,7 @@ public static partial class G
                 if (hit) { b.bounce--; b.life = Math.Max(b.life, .22); puff(b.x, b.y, "#ffe066", 3, .5); }
             }
             if (b.kind == "yarn") b.spin += dt * 14;
-            bool dead = b.life <= 0 || b.x < FENCE || b.x > WW - FENCE || b.y < FENCE || b.y > WH - FENCE;
+            bool dead = b.life <= 0 || b.x < FENCE || b.x > WW - FENCE || b.y < FENCE || b.y > WH - FENCE || (DUN != null && !dunWalk(b.x, b.y, -2)); // стены подземелья
             if (!dead)
                 foreach (var o in OBS)
                 {

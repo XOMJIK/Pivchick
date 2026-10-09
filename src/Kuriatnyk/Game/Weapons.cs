@@ -32,7 +32,8 @@ public static partial class G
         P.cd = rate / rm;
         double ang = input.mouse ? P.ang : aimAssist(P.ang); P.ang = ang;
         double wm = P.w == P.prim ? wMul(P.w) : 1;
-        if (W.special == "rail") fireRail(ang);
+        if (W.special == "melee") meleeSwing(ang, W.dmg * P.dmgMul);
+        else if (W.special == "rail") fireRail(ang);
         else if (W.special == "mortar")
         {
             double tx, ty; var t = nearestTarget();
@@ -59,7 +60,7 @@ public static partial class G
         }
         if (P.hid == "guinea" && (++P.gN) % 8 == 0) for (int k = -2; k <= 2; k++) pBullet(P.x + Math.Cos(ang) * 22, P.y + Math.Sin(ang) * 22, ang + k * .16, 720, 18 * P.dmgMul, 4.5, .6 * P.rangeMul, "pfeather", 1);
         if (P.hid == "adren" && (++P.aN) % 5 == 0) pBullet(P.x + Math.Cos(ang) * 22, P.y + Math.Sin(ang) * 22, ang, 620, 30 * P.dmgMul, 7, .75, "fireball");
-        if (W.special != "flame")
+        if (W.special != "flame" && W.special != "melee")
         {
             double fl = (P.w == "shotgun" || P.w == "sawed" || P.w == "rail") ? 1.5 : 1;
             parts.Add(new Part { k = "flash", x = P.x + Math.Cos(ang) * 28 * fl, y = P.y + Math.Sin(ang) * 28 * fl, z = 19, t = 0, max = .06, a = ang, s = fl });
@@ -346,7 +347,7 @@ public static partial class G
     }
 
     /* ---------- кротовые ямки ---------- */
-    static bool holesOn() => S.kind == "endless" ? S.wave >= 2 : S.diff >= 2;
+    static bool holesOn() => S.kind == "endless" ? S.wave >= 2 : S.kind != "sk" && S.diff >= 2;
     static bool holeActive() => isWaves() ? (S.between <= 0 && S.toSpawn > 0) : S.running;
     static void spawnHole()
     {

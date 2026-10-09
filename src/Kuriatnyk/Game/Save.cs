@@ -144,6 +144,8 @@ public static class Store
     public static double wMul(string id) => D.WEAP.TryGetValue(id, out var w) && w.rar != null ? 1 + D.W_STEP * (wLv(id) - 1) : 1;
     public static int heroLv(string id) => SAVE.heroes.TryGetValue(id, out var h) && h.lv > 0 ? h.lv : 1;
     public static string gunOf(string heroId) => SAVE.loadout.TryGetValue(D.clsOf(heroId), out var g) && g != null ? g : D.CLASSES[D.clsOf(heroId)].start;
+    /// <summary>Есть ли открытый герой этого класса: без него стволы класса не продаются и их карты не выпадают.</summary>
+    public static bool hasClass(string cls) => SAVE.heroes.Keys.Any(id => D.clsOf(id) == cls);
     public static List<string> squadIds() => SAVE.squad.Where(id => SAVE.heroes.ContainsKey(id) && id != SAVE.hero).Take(SAVE.slots).ToList();
     public static string gunForAlly(string id)
     {

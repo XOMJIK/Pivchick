@@ -23,6 +23,7 @@ static class AutoShots
         var steps = new List<(double wait, string name, Action act)>
         {
             (2.0, "a-lobby", null),
+            (0.6, "a2-single", () => System.Linq.Enumerable.First(System.Linq.Enumerable.OfType<Lobby>(Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(mv))).ShowSingle(true)),
             (0.6, "b-shop", () => mv.OpenPanel("shop")),
             (0.6, "c-heroes", () => mv.OpenPanel("heroes")),
             (0.6, "d-story", () => mv.OpenPanel("storyP")),
@@ -32,7 +33,9 @@ static class AutoShots
             (0.6, "h-brief", () => { mv.Hide("infoOv"); Overlays.OpenBrief(mv, 0); }),
             (0.6, "i-chestinfo", () => { mv.Hide("brief"); Overlays.OpenChestInfo(mv, 1); }),
             (0.6, "j-bg", () => { mv.Hide("chestInfoOv"); Overlays.OpenBg(mv); }),
-            (4.0, "k-battle", () => { mv.Hide("bgOv"); G.startGame("endless"); }),
+            (0.6, "j2-sksel", () => { mv.Hide("bgOv"); Overlays.OpenSkSelect(mv); }),
+            (4.0, "k-battle", () => { mv.Hide("skSel"); G.startGame("endless"); }),
+            (2.0, "k2-sk", () => G.startSK(Store.SAVE.hero)),
             (0.6, "l-pause", () => G.pauseGame()),
             (2.5, "m-chestopen", () => { G.toMenu(); Store.SAVE.tokens += 300; mv.OpenPanel("chestP"); var r = Chests.Open(0, "own", 3); Overlays.OpenChestOverlay(mv, 0, r); }),
         };

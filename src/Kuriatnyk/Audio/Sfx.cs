@@ -32,7 +32,7 @@ public static class Sfx
         switch (name)
         {
             case "shot": shot(); break; case "shotgun": shotgun(); break; case "smg": smg(); break; case "pop": pop(); break;
-            case "throw": throw_(); break; case "flame": flame(); break; case "ice": ice(); break; case "rail": rail(); break;
+            case "throw": throw_(); break; case "flame": flame(); break; case "ice": ice(); break; case "rail": rail(); break; case "swish": swish(); break;
         }
     }
     public static void shot() { noise(.09, .22, 2600); tone(260, .06, "square", .05, 110); }
@@ -66,6 +66,10 @@ public static class Sfx
     public static void flame() { var n = Ms; if (n - lastSmg < 70) return; lastSmg = n; noise(.09, .12, 900); }
     public static void ice() { var n = Ms; if (n - lastSmg < 70) return; lastSmg = n; tone(1500, .05, "triangle", .03, 2300); }
     public static void rail() { tone(2000, .28, "sawtooth", .06, 180); noise(.22, .25, 5000); }
+    /// <summary>Нажатие кнопки интерфейса: короткий мягкий «тык» (в веб-версии кнопки были беззвучными).</summary>
+    public static void click() { var n = Ms; if (n - lastClick < 40) return; lastClick = n; tone(1150, .035, "triangle", .09, 760); tone(1700, .02, "sine", .03, 0, .012); }
+    static double lastClick;
+    public static void swish() { noise(.09, .2, 1600); tone(260, .09, "triangle", .05, 620); }
     public static void chest() { noise(.15, .2, 900); tone(392, .1, "square", .05, 0, .05); }
 }
 

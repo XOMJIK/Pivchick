@@ -26,6 +26,7 @@ public sealed class Player : Fighter
     public string hid, prim, w; public int hlv, nades;
     public double medMul, rangeMul, ammo, magnet, ultRate, inv, spin, svx, svy;
     public bool medic, revive, alive, wasFiring;
+    public string sec; public double swing, swingA; // Soul Knight: второе оружие (палка) и взмах
 }
 
 public sealed class Ally : Fighter
@@ -41,7 +42,7 @@ public sealed class Enemy : Unit
     public double? navBest;
     public int face = 1, pat = -1, burst, dashes, iceN, navAlt;
     public bool moving, dead, hop, kami, kamiRolled, endless, hitThis;
-    public Unit tgt;
+    public Unit tgt; public Room room; // комната подземелья, из которой враг не выходит
     public double _px = double.NaN, _py = double.NaN;
 }
 
@@ -70,6 +71,7 @@ public sealed class GState
     public int kills, goalKills; public double survT; public Enemy boss; public double shake; public int combo;
     public double comboT, deadT, winT; public long coins, tokens; public bool banked = true;
     public double holeT, bossT, kamiNext; public bool cleanup;
+    public int skLv; public string skHero; // Soul Knight: уровень 0-N (0 — лагерь) и выбранный герой
 }
 
 public static partial class G
@@ -147,9 +149,9 @@ public static partial class G
             }
     }
 
-    public static Player newPlayer()
+    public static Player newPlayer(string heroId = null)
     {
-        var id = SAVE.hero; var H = HEROES[id]; int Lv = heroLv(id);
+        var id = heroId ?? SAVE.hero; var H = HEROES[id]; int Lv = heroLv(id);
         var C = H.cls; var gun = gunOf(id); double medMul = id == "nurse" && Lv >= 10 ? 2 : 1;
         double max = Math.Round(H.hp * (1 + .06 * (Lv - 1)) * (C == "tank" ? 1.25 : C == "sniper" ? .9 : 1), MidpointRounding.AwayFromZero);
         double armor = H.armor + (id == "duck" && Lv >= 5 ? .1 : 0) + (id == "goose" && Lv >= 10 ? .15 : 0) + (C == "tank" ? .1 : 0);

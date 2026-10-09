@@ -50,8 +50,8 @@ public static class Overlays
         var g = new Border { Background = B(top ? "#992b1d14" : "#6b2b1d14"), Child = sv, Padding = mv.Safe };
         return g;
     }
-    static bool ShortLand(MainView mv) => mv.Bounds.Height <= 500 && mv.Bounds.Width > mv.Bounds.Height;
-    static double LogoSize(MainView mv) => Math.Clamp(mv.Bounds.Width * .11, 34, 48);
+    static bool ShortLand(MainView mv) => mv.View.Height <= 500 && mv.View.Width > mv.View.Height;
+    static double LogoSize(MainView mv) => Math.Clamp(mv.View.Width * .11, 34, 48);
 
     // ---------- пауза ----------
     public static Control Pause(MainView mv)
@@ -72,7 +72,7 @@ public static class Overlays
             return Box(Col(4, Txt(v, 22, FontWeight.Black, InkB, TextAlignment.Center), lt), StrawB, 0, 14, new Thickness(4, 10));
         }
         var tiles = new UniformGrid { Columns = 3, ColumnSpacing = 8 };
-        tiles.Children.Add(tile(L.Fmt(o.score), T("Очки"))); tiles.Children.Add(tile(o.wave.ToString(), o.waveLabel)); tiles.Children.Add(tile(o.kills.ToString(), T("Враги")));
+        tiles.Children.Add(tile(L.Fmt(o.score), T("Очки"))); tiles.Children.Add(tile(o.waveText ?? o.wave.ToString(), o.waveLabel)); tiles.Children.Add(tile(o.kills.ToString(), T("Враги")));
         var earn = Rich(T("Заработано: <i class=\"coin\"></i>") + o.earnCoins + T(" зёрен · <i class=\"tok\"></i>") + o.earnTokens + T(" жетонов"), 13, FontWeight.SemiBold, B("#cc2b1d14"), TextAlignment.Center);
         earn.HorizontalAlignment = HorizontalAlignment.Center;
         var rec = Txt(T("Новый рекорд!"), 15, FontWeight.ExtraBold, BarnB, TextAlignment.Center); rec.IsVisible = o.record;
@@ -141,6 +141,7 @@ public static class Overlays
     static string StripTags(string s) => G.StripIcon(s);
 
     // ---------- настройки ----------
+    static long lastSfxPreview; // пробный звук при перетаскивании ползунка — не чаще раза в 160 мс, а не на каждый шаг
     public static void OpenSettings(MainView mv) { Audio.Init(); mv.Show("setOv", Settings(mv), 8); }
     static Border SetRow(Control label, Control right)
     {
@@ -183,7 +184,7 @@ public static class Overlays
             Logo(T("Настройки"), LogoSize(mv)),
             SetRow(Txt(T("Язык"), 15, FontWeight.ExtraBold), seg()),
             SetRow(Txt(T("Музыка"), 15, FontWeight.ExtraBold), slider(() => SET.music, v => SET.music = v)),
-            SetRow(Txt(T("Звуки"), 15, FontWeight.ExtraBold), slider(() => SET.sfx, v => { SET.sfx = v; Sfx.pick(); })),
+            SetRow(Txt(T("Звуки"), 15, FontWeight.ExtraBold), slider(() => SET.sfx, v => { SET.sfx = v; if (Environment.TickCount64 - lastSfxPreview > 160) { lastSfxPreview = Environment.TickCount64; Sfx.pick(); } })),
             SetRow(Txt(T("Тряска экрана от взрывов"), 15, FontWeight.ExtraBold), Toggle(SET.shake, () => { SET.shake = !SET.shake; saveSet(); if (SET.shake) G.S.shake = Math.Max(G.S.shake, 6); mv.Show("setOv", Settings(mv), 8); })),
         };
         if (!G.COARSE)
@@ -200,6 +201,54 @@ public static class Overlays
         Sfx.pick();
     }
 
+    // ---------- Soul Knight: выбор героя ----------
+    public static string skPick; static bool skStats;
+    public static void OpenSkSelect(MainView mv)
+    {
+        Audio.Init();
+        if (skPick == null || !SAVE.heroes.ContainsKey(skPick)) skPick = SAVE.hero;
+        mv.Show("skSel", SkSelect(mv), 8);
+    }
+    /// <summary>Компактный выбор героя: маленькие плитки; подробности — по кнопке «Характеристики».</summary>
+    static Control SkSelect(MainView mv)
+    {
+        bool sh = ShortLand(mv);
+        var grid = new AutoGrid { Min = sh ? 80 : 92, Gap = 8 };
+        foreach (var id in HERO_IDS.OrderByDescending(x => SAVE.heroes.ContainsKey(x) ? 1 : 0))
+        {
+            var H = HEROES[id]; bool own = SAVE.heroes.ContainsKey(id), on = own && id == skPick;
+            var pv = Panels.HeroPv(id, 76, sh ? 46 : 56, sh ? .85 : 1); pv.HorizontalAlignment = HorizontalAlignment.Center;
+            var pvb = Box(pv, PvBg(own ? "grass" : "dark"), 2, 9); pvb.ClipToBounds = true;
+            var nm = Txt(H.name, 11.5, FontWeight.ExtraBold, InkB, TextAlignment.Center); nm.LineHeight = 13;
+            var p = new Press(Col(4, pvb, nm), on ? YolkB : own ? PaperB : B(Poor), 3, 14, new Thickness(5, 5, 5, 6), on ? 0 : 3);
+            if (on) p.BoxShadow = BoxShadows.Parse("0 0 0 3 #C0392B");
+            if (!own) { p.Opacity = .55; p.Click += () => mv.Toast(T("Герой ещё не открыт — выпадает из сундуков")); }
+            else p.Click += () => { skPick = id; mv.Show("skSel", SkSelect(mv), 8); };
+            grid.Children.Add(p);
+        }
+        var Hp = HEROES[skPick]; var pl = G.newPlayer(skPick);
+        Control stats = null;
+        if (skStats)
+        {
+            string f1(double v) => v.ToString("0.##", L.Culture);
+            stats = Box(Col(5,
+                Badges(Rar(RAR[Hp.rar].name, RAR[Hp.rar].c, 9.5), Rar(CLASSES[Hp.cls].name, CLASSES[Hp.cls].c, 9.5), Rar(T("Ур. ") + heroLv(skPick), "#6b5a48", 9.5)),
+                Txt(Hp.name, 16, FontWeight.Black),
+                Txt(T("Здоровье ") + pl.max + T(" · скорость ") + Math.Round(pl.spd) + T(" · урон ×") + f1(pl.dmgMul), 12.5, FontWeight.Bold),
+                Txt(T("Оружие: ") + WEAP[pl.prim].name + T(" + Деревянная палка (смена — кнопкой у оружия или F)"), 12.5, FontWeight.Medium),
+                Rich(T("<b>Ульта: ") + Hp.ult[0] + ".</b> " + Hp.ult[1], 12.5, FontWeight.Medium),
+                Txt(Hp.perk, 12, FontWeight.Medium, B("#b32b1d14"))), StrawB, 0, 14, new Thickness(12, 10));
+        }
+        var statBtn = Btn(skStats ? T("Скрыть") : T("Характеристики"), () => { skStats = !skStats; mv.Show("skSel", SkSelect(mv), 8); }, "alt");
+        var go = Btn(T("В путь!"), () => { mv.Hide("skSel"); G.startSK(skPick); });
+        var back = Btn(T("Назад"), () => mv.Hide("skSel"), "alt");
+        var pair = new UniformGrid { Rows = 1, ColumnSpacing = 8 }; pair.Children.Add(back); pair.Children.Add(go);
+        var row = Col(8, statBtn, pair);
+        var card = Box(Col(sh ? 8 : 12, Eyebrow(T("Режим Soul Knight")), Logo(T("Выбор героя"), sh ? 26 : 32), grid, stats, row), PaperB, 4, 24, sh ? new Thickness(14, 10) : new Thickness(18, 18, 18, 16), 8);
+        card.MaxWidth = 540;
+        return Ov(mv, card, true);
+    }
+
     // ---------- об игре ----------
     public static void OpenInfo(MainView mv)
     {
@@ -210,9 +259,9 @@ public static class Overlays
             var items = Col(4, N.itemsRu.Select(t => (Control)Txt("• " + T(t), 13, FontWeight.Medium)).ToArray());
             return (Control)Box(Col(6, Txt(T("Версия ") + N.v, 15, FontWeight.Black), items), StrawB, 0, 12, new Thickness(12, 10));
         }).ToArray());
-        var sv = new ScrollViewer { Content = notes, MaxHeight = Math.Max(160, mv.Bounds.Height * (ShortLand(mv) ? .34 : .42)), HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        var sv = new ScrollViewer { Content = notes, MaxHeight = Math.Max(160, mv.View.Height * (ShortLand(mv) ? .34 : .42)), HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         TextBlock h3(string s) { var t = Txt(s.ToUpper(L.Culture), 12, FontWeight.ExtraBold, BarnB); t.LetterSpacing = 1.2; t.Margin = new Thickness(0, 0, 0, 8); return t; }
-        var card = Box(Col(14, Eyebrow(T("Информация об игре")), Logo(T("Боевой Курятник"), Math.Clamp(mv.Bounds.Width * .08, 26, 34)), Best(T("Версия ") + GAME_VERSION),
+        var card = Box(Col(14, Eyebrow(T("Информация об игре")), Logo(T("Боевой Курятник"), Math.Clamp(mv.View.Width * .08, 26, 34)), Best(T("Версия ") + GAME_VERSION),
             Col(0, h3(T("Создатели")), credits), Col(0, h3(T("Патчноуты")), sv), Btn(T("Закрыть"), () => mv.Hide("infoOv"))), PaperB, 4, 24, new Thickness(18, 20, 18, 18), 8);
         card.MaxWidth = 440;
         mv.Show("infoOv", Ov(mv, card, true), 8);
@@ -317,7 +366,7 @@ public static class Overlays
         note.Margin = new Thickness(0, 10, 0, 4);
         var sub = C.sub; sub = sub.Length > 0 ? char.ToUpper(sub[0]) + sub[1..] : sub;
         var body = Col(0, pvb, h(T("Всегда внутри")), t1, h(T("Новый герой") + (C.sure ? T(" · гарантирован") : "")), t2, h(T("Кому достанется пачка карт")), t3, t4, note);
-        var card = Box(Col(14, Eyebrow(T("Свойства сундука")), Logo(C.name, Math.Clamp(mv.Bounds.Width * .09, 28, 40)), Best(sub), body, Btn(T("Закрыть"), () => mv.Hide("chestInfoOv"))), PaperB, 4, 24, new Thickness(18, 20, 18, 18), 8);
+        var card = Box(Col(14, Eyebrow(T("Свойства сундука")), Logo(C.name, Math.Clamp(mv.View.Width * .09, 28, 40)), Best(sub), body, Btn(T("Закрыть"), () => mv.Hide("chestInfoOv"))), PaperB, 4, 24, new Thickness(18, 20, 18, 18), 8);
         card.MaxWidth = 560;
         mv.Show("chestInfoOv", Ov(mv, card, true), 8);
     }

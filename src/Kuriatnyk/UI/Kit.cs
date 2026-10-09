@@ -178,6 +178,8 @@ public class Press : Border
 {
     public event Action Click;
     public bool Enabled { get; set; } = true;
+    /// <summary>Щёлкать ли при нажатии (выключено у кнопок, которые сами играют свой звук сразу).</summary>
+    public bool Sound { get; set; } = true;
     readonly double shadowY;
     bool down;
     public Press(Control child, IBrush bg, double border, double radius, Thickness pad, double shadow, IBrush borderBrush = null)
@@ -196,14 +198,15 @@ public class Press : Border
     {
         base.OnPointerPressed(e);
         if (!Enabled) return;
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || e.Pointer.Type != PointerType.Mouse) { Set(true); e.Pointer.Capture(this); }
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || e.Pointer.Type != PointerType.Mouse)
+        { Set(true); e.Pointer.Capture(this); }
     }
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
         if (!down) return; Set(false); e.Pointer.Capture(null);
         var p = e.GetPosition(this);
-        if (p.X >= -4 && p.Y >= -4 && p.X <= Bounds.Width + 4 && p.Y <= Bounds.Height + 4) { e.Handled = true; Audio.Init(); Click?.Invoke(); }
+        if (p.X >= -4 && p.Y >= -4 && p.X <= Bounds.Width + 4 && p.Y <= Bounds.Height + 4) { e.Handled = true; Audio.Init(); if (Sound) Sfx.click(); Click?.Invoke(); } // щелчок — только если нажатие засчитано, а не ушло в прокрутку
     }
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e) { base.OnPointerCaptureLost(e); if (down) Set(false); }
 }

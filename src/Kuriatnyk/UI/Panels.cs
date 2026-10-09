@@ -47,14 +47,16 @@ public static class Panels
     }
     public static TextBlock H4(string t, double size = 15) => Txt(t, size, FontWeight.ExtraBold);
     public static TextBlock P(string t) { var x = Txt(t, 12.5, FontWeight.Medium, B("#d92b1d14")); return x; }
-    public static TextBlock Meta(string html, bool bold = false) => Rich(html, 12, bold ? FontWeight.ExtraBold : FontWeight.Bold, B("#bf2b1d14"));
+    // «выстр/с» не рвём на две строки: после косой черты между буквами ставим неразрывный WORD JOINER
+    public static TextBlock Meta(string html, bool bold = false) => Rich(System.Text.RegularExpressions.Regex.Replace(html, @"(?<=\p{L})/(?=\p{L})", "/⁠"), 12, bold ? FontWeight.ExtraBold : FontWeight.Bold, B("#bf2b1d14"));
 
     /// <summary>Кнопка в карточке (.pbtn): buy, poor, eq, on, max, go; thin — потоньше.</summary>
     public static Press PBtn(string html, string kind, Action click, bool thin = false)
     {
         var (bg, fg) = kind switch
         {
-            "buy" => (BarnB, White), "poor" => (B(Poor), B(PoorFg)), "eq" => (White, InkB), "on" => (B(Hp), InkB), "max" => (InkB, YolkB), _ => (YolkB, InkB)
+            "buy" => (B("#3fa535"), White), // хватает денег — зелёная
+            "poor" => (B(Poor), B(PoorFg)), "eq" => (White, InkB), "on" => (B(Hp), InkB), "max" => (InkB, YolkB), _ => (YolkB, InkB)
         };
         var t = Rich(html, thin ? 13.5 : 15.5, FontWeight.ExtraBold, fg, TextAlignment.Center); t.HorizontalAlignment = HorizontalAlignment.Center; t.VerticalAlignment = VerticalAlignment.Center;
         var p = new Press(t, bg, 3, 12, thin ? new Thickness(8, 7) : new Thickness(8, 10), kind == "on" ? 0 : thin ? 2 : 3) { MinHeight = thin ? 38 : 46 };
@@ -77,6 +79,16 @@ public static class Panels
         if (owned) return PBtn(T("Выбрать"), "eq", onEquip);
         bool poor = (cur == "eggs" ? SAVE.eggs : SAVE.coins) < price;
         return PBtn(priceTag(price, cur), poor ? "poor" : "buy", () => Buy(mv, price, onBuy, cur));
+    }
+    /// <summary>Закрытая кнопка покупки: ствол класса, для которого ещё нет ни одного бойца.</summary>
+    public static Press ClassLock(MainView mv, string cls)
+    {
+        var lockIc = Icon("lock", 13); lockIc.Height = 14;
+        var t = Txt(T("Нужен боец: ") + CLASSES[cls].name, 13.5, FontWeight.ExtraBold, B(PoorFg), TextAlignment.Center);
+        var row = new DockPanel { HorizontalAlignment = HorizontalAlignment.Center }; DockPanel.SetDock(lockIc, Dock.Left); lockIc.Margin = new Thickness(0, 0, 6, 0);
+        row.Children.Add(lockIc); row.Children.Add(t);
+        var p = PBtn("", "poor", () => { mv.Toast(T("Сначала открой героя класса «") + CLASSES[cls].name + T("» — герои выпадают из сундуков")); Sfx.hurt(); });
+        p.Child = row; return p;
     }
     public static void Buy(MainView mv, long price, Action fn, string cur = "coins")
     {
@@ -128,7 +140,7 @@ public abstract class BoardPanel : Grid
             c.fillStyle = "rgba(255,255,255,.07)"; for (double y = 0; y < h; y += 38) for (double x = 0; x < w; x += 38) { c.beginPath(); c.arc(x + 7.6, y + 11.4, 2.5, 0, Ctx.TAU); c.fill(); }
             c.fillStyle = "rgba(0,0,0,.06)"; for (double y = 0; y < h; y += 52) for (double x = 0; x < w; x += 52) { c.beginPath(); c.arc(x + 36.4, y + 41.6, 2.5, 0, Ctx.TAU); c.fill(); }
         }) { IsHitTestVisible = false });
-        var safe = mv.Safe; bool sh = mv.Bounds.Height <= 500 && mv.Bounds.Width > mv.Bounds.Height;
+        var safe = mv.Safe; bool sh = mv.View.Height <= 500 && mv.View.Width > mv.View.Height;
         var back = new Press(Txt("‹", 22, FontWeight.Black, InkB, TextAlignment.Center), PaperB, 3, 15, new Thickness(0, 0, 0, 3), 3) { Width = sh ? 46 : 50, Height = sh ? 46 : 50 };
         ((TextBlock)back.Child).VerticalAlignment = VerticalAlignment.Center;
         back.Click += () => { mv.ClosePanels(); mv.RefreshMenu(); };
@@ -190,8 +202,8 @@ public sealed class ShopPanel : BoardPanel
         var order = new[] { myC }.Concat(CLASS_ORDER.Where(k => k != myC)).ToList();
         for (int oi = 0; oi < order.Count; oi++)
         {
-            var ck = order[oi]; var C = CLASSES[ck];
-            var sect = Sect(C.name + (ck == myC ? T(" · твой класс") : "") + " — " + C.desc); if (oi > 0) sect.Margin = new Thickness(0, 18, 0, 10);
+            var ck = order[oi]; var C = CLASSES[ck]; bool haveCls = hasClass(ck);
+            var sect = Sect(C.name + (ck == myC ? T(" · твой класс") : !haveCls ? T(" · нет бойца") : "") + " — " + C.desc); if (oi > 0) sect.Margin = new Thickness(0, 18, 0, 10);
             body.Children.Add(sect);
             var g = new AutoGrid { Min = 150, Gap = 12 };
             var ids = PRIMARY.Where(w => WEAP[w].cls == ck).OrderBy(a => Array.IndexOf(WRAR_ORDER, WEAP[a].rar)).ThenBy(a => WEAP[a].eggs * 30 + WEAP[a].price).ToList();
@@ -214,7 +226,8 @@ public sealed class ShopPanel : BoardPanel
                         top.Add(Col(3, ProgT(G.StripIcon(T("<div class=\"progt\"><span>Карты оружия</span><span>")), have + " / " + nc), Prog((double)have / nc, have >= nc ? "#5fcf3f" : WR.c)));
                     }
                 }
-                var sel = Panels.ActBtn(mv, owned, eq, W.eggs > 0 ? W.eggs : W.price, () => { SAVE.guns.Add(id); SAVE.loadout[ck] = id; }, () => Panels.Equip(mv, () => SAVE.loadout[ck] = id, C.name + ": " + W.name), W.eggs > 0 ? "eggs" : "coins");
+                var sel = !owned && !haveCls ? Panels.ClassLock(mv, ck)
+                    : Panels.ActBtn(mv, owned, eq, W.eggs > 0 ? W.eggs : W.price, () => { SAVE.guns.Add(id); SAVE.loadout[ck] = id; }, () => Panels.Equip(mv, () => SAVE.loadout[ck] = id, C.name + ": " + W.name), W.eggs > 0 ? "eggs" : "coins");
                 var bottom = new List<Control> { sel };
                 if (owned && lv < 10)
                 {
@@ -424,7 +437,7 @@ public sealed class ChestPanel : BoardPanel
         var eggTxt = C.egg[0] >= 1 ? C.egg[1] + "–" + C.egg[2] + T(" золотых яиц") : T("шанс золотых яиц");
         var top = new List<Control> { pv, Panels.H4(C.name),
             Rich(C.coins[0] + "–" + C.coins[1] + T(" зёрен · ") + C.hpacks + T(" пачки карт героев · ") + C.wpacks + (C.wpacks > 1 ? T(" пачки") : T(" пачка")) + T(" карт оружия · ") + eggTxt + (C.sure ? T(" · <b>гарантированный новый герой</b>, пока есть закрытые") : ""), 12.5, FontWeight.Medium, B("#d92b1d14")) };
-        Control bar(long have, long need, string ic, string label, string col) => Col(3, ProgT("<i class=\"" + ic + "\"></i>" + label, Math.Min(have, need) + " / " + need), Prog((double)have / need, col));
+        Control bar(long have, long need, string ic, string label, string col) => Col(3, ProgT("<i class=\"" + ic + "\"></i>" + label, L.Fmt(have) + " / " + need), Prog((double)have / need, col));
         if (tier == 0) { top.Add(bar(SAVE.tokens, 100, "tok", T("Жетоны"), "#4cc3ff")); top.Add(Panels.Meta(T("Жетоны дают за врагов, волны и уровни сюжета."))); }
         else if (tier == 1) { top.Add(bar(SAVE.btokens, 10, "btok", T("Большие жетоны"), "#b06cff")); top.Add(Panels.Meta(T("Большой жетон дают за первое прохождение каждого уровня сюжета и за каждые 10 волн в бесконечном бою."))); }
         else top.Add(Panels.Meta("<b>" + T("Есть: ") + SAVE.schests + "</b>" + T(" · по одному за каждого финального босса главы (20-й уровень, первое прохождение) и за 25-ю волну в бесконечном бою.")));
@@ -477,7 +490,7 @@ public sealed class ChestPanel : BoardPanel
         var g = new AutoGrid { Min = 230, Gap = 12 };
         for (int t = 0; t < 3; t++) g.Children.Add(ChestCard(t));
         body.Children.Add(g);
-        var n = Note(T("У каждого сундука свои шансы — нажми «Свойства» на картинке сундука. Герои выпадают только из сундуков. Карты героев падают только для открытых героев, карты оружия — только для купленных стволов."));
+        var n = Note(T("У каждого сундука свои шансы — нажми «Свойства» на картинке сундука. Герои выпадают только из сундуков. Карты героев падают только для открытых героев, карты оружия — только для купленных стволов тех классов, для которых у тебя есть боец."));
         n.Margin = new Thickness(0, 12, 0, 12); body.Children.Add(n);
         body.Children.Add(Sect(T("Золотые яйца")));
         body.Children.Add(Note(T("Редкая валюта: у тебя <b>") + SAVE.eggs + T("</b>. Большой сундук стоит ") + EGG_PRICE + T(", сверхбольшой — ") + SUPER_PRICE + T(". Где взять: первое прохождение уровней сюжета (3–15 за уровень), волны 10, 15 и 20 в бесконечном бою (один раз), 5-й и 10-й уровень героя, сундуки. Ещё за яйца продаются Нимб, Платиновый окрас и Рельсотрон.")));

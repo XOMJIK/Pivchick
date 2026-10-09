@@ -54,6 +54,13 @@ public static partial class G
                 double q = Math.Min(1, p.t / p.max), x = p.sx + (p.x - p.sx) * q, y = p.sy + (p.y - p.sy) * q - Math.Sin(q * Math.PI) * 70 - 20; c.save(); c.translate(x, y); c.rotate(q * 6);
                 c.fillStyle = "#fff"; c.strokeStyle = INK; c.lineWidth = 1.8; rr(c, -7, -6, 14, 12, 2); c.fill(); c.stroke(); c.fillStyle = "#e8322a"; c.fillRect(-1.5, -4, 3, 8); c.fillRect(-4, -1.5, 8, 3); c.restore();
             }
+            else if (p.k == "swing")
+            { // след взмаха палкой: светлая дуга перед героем
+                double q = p.t / p.max, R = p.R > 0 ? p.R : 80; c.save(); c.translate(p.x, p.y - 19); c.scale(1, .75); c.lineCap = "round";
+                c.globalAlpha = Math.Max(0, 1 - q); c.strokeStyle = "rgba(255,244,220,.9)"; c.lineWidth = 10 * (1 - q) + 2;
+                c.beginPath(); c.arc(0, 0, R * .8, p.a - 1.1 + q * .3, p.a + 1.1 * (q * 2 - 1) + .3); c.stroke();
+                c.strokeStyle = "rgba(255,201,58,.8)"; c.lineWidth = 3; c.beginPath(); c.arc(0, 0, R * .95, p.a - 1.0, p.a + 1.0 * (q * 2 - 1)); c.stroke(); c.restore();
+            }
             else if (p.k == "ring")
             {
                 double R = p.R > 0 ? p.R : 130, f = 1 - a * a * .6; c.globalAlpha = a; c.strokeStyle = p.col ?? "#fff6c8"; c.lineWidth = 6 * a + 1;
@@ -65,7 +72,7 @@ public static partial class G
     static Sprite playerSprite() => new Sprite
     {
         x = P.x, y = P.y, face = P.face, ang = P.ang, phase = P.phase, moving = P.moving, flash = P.flash, kind = "player", gun = P.w, blink = P.inv > 0, buff = P.buff,
-        swim = P.hop && inWater(P.x, P.y), ghost = P.buff == "shadow"
+        swim = P.hop && inWater(P.x, P.y), ghost = P.buff == "shadow", swing = P.swing > 0 ? P.swing / .22 : 0
     }.With(P.look);
 
     static readonly Ctx frameCtx = new();
@@ -76,14 +83,14 @@ public static partial class G
     public static void render(SKCanvas canvas)
     {
         var c = frameCtx; c.Begin(canvas);
-        c.fillStyle = MAPS[MAP].@out; c.fillRect(0, 0, VW, VH);
+        c.fillStyle = DUN != null ? DUN_VOID : MAPS[MAP].@out; c.fillRect(0, 0, VW, VH);
         if (P == null || ground == null) return;
         double Z = S.mode == "menu" ? SC * MENU_ZOOM : SC;
         c.save(); c.scale(Z, Z);
         double sx = 0, sy = 0; if (S.shake > 0 && !REDUCED && SET.shake) { sx = (rnd() - .5) * S.shake; sy = (rnd() - .5) * S.shake; }
         c.translate(-camX + sx, -camY + sy);
-        c.drawImage(ground, 0, 0);
-        drawRiverDyn(c);
+        c.drawImage(ground, 0, 0, WW, WH);
+        drawRiverDyn(c); drawDungeonDyn(c);
         drawParts(c, true);
         foreach (var h in holes) drawHole(c, h);
         foreach (var z in zones)

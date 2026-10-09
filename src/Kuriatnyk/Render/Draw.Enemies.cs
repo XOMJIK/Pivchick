@@ -385,6 +385,14 @@ public static partial class G
             double len = (Tt.dash > 0 ? Tt.dash : 520) * (e.dashLen > 0 ? e.dashLen : .5);
             c.save(); c.globalAlpha = .25 + Math.Sin(S.t * 30) * .1; c.translate(e.x, e.y); c.rotate(Math.Atan2(e.dy, e.dx)); c.fillStyle = "#e8322a"; c.fillRect(0, -e.r * .8, len, e.r * 1.6); c.restore();
         }
+        if (e.kami)
+        {   // камикадзе светится красным: пульсирующий ореол под ним и красный круг на земле — его видно издалека
+            double pl = .5 + .5 * Math.Sin(S.t * (e.kamiT < 1.2 ? 26 : 14));
+            var g = c.createRadialGradient(e.x, e.y - 18 * s, 0, e.x, e.y - 18 * s, e.r * 3.2);
+            g.addColorStop(0, "rgba(255,40,20," + Inv(.55 + pl * .3) + ")"); g.addColorStop(.55, "rgba(255,40,20," + Inv(.25 + pl * .15) + ")"); g.addColorStop(1, "rgba(255,40,20,0)");
+            c.save(); c.fillStyle = g; c.beginPath(); c.arc(e.x, e.y - 18 * s, e.r * 3.2, 0, TAU); c.fill();
+            c.strokeStyle = "rgba(255,59,31," + Inv(.6 + pl * .4) + ")"; c.lineWidth = 3; c.beginPath(); c.ellipse(e.x, e.y, e.r * 1.6, e.r * .65, 0, 0, TAU); c.stroke(); c.restore();
+        }
         var t = e.type; bool hopW = e.hop && inWater(e.x, e.y); // курица над водой: подлетает, машет крыльями, по воде круги
         if (hopW)
         {
@@ -415,7 +423,7 @@ public static partial class G
         if (e.stun > 0) drawStars(c, e.x, e.y + top + 4);
         if (e.kami)
         {
-            bool bl = Odd(S.t * (e.kamiT < 1.2 ? 16 : 8)); c.save(); c.globalAlpha = bl ? .5 : .15; c.fillStyle = "#ff3b1f"; c.beginPath(); c.ellipse(e.x, e.y - 18 * s, e.r * 1.4, e.r * 1.3, 0, 0, TAU); c.fill(); c.restore();
+            bool bl = Odd(S.t * (e.kamiT < 1.2 ? 16 : 8)); c.save(); c.globalAlpha = bl ? .55 : .35; c.fillStyle = "#ff3b1f"; c.beginPath(); c.ellipse(e.x, e.y - 18 * s, e.r * 1.4, e.r * 1.3, 0, 0, TAU); c.fill(); c.restore();
             double bx = e.x, by = e.y + top - 6; c.fillStyle = "#2b2b33"; c.strokeStyle = INK; c.lineWidth = 1.8; c.beginPath(); c.arc(bx, by, 6, 0, TAU); c.fill(); c.stroke();
             c.strokeStyle = "#c9973f"; c.lineWidth = 2; c.beginPath(); c.moveTo(bx + 3, by - 4); c.quadraticCurveTo(bx + 7, by - 10, bx + 10, by - 9); c.stroke();
             c.fillStyle = bl ? "#ffd23a" : "#ff7a1a"; c.beginPath(); c.arc(bx + 10, by - 9, 2.6 + rnd() * 1.2, 0, TAU); c.fill();

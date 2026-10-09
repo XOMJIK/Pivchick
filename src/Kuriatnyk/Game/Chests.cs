@@ -42,7 +42,7 @@ public static class Chests
         }
         for (int i = 0; i < C.wpacks; i++)
         {
-            var pool = PRIMARY.Where(id => SAVE.guns.Contains(id) && wLv(id) < 10).ToList();
+            var pool = PRIMARY.Where(id => SAVE.guns.Contains(id) && wLv(id) < 10 && hasClass(WEAP[id].cls)).ToList();
             if (pool.Count == 0) { res.coins += 10 * (tier + 1); continue; }
             var pick = pickW(pool, id => WRAR[WEAP[id].rar].w * C.wb[WEAP[id].rar]);
             res.wcards[pick] = res.wcards.GetValueOrDefault(pick) + Math.Max(1, (int)Math.Round(rand(C.wcard[0], C.wcard[1]) * WRAR[WEAP[pick].rar].card, MidpointRounding.AwayFromZero));
@@ -99,7 +99,7 @@ public static class Chests
             foreach (var id in ids) r[key(id)] += t > 0 ? wf(id) / t : 0;
             return r;
         }
-        var hp = SAVE.heroes.Keys.Where(id => SAVE.heroes[id].lv < 10).ToList(); var wp = PRIMARY.Where(id => SAVE.guns.Contains(id) && wLv(id) < 10).ToList();
+        var hp = SAVE.heroes.Keys.Where(id => SAVE.heroes[id].lv < 10).ToList(); var wp = PRIMARY.Where(id => SAVE.guns.Contains(id) && wLv(id) < 10 && hasClass(WEAP[id].cls)).ToList();
         o.hcards = share(hp, id => RAR[HEROES[id].rar].w * C.hb[HEROES[id].rar], new[] { "common", "rare", "epic", "legendary" }, id => HEROES[id].rar);
         o.wcards = share(wp, id => WRAR[WEAP[id].rar].w * C.wb[WEAP[id].rar], WRAR_ORDER, id => WEAP[id].rar);
         return o;

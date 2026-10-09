@@ -216,6 +216,12 @@ public sealed class Ctx
         if (st.Alpha < 1) paint.Color = new SKColor(0, 0, 0, (byte)(255 * st.Alpha));
         C.DrawImage(img, (float)x, (float)y, paint);
     }
+    public void drawImage(SKImage img, double x, double y, double w, double h)
+    {
+        paint.Reset(); paint.IsAntialias = true;
+        if (st.Alpha < 1) paint.Color = new SKColor(0, 0, 0, (byte)(255 * st.Alpha));
+        paint.FilterQuality = SKFilterQuality.Medium; C.DrawImage(img, new SKRect((float)x, (float)y, (float)(x + w), (float)(y + h)), paint);
+    }
     public Grad createLinearGradient(double x0, double y0, double x1, double y1) => new((float)x0, (float)y0, (float)x1, (float)y1);
     public Grad createRadialGradient(double x0, double y0, double r0, double x1, double y1, double r1) => new((float)x0, (float)y0, (float)r0, (float)x1, (float)y1, (float)r1);
 
