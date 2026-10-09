@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-original",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["tools/serve-web.js", "5180"],
+      "port": 5180
+    }
+  ]
+}

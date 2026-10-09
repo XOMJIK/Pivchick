@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Запуск на Android: APK для телефона -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>24</SupportedOSPlatformVersion>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Kuriatnyk.Android</RootNamespace>
+    <ApplicationId>com.nutsze.boevoykuryatnik</ApplicationId>
+    <ApplicationVersion>4</ApplicationVersion>
+    <ApplicationDisplayVersion>0.4</ApplicationDisplayVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AndroidResource Include="..\Kuriatnyk\Assets\icon512.png" Link="Resources\drawable\icon.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Android" Version="11.3.22" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Kuriatnyk\Kuriatnyk.csproj" />
+  </ItemGroup>
+
+</Project>

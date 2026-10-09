@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<resources>
+  <!-- Полноэкранная тема без шапки; пока грузится — зелёный фон двора -->
+  <style name="KurTheme" parent="@style/Theme.AppCompat.NoActionBar">
+    <item name="android:windowActionBar">false</item>
+    <item name="android:windowNoTitle">true</item>
+    <item name="android:windowFullscreen">true</item>
+    <item name="android:windowBackground">@drawable/splash_screen</item>
+  </style>
+  <color name="kur_grass">#78bf4c</color>
+</resources>
