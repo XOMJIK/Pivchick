@@ -1,62 +1,73 @@
-# Боевой Курятник — приложение на C#
+# Battle Coop (Боевой Курятник)
 
-Порт веб-игры [nutsze/PivchikGun](https://github.com/nutsze/PivchikGun) (версия 0.4) в отдельное приложение для **Windows** и **Android**. Работает без интернета: всё — графика, звук, шрифты, сохранения — внутри приложения.
+A cartoon top-down shooter about chickens defending their coop — for **Windows** and **Android**. Works fully offline: graphics, sound, fonts and saves are all built into the app.
 
-Игра та же: сюжет (4 главы × 20 уровней), бесконечный бой, 9 героев, отряд, 17 стволов, сундуки, магазин, русский и английский языки. Логика и отрисовка перенесены с JavaScript один в один, поэтому баланс и поведение врагов не изменились.
+## Game modes
+- **Story** — 4 chapters × 20 levels, 8 bosses, night levels; goals get harder from the first chapter to the last
+- **Endless battle** — waves that keep growing, a boss every 5 waves
+- **Soul Knight mode** — pick a hero, step through the portal in the camp and fight through dungeon levels 0-1 … 0-5: rooms lock until every wave is cleared, an optional boss waits on 0-4 and the final boss on 0-5. Melee weapon (Wooden Stick) that can be swapped with your gun
+- **Multiplayer** — coming soon
 
-## Технологии
-- **.NET 10**, **Avalonia 11.3** — общий интерфейс для ПК и телефона
-- **SkiaSharp** — рисование поля, персонажей и HUD (тот же API, что canvas в браузере)
-- Звук синтезируется в коде, как Web Audio в веб-версии: на Windows вывод через WASAPI (NAudio), на Android через AudioTrack
-- Шрифты Rubik и Rubik Bubbles (лицензия SIL OFL 1.1, файлы лицензий в `src/Kuriatnyk/Assets/Fonts`)
+## Features
+- 9 heroes in 4 classes (Assault, Tank, Sniper, Medic), each with an ultimate and two passives
+- 17 guns of three rarities, squad of up to 3 fighters
+- Chests, hero and weapon cards, upgrades up to level 10, shop
+- Russian and English, switchable on the fly
+- Scales to any screen: phones, tablets and large monitors
 
-## Структура
+## Tech
+- **.NET 10**, **Avalonia 11.3** — shared UI for desktop and mobile
+- **SkiaSharp** — rendering of the battlefield, characters and HUD
+- Sound and music are synthesized in code: WASAPI (NAudio) on Windows, AudioTrack on Android
+- Rubik and Rubik Bubbles fonts (SIL OFL 1.1, license files in `src/Kuriatnyk/Assets/Fonts`)
+
+## Project layout
 ```
-src/Kuriatnyk/            общий код
-  Game/                   логика: данные (Data.cs), мир и реки (World.cs), бой (Combat.cs, Weapons.cs),
-                          игровой цикл и ИИ (Update.cs), экраны боя (Flow.cs), ввод, сундуки, сохранения
-  Render/                 отрисовка: Ctx.cs (canvas-API поверх Skia), Draw.*.cs (порт draw.js), Hud.cs
-  Audio/                  синтезатор, звуки и музыка
-  UI/                     интерфейс Avalonia: лобби, доски, окна, игровое поле
-  Assets/                 шрифты, английский словарь (en.json из web/js/lang.js), иконка
-src/Kuriatnyk.Desktop/    запуск на Windows
-src/Kuriatnyk.Android/    запуск на Android
-tools/Snap/               проверка без окна: гоняет игру и сохраняет кадры в PNG; там же замер скорости и генерация иконки
-tools/export-lang.js      обновляет en.json из web/js/lang.js
-web/                      исходная веб-версия — для сверки
+src/Kuriatnyk/            shared code
+  Game/                   game logic: data (Data.cs), maps and rivers (World.cs), dungeons (Dungeon.cs),
+                          combat (Combat.cs, Weapons.cs), game loop and AI (Update.cs), flow (Flow.cs),
+                          input, chests, saves
+  Render/                 rendering: Ctx.cs (canvas-style API over Skia), Draw.*.cs, Hud.cs
+  Audio/                  synthesizer, sound effects and music
+  UI/                     Avalonia UI: lobby, boards, overlays, game view
+  Assets/                 fonts, English dictionary (en.json), icon
+src/Kuriatnyk.Desktop/    Windows launcher
+src/Kuriatnyk.Android/    Android launcher
+tools/Snap/               headless check: runs the game and saves frames as PNG; also a perf test and icon generator
+tools/export-lang.js      regenerates en.json from web/js/lang.js
+web/                      browser version of the game
 ```
-Имена функций и полей в `Game/` и `Render/` нарочно совпадают с JS-версией (`startGame`, `hitEnemy`, `drawBird`…), чтобы правки из веб-версии было легко переносить.
 
 ## Windows
-Запуск из исходников:
+Run from source:
 ```
 dotnet run --project src/Kuriatnyk.Desktop
 ```
-Готовый exe одним файлом (не требует установленного .NET):
+Single-file exe (no .NET installation required):
 ```
 dotnet publish src/Kuriatnyk.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist/windows
 ```
-Управление: WASD — бег, автонаводка стреляет сама (T — вкл/выкл), зажатая мышь — ручная стрельба, правая кнопка или Q — граната, R — ульта, Esc/P — пауза.
+Controls: WASD — move, auto-aim fires on its own (T — toggle), hold the mouse button — manual fire, right mouse button or Q — grenade, R — ultimate, F — swap weapon (Soul Knight mode), Esc/P — pause.
 
 ## Android
-Один раз установить инструменты:
+One-time setup:
 ```
 dotnet workload install android
 winget install Microsoft.OpenJDK.21
 ```
-(первую команду — в PowerShell от имени администратора). Потом собрать APK:
+(run the first command in PowerShell as Administrator). Then build the APK:
 ```
 powershell -ExecutionPolicy Bypass -File build-android.ps1
 ```
-Скрипт при первом запуске скачает Android SDK и положит APK в `dist/android`. APK подписан отладочным ключом — его можно ставить на телефон напрямую; для Google Play нужен свой ключ (`AndroidSigningKeyStore`).
+On the first run the script downloads the Android SDK; the APK goes to `dist/android`. It is signed with a debug key and can be installed on a phone directly; Google Play requires your own key (`AndroidSigningKeyStore`). The game runs in landscape only.
 
-## Сохранения
-`%LOCALAPPDATA%\BoevoyKuryatnik\save.json` и `settings.json` (на Android — во внутренней папке приложения). Переменная окружения `KUR_DATA_DIR` подменяет папку — так тесты не трогают настоящий прогресс.
+## Saves
+`%LOCALAPPDATA%\BoevoyKuryatnik\save.json` and `settings.json` (on Android — the app's internal folder). The `KUR_DATA_DIR` environment variable overrides the folder, so tests don't touch real progress.
 
-## Проверка
-- `dotnet run --project tools/Snap -- <папка>` — прогон боя без окна, кадры в PNG; `-- <папка> perf` — замер скорости.
-- `KUR_AUTOSHOT=<папка>` (и по желанию `KUR_SIZE=400x820`) при запуске Windows-версии — приложение само проходит по экранам, сохраняет снимки и закрывается.
+## Testing
+- `dotnet run --project tools/Snap -- <folder>` — headless battle run, frames saved as PNG; `-- <folder> perf` — performance test; `-- <folder> sk` — full Soul Knight run through levels 0-1 … 0-5.
+- `KUR_AUTOSHOT=<folder>` (optionally `KUR_SIZE=1180x720`) when launching the Windows build — the app walks through all screens, saves screenshots and exits.
 
-## Создатели
-- nutze (Arthur Dyakonov) — креатор, геймдизайн, тестирование
-- XOMJIK (Illia Martseniuk) — креатор, кодер
+## Credits
+- nutze (Arthur Dyakonov) — creator, game design, testing
+- XOMJIK (Illia Martseniuk) — creator, programming
