@@ -35,11 +35,11 @@ public static partial class G
         for (int i = 0; i < 10; i++) { double a = rand(0, TAU), sp = rand(60, 200); parts.Add(new Part { k = "shell", x = o.x, y = o.y, z = 12, vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp * .6, vz = rand(120, 260), rot = rand(0, TAU), vr = rand(-10, 10), t = 0, max = rand(.7, 1.1), dirt = true }); }
         puff(o.x, o.y, "#c9a06a", 8, 1.1);
         if (S.kind == "sk")
-        { // в подземелье — пивчики, иногда стамина или кукуруза
-            if (rnd() < .5) dropPiv(o.x, o.y, 1 + (rnd() < .3 ? 1 : 0));
+        { // в подземелье — кристалл стамины, очень редко вместо него кукуруза или пивчик
             double r = rnd();
-            if (r < .3) pickups.Add(new Pickup { x = o.x + 10, y = o.y, kind = "stam", t = 14, ph = 0 });
-            else if (r < .36) pickups.Add(new Pickup { x = o.x - 10, y = o.y, kind = "corn", t = 14, ph = 0 });
+            if (r < .05) pickups.Add(new Pickup { x = o.x, y = o.y, kind = "corn", t = 14, ph = 0 });
+            else if (r < .1) dropPiv(o.x, o.y, 1);
+            else pickups.Add(new Pickup { x = o.x, y = o.y, kind = "stam", t = 14, ph = 0 });
             return;
         }
         double q = rnd();

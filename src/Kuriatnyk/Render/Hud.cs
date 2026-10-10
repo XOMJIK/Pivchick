@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Kuriatnyk.Render;
 using static Kuriatnyk.D;
 using static Kuriatnyk.G;
@@ -232,12 +233,15 @@ public static class Hud
                 if (price > 0) { Piv(c, tx + lw + 16, by + bh / 2, 16); c.fillText(price.ToString(), tx + lw + 27, by + 24.5); }
                 btns["act"] = (bx, by, bw, bh);
                 if (actPick?.kind == "skw") WeaponCompare(c, WEAP[actPick.wid], WEAP[P.w], by - 8);
+                else if (actStatue != null) UltInfo(c, actStatue.kind, by - 8);
             }
         }
         // --- кнопка «Бум» (яйцо-граната) ---
         // на телефоне — над правым стиком; на ПК стиков нет, поэтому «Бум» и ульта стоят в правом нижнем углу с подсказками клавиш
-        bool pc = !COARSE;
-        double nadeX;
+        // в Soul Knight гранат нет: ульта встаёт на место «Бума»
+        bool pc = !COARSE, sk = S.kind == "sk";
+        double nadeX = VW - SafeR - (pc ? 20 : sh ? 22 : 18) + 22;
+        if (!sk)
         {
             double w = pc ? 60 : sh ? 62 : 68, h = pc ? 70 : sh ? 72 : 80, x = VW - SafeR - (pc ? 20 : sh ? 22 : 18) - w, y = pc ? B - h : VH - SafeB - (sh ? 150 : 200) - h, cxn = x + w / 2;
             nadeX = x;
@@ -256,7 +260,7 @@ public static class Hud
         }
         // --- ульта ---
         {
-            double d = pc ? 66 : sh ? 68 : 78, x = pc ? nadeX - 22 - d : VW - SafeR - 100 - d, y = pc ? B - d - 4 : VH - SafeB - (sh ? 178 : 212) - d, ucx = x + d / 2, ucy = y + d / 2, r = d / 2;
+            double d = pc ? 66 : sh ? 68 : 78, x = pc || sk ? nadeX - 22 - d : VW - SafeR - 100 - d, y = pc ? B - d - 4 : sk ? VH - SafeB - (sh ? 150 : 200) - d : VH - SafeB - (sh ? 178 : 212) - d, ucx = x + d / 2, ucy = y + d / 2, r = d / 2;
             int p = (int)Math.Floor(P.ult); string st = P.buff != null ? "live" : p >= 100 ? "ready" : "charge";
             if (st == "ready") { double k = (Clock % 1.0); double gl = Math.Sin(k * Math.PI) * 9; c.save(); c.globalAlpha = .9 * (1 - k); c.fillStyle = YOLK; c.beginPath(); c.arc(ucx, ucy + 4, r + gl, 0, TAU); c.fill(); c.restore(); }
             c.fillStyle = INK; c.beginPath(); c.arc(ucx, ucy + 4, r, 0, TAU); c.fill();
@@ -270,8 +274,95 @@ public static class Hud
             c.font = "900 12.5px Rubik"; c.textAlign = "center"; c.fillStyle = st == "ready" ? "#fff" : INK; c.fillText(lbl, ucx, ucy + 4.5);
             if (pc) KeyCap(c, x - 4, y + d - 20, keyHint("ult"));
             btns["ult"] = (x, y, d, d);
+            if (sk)
+            { // чья ульта сейчас: своя или от статуи (золотом)
+                var un = SKU.Name(P.ultId ?? P.hid); c.font = "800 11px Rubik"; double uw = c.measureText(un);
+                Outlined(c, un, Math.Min(ucx, VW - SafeR - 8 - uw / 2), y - 7, "800 11px Rubik", P.ultId != null ? YOLK : "#fff", 1.2);
+            }
         }
+        if (sk && DUN != null && !DUN.hub) { double my = Tp + bs + 10; my = Minimap(c, R, my, sh ? 104 : 128); Passives(c, R, my + 8); }
         DrawBanner(c);
+    }
+
+    /// <summary>Мини-карта подземелья в правом верхнем углу: где был, какие комнаты рядом, где ты сейчас. Возвращает нижний край.</summary>
+    static double Minimap(Ctx c, double right, double top, double size)
+    {
+        var D = DUN; double x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+        foreach (var R in D.rooms) { x0 = Math.Min(x0, R.x); y0 = Math.Min(y0, R.y); x1 = Math.Max(x1, R.x + R.w); y1 = Math.Max(y1, R.y + R.h); }
+        double pad = 8, k = (size - pad * 2) / Math.Max(x1 - x0, y1 - y0), w = (x1 - x0) * k + pad * 2, h = (y1 - y0) * k + pad * 2, left = right - w;
+        double mx(double v) => left + pad + (v - x0) * k; double my(double v) => top + pad + (v - y0) * k;
+        RRect(c, left, top, w, h, 10, "rgba(27,32,24,.78)", 2.5);
+        // комната видна, если герой в ней был или она за дверью от такой комнаты
+        bool known(Room R) => R.seen || R.cors.Any(co => (co.a == R ? co.b : co.a).seen);
+        foreach (var co in D.cors)
+        {
+            if (!co.a.seen && !co.b.seen) continue;
+            c.fillStyle = "rgba(233,220,192,.55)";
+            if (co.horiz) c.fillRect(mx(co.x), my(co.y + co.h / 2) - 2, co.w * k, 4); else c.fillRect(mx(co.x + co.w / 2) - 2, my(co.y), 4, co.h * k);
+        }
+        foreach (var R in D.rooms)
+        {
+            if (!known(R)) continue;
+            bool here = inRoom(R, P.x, P.y, 0), act = D.active == R;
+            string fill = !R.seen ? "rgba(233,220,192,.12)" : act ? "#c0392b" : R.type is "fight" or "boss" or "bossopt" && !R.cleared ? "#8a7a55" : "#d9cdb4";
+            c.fillStyle = fill; rr(c, mx(R.x), my(R.y), R.w * k, R.h * k, 3); c.fill();
+            c.strokeStyle = here ? YOLK : !R.seen ? "rgba(233,220,192,.5)" : INK; c.lineWidth = here ? 2.2 : 1.4; c.stroke();
+            double cx = mx(R.cx), cy = my(R.cy), s = Math.Min(R.w, R.h) * k * .5;
+            switch (R.type)
+            { // значки особых комнат
+                case "shop": Piv(c, cx, cy, Math.Min(12, s)); break;
+                case "chest": c.fillStyle = "#c9a227"; c.strokeStyle = INK; c.lineWidth = 1.4; rr(c, cx - 5, cy - 3.5, 10, 7, 1.5); c.fill(); c.stroke(); seg(c, cx - 5, cy - .5, cx + 5, cy - .5); break;
+                case "shrine": c.fillStyle = OBS.Any(o => o.type == "statue" && o.st == 0) ? YOLK : "#9a958c"; c.strokeStyle = INK; c.lineWidth = 1.4; c.beginPath(); for (int i = 0; i < 10; i++) { double a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 == 1 ? 2.6 : 6; c.lineTo(cx + Math.Cos(a) * q, cy + Math.Sin(a) * q); } c.closePath(); c.fill(); c.stroke(); break;
+                case "boss": case "bossopt": if (!R.cleared) { c.fillStyle = R.type == "boss" ? "#e8322a" : "#ff9a1f"; c.strokeStyle = INK; c.lineWidth = 1.4; c.beginPath(); c.arc(cx, cy, 5, 0, TAU); c.fill(); c.stroke(); c.fillStyle = INK; c.fillRect(cx - 2.6, cy - 1.6, 1.8, 1.8); c.fillRect(cx + .8, cy - 1.6, 1.8, 1.8); } break;
+                case "start": c.fillStyle = "#5fcf3f"; c.beginPath(); c.arc(cx, cy, 2.6, 0, TAU); c.fill(); break;
+            }
+        }
+        foreach (var p in D.portals)
+        { // портал на следующий уровень
+            var R = D.rooms.FirstOrDefault(r => inRoom(r, p.x, p.y, 0)); if (R == null || !known(R)) continue;
+            c.fillStyle = p.on ? "#8f5cff" : "#4a4458"; c.strokeStyle = p.on ? "#e8dcff" : INK; c.lineWidth = 1.4; c.beginPath(); c.ellipse(mx(p.x), my(p.y), 5, 3, 0, 0, TAU); c.fill(); c.stroke();
+        }
+        // герой
+        double hx = mx(P.x), hy = my(P.y);
+        c.fillStyle = "#fff"; c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.arc(hx, hy, 3.6, 0, TAU); c.fill(); c.stroke();
+        return top + h;
+    }
+
+    /// <summary>Взятые пассивки забега — значки под мини-картой (повторы — с числом).</summary>
+    static void Passives(Ctx c, double right, double top)
+    {
+        if (S.skPass.Count == 0) return;
+        var groups = S.skPass.GroupBy(id => id).ToList(); double s = 24, gap = 4, x = right - s;
+        int perRow = Math.Max(1, (int)((Math.Min(200, VW * .3) + gap) / (s + gap)));
+        for (int i = 0; i < groups.Count; i++)
+        {
+            var p = SKP.Get(groups[i].Key); if (p == null) continue;
+            double px = right - s - (i % perRow) * (s + gap), py = top + (i / perRow) * (s + gap);
+            c.save(); c.translate(px, py); UI.Overlays.DrawPassIcon(c, p.icon, s, s); c.restore();
+            int n = groups[i].Count();
+            if (n > 1) { c.font = "900 10px Rubik"; c.textAlign = "center"; c.fillStyle = YOLK; c.strokeStyle = INK; c.lineWidth = 3; c.strokeText("×" + n, px + s - 3, py + s + 1); c.fillText("×" + n, px + s - 3, py + s + 1); }
+        }
+    }
+
+    /// <summary>Что даст поклон статуе: название ульты, описание и какая ульта у героя сейчас.</summary>
+    static void UltInfo(Ctx c, string id, double bottom)
+    {
+        double w = 280, pad = 10;
+        c.font = "600 11.5px Rubik"; var lines = new List<string>(); var cur = "";
+        foreach (var word in SKU.Desc(id).Split(' '))
+        {
+            var t = cur.Length == 0 ? word : cur + " " + word;
+            if (c.measureText(t) > w - pad * 2 && cur.Length > 0) { lines.Add(cur); cur = word; } else cur = t;
+        }
+        if (cur.Length > 0) lines.Add(cur);
+        if (lines.Count > 4) { lines = lines.GetRange(0, 4); lines[3] += "…"; }
+        double h = pad * 2 + 22 + lines.Count * 14.5 + 18, x = VW / 2 - w / 2, y = bottom - h;
+        RRect(c, x, y, w, h, 12, "rgba(43,29,20,.9)", 0);
+        c.strokeStyle = SKU.Gem(id); c.lineWidth = 2.5; rr(c, x + 1.25, y + 1.25, w - 2.5, h - 2.5, 11); c.stroke();
+        c.textAlign = "left"; c.font = "900 15px Rubik"; c.fillStyle = YOLK; c.fillText(SKU.Name(id), x + pad, y + pad + 14);
+        c.font = "600 11.5px Rubik"; c.fillStyle = "rgba(255,244,220,.8)";
+        for (int i = 0; i < lines.Count; i++) c.fillText(lines[i], x + pad, y + pad + 34 + i * 14.5);
+        c.font = "700 11px Rubik"; c.fillStyle = "rgba(255,244,220,.55)"; c.fillText(T("Сейчас: ") + SKU.Name(P.ultId ?? P.hid), x + pad, y + h - pad);
     }
 
     /// <summary>Характеристики оружия на земле и сравнение с тем, что в руках (как в Soul Knight): зелёный треугольник — лучше, красный — хуже.</summary>

@@ -52,8 +52,9 @@ public static class SKW
     public static readonly string[] IDS = LIST.Select(w => w.id).ToArray();
     /// <summary>С чем начинается забег: рогатка и палка, обе без стамины.</summary>
     public static readonly string[] START = { "sling", "stick" };
-    /// <summary>Цены у торговца и в автомате на 0-1; чем глубже уровень, тем дороже (+15% за уровень).</summary>
-    public const int STAM_PRICE = 10, HEAL_PRICE = 12, VEND_PRICE = 12;
+    /// <summary>Цены у торговца и в автомате на 0-1; чем глубже уровень, тем дороже (+15% за уровень).
+    /// Автомат дешевле торговца: он выдаёт наугад одно зелье — здоровья или стамины.</summary>
+    public const int STAM_PRICE = 10, HEAL_PRICE = 12, VEND_PRICE = 8;
     public static double LvMul(int lv) => 1 + .15 * (Math.Max(1, lv) - 1);
     public static int Cost(double basePrice, int lv) => Math.Max(5, (int)(Math.Round(basePrice * LvMul(lv) / 5) * 5));
     /// <summary>Сила ствола: урон в секунду с поправками на площадь, пробивание, самонаведение и эффекты.</summary>
@@ -100,9 +101,26 @@ public static class SKP
         new(){id="magnet",nameRu="Магнит",descRu="Пивчики летят к тебе издалека, и их падает на 30% больше",icon="piv"},
         new(){id="crit",nameRu="Меткость",descRu="12% шанс крита ×2",icon="beak"},
         new(){id="melee",nameRu="Боевой задор",descRu="+40% урона ближним оружием",icon="sword"},
-        new(){id="nades",nameRu="Запас яиц",descRu="+2 яйца-гранаты",icon="egg"},
+        new(){id="regen",nameRu="Заживление",descRu="Восстанавливает 1,5 здоровья в секунду, если 4 с не получал урона",icon="heart"},
         new(){id="ult",nameRu="Боевой дух",descRu="Ульта копится на 30% быстрее",icon="star"},
         new(){id="luck",nameRu="Удача",descRu="В сундуках и у торговца чаще редкое оружие",icon="clover"},
     };
     public static SkPass Get(string id) => LIST.FirstOrDefault(p => p.id == id);
+}
+
+/// <summary>Ульты статуй в святилище Soul Knight. Поклонился статуе — твоя ульта меняется на её до конца забега:
+/// это ульта любого героя обычной игры (её может применить кто угодно) или «Подкрепление» — вызов бойца на подмогу.</summary>
+public static class SKU
+{
+    public const string SUMMON = "summon";
+    public const double SUMMON_T = 20; // сколько секунд сражается вызванный боец
+    public static readonly string[] ALL = { "hen", "chick", "rooster", "duck", "goose", "quail", "guinea", "nurse", "adren", SUMMON };
+    public static string Name(string id) => id == SUMMON ? L.T("Подкрепление") : D.HEROES[id].ult[0];
+    public static string Desc(string id) => id == SUMMON ? L.T("Зовёт на подмогу случайного бойца: 20 секунд он сражается рядом") : D.HEROES[id].ult[1];
+    /// <summary>Цвет камня-самоцвета на постаменте.</summary>
+    public static string Gem(string id) => id switch
+    {
+        "hen" => "#ffc93a", "chick" => "#ffe066", "rooster" => "#ff6b4a", "duck" => "#7fd4ff", "goose" => "#cfe8ff",
+        "quail" => "#8f7cff", "guinea" => "#86bcdc", "nurse" => "#9cf27a", "adren" => "#ff7a1a", _ => "#5fcf3f",
+    };
 }

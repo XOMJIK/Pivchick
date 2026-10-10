@@ -138,6 +138,7 @@ public static partial class G
         }
         if (P.noStamT > 0) P.noStamT -= dt; // стамина сама не восстанавливается — только кристаллы и зелья
         if (P.swing > 0) P.swing -= dt;
+        if (P.bowT > 0) P.bowT -= dt;
         P.face = Math.Cos(P.ang) >= 0 ? 1 : -1;
         foreach (var e in enemies) { if (e.T.fly) continue; double dx = P.x - e.x, dy = P.y - e.y, d = hypot(dx, dy); if (d == 0) d = 1; double m = P.r + e.r; if (d < m) { P.x += dx / d * (m - d) * .5; P.y += dy / d * (m - d) * .5; } }
         collideWorld(P);

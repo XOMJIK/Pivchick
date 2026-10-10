@@ -34,11 +34,13 @@ public sealed class Player : Fighter
     // Soul Knight: оружие в рюкзаке (до bagMax) и бонусы пассивок забега
     public List<string> bag; public int slot, bagMax = 2;
     public double vamp, meleeMul = 1, pivMul = 1; public int luck; public bool magnetFar;
+    public string ultId; public double bowT; // ульта от статуи (null — своя ульта героя) и поклон статуе
 }
 
 public sealed class Ally : Fighter
 {
     public string id, gun; public int lv; public double range, down;
+    public bool summon; public double summonT; // боец, вызванный «Подкреплением»: уходит через summonT секунд
 }
 
 public sealed class Enemy : Unit
@@ -143,19 +145,8 @@ public static partial class G
         var ids = squadIds();
         allies = ids.Select((id, i) =>
         {
-            var H = HEROES[id]; int Lv = heroLv(id); var C = H.cls;
-            double hpM = .75, armor = H.armor, spd = H.spd * .95;
-            if (C == "tank") { hpM *= 1.25; armor += .1; spd *= .92; }
-            if (C == "sniper") hpM *= .9; if (C == "assault") spd *= 1.1;
-            double max = Math.Round(H.hp * (1 + .06 * (Lv - 1)) * hpM, MidpointRounding.AwayFromZero);
             double a = ((double)i / Math.Max(1, ids.Count)) * TAU + Math.PI / 2;
-            var al = new Ally
-            {
-                id = id, cls = C, lv = Lv, x = P.x + Math.Cos(a) * 60, y = P.y + Math.Sin(a) * 60, r = H.r, hp = max, max = max, spd = spd, armor = armor,
-                regen = H.regen + (C == "medic" ? 2 : 0), dmgMul = H.dmg * (1 + .05 * (Lv - 1)) * (C == "sniper" ? 1.2 : 1), rateMul = H.rate * (C == "assault" ? 1.1 : 1),
-                look = lookFor(id), gun = gunForAlly(id), hop = id == "duck", kitT = 8, cd = rand(0, .4), ult = rand(10, 40), phase = rand(0, 6), lastHit = -9, crit = critOf(C)
-            };
-            al.range = allyRange(al); return al;
+            return newAlly(id, heroLv(id), P.x + Math.Cos(a) * 60, P.y + Math.Sin(a) * 60);
         }).ToList();
         if (S.mode == "menu")
             for (int i = 0; i < allies.Count; i++)
@@ -163,6 +154,23 @@ public static partial class G
                 var a = allies[i]; int side = i % 2 == 1 ? 1 : -1, k = i / 2 + 1;
                 a.x = P.x + side * (30 + k * 34); a.y = P.y - 4 - k * 10; a.ang = side > 0 ? 0 : Math.PI; a.face = side;
             }
+    }
+
+    /// <summary>Боец отряда: герой id на уровне Lv в точке (x, y).</summary>
+    public static Ally newAlly(string id, int Lv, double x, double y)
+    {
+        var H = HEROES[id]; var C = H.cls;
+        double hpM = .75, armor = H.armor, spd = H.spd * .95;
+        if (C == "tank") { hpM *= 1.25; armor += .1; spd *= .92; }
+        if (C == "sniper") hpM *= .9; if (C == "assault") spd *= 1.1;
+        double max = Math.Round(H.hp * (1 + .06 * (Lv - 1)) * hpM, MidpointRounding.AwayFromZero);
+        var al = new Ally
+        {
+            id = id, cls = C, lv = Lv, x = x, y = y, r = H.r, hp = max, max = max, spd = spd, armor = armor,
+            regen = H.regen + (C == "medic" ? 2 : 0), dmgMul = H.dmg * (1 + .05 * (Lv - 1)) * (C == "sniper" ? 1.2 : 1), rateMul = H.rate * (C == "assault" ? 1.1 : 1),
+            look = lookFor(id), gun = gunForAlly(id), hop = id == "duck", kitT = 8, cd = rand(0, .4), ult = rand(10, 40), phase = rand(0, 6), lastHit = -9, crit = critOf(C)
+        };
+        al.range = allyRange(al); return al;
     }
 
     /// <summary>Характеристики героя на уровне Lv (класс, прокачка и пассивки, которые меняют числа).</summary>

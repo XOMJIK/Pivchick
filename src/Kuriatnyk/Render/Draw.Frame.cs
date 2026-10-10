@@ -170,7 +170,14 @@ public static partial class G
             {
                 case 0: drawObstacle(c, (Obs)it.o); break;
                 case 1: drawEnemy(c, (Enemy)it.o); break;
-                case 2: drawBird(c, playerSprite()); break;
+                case 2:
+                    if (P.bowT > 0)
+                    { // поклон статуе: наклон вперёд и обратно
+                        double bk = Math.Sin(clamp(1 - P.bowT / .9, 0, 1) * Math.PI) * .5;
+                        c.save(); c.translate(P.x, P.y); c.rotate(bk * P.face); c.translate(-P.x, -P.y); drawBird(c, playerSprite()); c.restore();
+                    }
+                    else drawBird(c, playerSprite());
+                    break;
                 case 3:
                     {
                         var aa = (Ally)it.o;
@@ -199,7 +206,9 @@ public static partial class G
         {
             if (a.down > 0 || S.mode == "menu") continue; double w = 28, y = a.y - 56;
             c.fillStyle = INK; c.fillRect(a.x - w / 2 - 1.5, y - 1.5, w + 3, 11); c.fillStyle = "#8e2a21"; c.fillRect(a.x - w / 2, y, w, 5); c.fillStyle = "#5fcf3f"; c.fillRect(a.x - w / 2, y, w * Math.Max(0, a.hp / a.max), 5);
-            c.fillStyle = "#4a3a2a"; c.fillRect(a.x - w / 2, y + 6, w, 2.5); c.fillStyle = a.ult >= 100 ? (Odd(S.t * 8) ? "#fff" : "#ffc93a") : "#ffc93a"; c.fillRect(a.x - w / 2, y + 6, w * Math.Min(1, a.ult / 100), 2.5);
+            c.fillStyle = "#4a3a2a"; c.fillRect(a.x - w / 2, y + 6, w, 2.5);
+            if (a.summon) { c.fillStyle = "#9cf27a"; c.fillRect(a.x - w / 2, y + 6, w * clamp(a.summonT / SKU.SUMMON_T, 0, 1), 2.5); continue; } // вызванному бойцу — сколько ему осталось
+            c.fillStyle = a.ult >= 100 ? (Odd(S.t * 8) ? "#fff" : "#ffc93a") : "#ffc93a"; c.fillRect(a.x - w / 2, y + 6, w * Math.Min(1, a.ult / 100), 2.5);
         }
         foreach (var e in enemies)
         {

@@ -199,18 +199,22 @@ public static partial class G
             pickups.Add(new Pickup { x = x, y = y, kind = "piv", n = v, t = 40, ph = rand(0, 6), vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp * .7, vz = rand(120, 220) });
         }
     }
-    /// <summary>Ближайший предмет, который берут кнопкой действия (оружие на земле, товар у торговца), или автомат в стартовой комнате.</summary>
-    public static Pickup actPick; public static Obs actVend;
+    /// <summary>Ближайший предмет, который берут кнопкой действия (оружие на земле, товар у торговца), автомат или статуя в святилище.</summary>
+    public static Pickup actPick; public static Obs actVend, actStatue;
     static void findAct()
     {
-        actPick = null; actVend = null; if (S.kind != "sk" || P == null || !P.alive) return; double bd = 46;
+        actPick = null; actVend = null; actStatue = null; if (S.kind != "sk" || P == null || !P.alive) return; double bd = 46;
         foreach (var p in pickups) { if (p.kind != "skw" && p.price <= 0) continue; var d = hypot(p.x - P.x, p.y - P.y); if (d < bd) { bd = d; actPick = p; } }
-        if (actPick == null) foreach (var o in OBS) if (o.type == "vend" && !o.open && hypot(o.x - P.x, o.y + 30 - P.y) < 62) actVend = o;
+        if (actPick != null) return;
+        foreach (var o in OBS) if (o.type == "vend" && !o.open && hypot(o.x - P.x, o.y + 30 - P.y) < 62) actVend = o;
+        if (actVend != null) return;
+        bd = 70; foreach (var o in OBS) { if (o.type != "statue" || o.st != 0) continue; var d = hypot(o.x - P.x, o.y + 34 - P.y); if (d < bd) { bd = d; actStatue = o; } }
     }
     static string itemName(Pickup p) => p.kind == "skw" ? WEAP[p.wid].name : p.kind == "corn" ? T("Кукуруза") : p.kind == "hpp" ? T("Зелье здоровья") : T("Зелье стамины");
-    /// <summary>Подпись кнопки действия: «Взять: Топор», «Заменить на …», «Купить …», «Автомат: случайный предмет».</summary>
+    /// <summary>Подпись кнопки действия: «Взять: Топор», «Заменить на …», «Купить …», «Автомат: случайный предмет», «Поклониться: …».</summary>
     public static string actLabel()
     {
+        if (actStatue != null) return T("Поклониться: ") + SKU.Name(actStatue.kind);
         if (actVend != null) return T("Автомат: случайный предмет");
         var p = actPick; if (p == null) return null;
         var nm = itemName(p);
@@ -220,29 +224,45 @@ public static partial class G
     /// <summary>Цена на кнопке действия (0 — бесплатно).</summary>
     public static int actPrice() => actVend != null ? vendPrice() : actPick?.price ?? 0;
     static int vendPrice() => SKW.Cost(SKW.VEND_PRICE, S.skLv);
-    /// <summary>Автомат: один раз за уровень за пивчики выдаёт случайное — оружие или пару зелий (стамины и здоровья).</summary>
+    /// <summary>Автомат: один раз за уровень за пивчики выдаёт одно зелье наугад — здоровья или стамины.</summary>
     static void useVend(Obs o)
     {
         int price = vendPrice();
         if (S.piv < price) { ftext(P.x, P.y - 58, T("Не хватает пивчиков"), "#ffb3a3", 13); Sfx.hurt(); return; }
         S.piv -= price; o.open = true; Sfx.buy(); Sfx.chest(); puff(o.x, o.y - 20, "#ffe066", 8, 1);
-        double x = o.x, y = o.y + 44;
-        if (rnd() < .4)
-        {
-            var id = rollSkWeapon(S.skLv, P.luck, skTaken()); dropWeapon(id, x, y);
-            ftext(o.x, o.y - 70, WEAP[id].name, RAR[WEAP[id].skr].c, 15);
-        }
-        else
-        {
-            pickups.Add(new Pickup { x = x - 16, y = y, kind = "stamp", t = 1e9, ph = rand(0, 6), vz = 150 });
-            pickups.Add(new Pickup { x = x + 16, y = y, kind = "hpp", t = 1e9, ph = rand(0, 6), vz = 150 });
-            ftext(o.x, o.y - 70, T("Зелья!"), "#9cf27a", 15);
-        }
+        var p = new Pickup { x = o.x, y = o.y + 44, kind = rnd() < .5 ? "hpp" : "stamp", t = 1e9, ph = rand(0, 6), vz = 150 };
+        pickups.Add(p);
+        ftext(o.x, o.y - 70, itemName(p), p.kind == "hpp" ? "#ff8a7a" : "#7fd4ff", 15);
+    }
+    /// <summary>Поклон статуе: её ульта заменяет твою до конца забега, остальные статуи святилища гаснут.</summary>
+    static void bowStatue(Obs o)
+    {
+        P.ultId = o.kind == P.hid ? null : o.kind; o.st = 1; P.bowT = .9;
+        P.ang = Math.Atan2(o.y - P.y, o.x - P.x);
+        foreach (var s in OBS) if (s.type == "statue" && s != o && s.st == 0 && hypot(s.x - o.x, s.y - o.y) < 400) s.st = 2;
+        if (P.buff == null) P.ult = Math.Max(P.ult, 50); // благословение сразу заряжает ульту наполовину
+        Sfx.ult(); Sfx.chest(); S.shake += 4; Platform.Buzz(30);
+        ring(o.x, o.y, "#ffe066", 120, .6); ring(P.x, P.y, "#fff6c8", 80, .5); puff(o.x, o.y - 50, "#ffe066", 12, 1.2);
+        showBanner(T("Благословение!"), SKU.Name(o.kind) + T(" — новая ульта"));
+    }
+    /// <summary>Ульта «Подкрепление»: на подмогу приходит случайный боец, через 20 с он уходит.</summary>
+    static void summonAlly()
+    {
+        var pool = HEROES.Keys.Where(k => k != P.hid).ToList(); var id = pool[(int)(rnd() * pool.Count)];
+        double a = P.ang + Math.PI + rand(-.6, .6);
+        var al = newAlly(id, Math.Max(1, P.hlv), P.x + Math.Cos(a) * 50, P.y + Math.Sin(a) * 40);
+        double k = 1 + .15 * (Math.Max(1, S.skLv) - 1); al.max = al.hp = Math.Round(al.max * k); al.dmgMul *= k; // глубже — крепче, иначе его сразу выбьют
+        al.summon = true; al.summonT = SKU.SUMMON_T; al.ult = 60; al._px = P.x; al._py = P.y;
+        collideWorld(al); allies.Add(al);
+        ring(al.x, al.y, "#9cf27a", 90, .5); puff(al.x, al.y, "#ffffff", 12, 1.3); feathers(al.x, al.y, al.look.body, 8, 1);
+        ftext(al.x, al.y - 62, HEROES[id].name.Split(' ')[0] + T(" на подмогу!"), "#9cf27a", 15);
     }
     public static void interact()
     {
         if (S.mode != "play" || P == null || !P.alive) return;
-        findAct(); if (actVend != null) { useVend(actVend); actVend = null; return; }
+        findAct();
+        if (actStatue != null) { bowStatue(actStatue); actStatue = null; return; }
+        if (actVend != null) { useVend(actVend); actVend = null; return; }
         var p = actPick; if (p == null) return;
         if (p.price > 0)
         {
@@ -320,7 +340,7 @@ public static partial class G
             case "magnet": P.magnetFar = true; P.pivMul += .3; break;
             case "crit": P.crit += .12; break;
             case "melee": P.meleeMul *= 1.4; break;
-            case "nades": P.nades += 2; break;
+            case "regen": P.regen += 1.5; break;
             case "ult": P.ultRate *= 1.3; break;
             case "luck": P.luck++; break;
         }

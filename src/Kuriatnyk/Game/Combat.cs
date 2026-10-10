@@ -222,6 +222,16 @@ public static partial class G
         for (int i = 0; i < allies.Count; i++)
         {
             var a = allies[i];
+            if (a.summon)
+            { // вызванный «Подкреплением» уходит, когда кончилось время или его выбили
+                a.summonT -= dt;
+                if (a.summonT <= 0 || a.down > 0)
+                {
+                    puff(a.x, a.y, "#ffffff", 10, 1.2); ring(a.x, a.y, "#9cf27a", 60, .4);
+                    if (a.down <= 0) ftext(a.x, a.y - 54, HEROES[a.id].name.Split(' ')[0] + T(" уходит"), "#e8d3a8", 12);
+                    allies.RemoveAt(i); i--; continue;
+                }
+            }
             if (a.down > 0)
             {
                 a.down -= dt * ((P.medic && P.alive) || allies.Any(b => b != a && b.cls == "medic" && b.down <= 0) ? 2 : 1);
@@ -346,7 +356,7 @@ public static partial class G
         {
             if (r < cornCh) pickups.Add(new Pickup { x = e.x, y = e.y, kind = "corn", t = 12, ph = 0 });
             else if (r < cornCh + .05 && !sk) pickups.Add(new Pickup { x = e.x, y = e.y, kind = rnd() < .5 ? "shotgun" : "smg", t = 12, ph = 0 }); // стволов сюжета в подземелье нет
-            else if (r < cornCh + .09) pickups.Add(new Pickup { x = e.x, y = e.y, kind = "nade", t = 12, ph = 0 });
+            else if (r < cornCh + .09 && !sk) pickups.Add(new Pickup { x = e.x, y = e.y, kind = "nade", t = 12, ph = 0 }); // гранат в подземелье нет
             else if (sk && r < cornCh + .23) pickups.Add(new Pickup { x = e.x + rand(-8, 8), y = e.y, kind = "stam", t = 12, ph = 0 }); // стамина — только в подземелье
         }
         if (sk) dropPiv(e.x, e.y, Tt.boss ? 12 : (rnd() < (Tt.hp >= 100 ? .7 : e.type == "rat" ? .2 : .4) ? 1 : 0) + (Tt.hp >= 100 && rnd() < .3 ? 1 : 0)); // пивчики: редко, чтобы копить на хороший ствол

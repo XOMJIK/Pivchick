@@ -16,7 +16,7 @@ public sealed class MapDef
     public string nameRu, grass, patch, @out, bank, water, deep; public string[] tuft, obs; public int flowers; public long seed;
     public RiverDef river, branch; public string name => L.T(nameRu);
 }
-public sealed class Obs { public double x, y, r, hp, hit; public string type; public bool open; } // open — сундук Soul Knight открыт; hp — у ящика, который разбивается
+public sealed class Obs { public double x, y, r, hp, hit; public string type, kind; public bool open; public int st; } // open — сундук Soul Knight открыт; hp — у ящика, который разбивается; kind и st — у статуи: чья ульта и состояние (0 — ждёт поклона, 1 — выбрана, 2 — погасла)
 public sealed class Bridge
 {
     public double u, hw = 32, wob; public bool rotten, broken; public int passes; public River R; public BEnd[] ends;

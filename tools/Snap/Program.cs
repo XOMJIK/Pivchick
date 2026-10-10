@@ -141,8 +141,8 @@ if (args.Length > 1 && args[1] == "sk")
         Console.WriteLine($"level {G.skLvName(G.S.skLv)}: rooms={G.DUN.rooms.Count} ({string.Join(",", G.DUN.rooms.Select(r => r.type))}) corridors={G.DUN.cors.Count} bag={string.Join(",", G.P.bag)}");
         if (lv == 1) Shot("21-sk-0-1-start");
         long pivStart = G.S.piv;
-        { // автомат в стартовой комнате
-            var vend = G.OBS.FirstOrDefault(o => o.type == "vend");
+        { // автомат в стартовой комнате (если он на этом уровне тут, а не у торговца)
+            var vend = G.OBS.FirstOrDefault(o => o.type == "vend" && G.inRoom(G.DUN.rooms.First(r => r.type == "start"), o.x, o.y, 0));
             if (vend != null) { WalkTo(vend.x, vend.y + 40, 4); Tick(); if (lv == 1) Shot("21b-sk-vend"); long pv = G.S.piv; G.interact(); for (int k = 0; k < 40; k++) Tick(); Console.WriteLine($"  vend: used={vend.open} piv {pv}->{G.S.piv} drops={string.Join(",", G.pickups.Where(p => G.hypot(p.x - vend.x, p.y - vend.y) < 120).Select(p => p.kind + (p.wid != null ? ":" + p.wid : "")))}"); if (lv == 1) Shot("21c-sk-vend-used"); pivStart = G.S.piv; }
         }
         Console.WriteLine($"  rivers={G.RIVERS.Count} fish={G.fish.Count} crates={G.OBS.Count(o => o.type == "crate")} world={G.WW}");
@@ -195,15 +195,17 @@ if (args.Length > 1 && args[1] == "sk")
         void Visit(Room X, Action inside)
         {
             var link = X.cors[0]; var from = link.a == X ? link.b : link.a;
-            Along(path.IndexOf(from)); WalkTo(X.cx, X.cy + 40); inside(); WalkTo(from.cx, from.cy);
+            Along(path.IndexOf(from)); WalkTo(X.cx, X.cy + 40); inside(); WalkTo(X.cx, X.cy + 40, 4); WalkTo(from.cx, from.cy); // сначала в центр — мимо статуй и прилавка
         }
-        var shopR = G.DUN.rooms.FirstOrDefault(r => r.type == "shop"); var chestR = G.DUN.rooms.FirstOrDefault(r => r.type == "chest"); var opt = G.DUN.rooms.FirstOrDefault(r => r.type == "bossopt");
+        var shopR = G.DUN.rooms.FirstOrDefault(r => r.type == "shop"); var chestR = G.DUN.rooms.FirstOrDefault(r => r.type == "chest"); var opt = G.DUN.rooms.FirstOrDefault(r => r.type == "bossopt"); var shrineR = G.DUN.rooms.FirstOrDefault(r => r.type == "shrine");
         if (shopR != null) Visit(shopR, () =>
         {
             long before = G.S.piv; int items = G.pickups.Count(p => p.price > 0);
             var it = G.pickups.FirstOrDefault(p => p.price > 0 && p.kind == "skw");
             if (it != null) { WalkTo(it.x, it.y + 6, 4); Tick(); if (lv == 1) Shot("30a-sk-compare"); Console.WriteLine($"  shop prices: {string.Join(", ", G.pickups.Where(p => p.price > 0).Select(p => (p.wid ?? p.kind) + "=" + p.price))}"); G.interact(); }
             if (lv == 1) Shot("30-sk-shop");
+            var sv = G.OBS.FirstOrDefault(o => o.type == "vend" && G.inRoom(shopR, o.x, o.y, 0));
+            if (sv != null) { WalkTo(sv.x, sv.y + 40, 4); Tick(); long pv = G.S.piv; G.interact(); for (int k = 0; k < 40; k++) Tick(); Console.WriteLine($"  shop vend: used={sv.open} piv {pv}->{G.S.piv} drops={string.Join(",", G.pickups.Where(p => G.hypot(p.x - sv.x, p.y - sv.y) < 120 && p.price == 0).Select(p => p.kind))}"); }
             Console.WriteLine($"  shop: items={items} piv {before}->{G.S.piv} bag={string.Join(",", G.P.bag)} on floor={G.pickups.Count(p => p.kind == "skw" && p.price == 0)}");
         });
         if (chestR != null) Visit(chestR, () =>
@@ -213,6 +215,17 @@ if (args.Length > 1 && args[1] == "sk")
             var w = G.pickups.FirstOrDefault(p => p.kind == "skw" && p.price == 0 && G.hypot(p.x - o.x, p.y - o.y) < 80);
             Console.WriteLine($"  chest: open={o.open} weapon={w?.wid}");
             if (w != null) { WalkTo(w.x, w.y + 4, 4); Tick(); G.interact(); Console.WriteLine($"    took -> bag={string.Join(",", G.P.bag)}"); }
+        });
+        if (shrineR != null) Visit(shrineR, () =>
+        { // святилище: поклон статуе меняет ульту (на 0-2 — проверяем «Подкрепление»)
+            var sts = G.OBS.Where(o => o.type == "statue").ToList(); var s0 = sts[0]; if (lv == 2) s0.kind = SKU.SUMMON;
+            WalkTo(s0.x, s0.y + 40, 4); Tick(); if (lv == 1) Shot("32a-sk-shrine");
+            string was = G.P.ultId ?? G.P.hid; G.interact(); for (int k = 0; k < 30; k++) Tick();
+            Console.WriteLine($"  shrine: statues={string.Join(",", sts.Select(o => o.kind + ":" + o.st))} ult {was}->{G.P.ultId ?? G.P.hid}");
+            if (lv == 1) Shot("32b-sk-shrine-bowed");
+            G.P.buff = null; G.P.ult = 100; G.useUlt(); for (int k = 0; k < 40; k++) Tick();
+            Console.WriteLine($"    ult used: buff={G.P.buff} allies={string.Join(",", G.allies.Select(a => a.id + (a.summon ? "*" : "")))}");
+            if (lv == 2) Shot("32c-sk-summon");
         });
         if (opt != null) Visit(opt, () =>
         {

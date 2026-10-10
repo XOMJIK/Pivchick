@@ -123,7 +123,7 @@ public static partial class G
     }
     public static void throwNade()
     {
-        if (S.mode != "play" || !P.alive || P.nades <= 0) return;
+        if (S.mode != "play" || !P.alive || P.nades <= 0 || S.kind == "sk") return; // в Soul Knight гранат нет
         P.nades--; Sfx.throw_();
         double ang = P.ang, dist = 240;
         if (input.mouse && !pcAuto()) { double wx = camX + input.mx / SC, wy = camY + input.my / SC; ang = Math.Atan2(wy - P.y, wx - P.x); dist = clamp(hypot(wx - P.x, wy - P.y), 80, 320); }
@@ -186,8 +186,9 @@ public static partial class G
     {
         if (S.mode != "play" || !P.alive || P.ult < 100 || P.buff != null) return;
         P.ult = 0; Sfx.ult(); Platform.Buzz(50);
-        var id = P.hid; var U = HEROES[id].ult[0];
-        ftext(P.x, P.y - 62, U.ToUpper(L.Culture), "#ffc93a", 16);
+        var id = P.ultId ?? P.hid; // в Soul Knight ульту может заменить статуя
+        ftext(P.x, P.y - 62, SKU.Name(id).ToUpper(L.Culture), "#ffc93a", 16);
+        if (id == SKU.SUMMON) { summonAlly(); return; }
         if (id == "hen") { var (cx, cy) = strikeCenter(P, enemies.Where(e => !e.dead && onScreen(e, 0)).ToList()); eggStrike(cx, cy, 8, 70 * P.dmgMul, 72); }
         else if (id == "chick") { P.buff = "turbo"; P.buffT = 4; ring(P.x, P.y, "#ffe066", 120, .4); }
         else if (id == "rooster")
@@ -223,7 +224,7 @@ public static partial class G
         }
         else if (id == "guinea") { P.buff = "storm"; P.buffT = 4; ring(P.x, P.y, "#cfe8ff", 120, .4); }
         else if (id == "nurse") { P.buff = "hosp"; P.buffT = 6; zones.Add(new Zone { x = P.x, y = P.y, t = 6, r = 130 }); ring(P.x, P.y, "#9cf27a", 140, .5); }
-        else if (id == "adren") { P.buff = "adren"; P.buffT = 6 + (hasP(10) ? 2 : 0); P.fireT = 0; ring(P.x, P.y, "#ff4d2e", 200, .5); S.shake += 8; }
+        else if (id == "adren") { P.buff = "adren"; P.buffT = 6 + (P.hid == "adren" && hasP(10) ? 2 : 0); P.fireT = 0; ring(P.x, P.y, "#ff4d2e", 200, .5); S.shake += 8; }
     }
     static void updateBuff(double dt)
     {

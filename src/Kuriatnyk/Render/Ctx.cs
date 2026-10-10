@@ -110,6 +110,13 @@ public sealed class Ctx
     }
 
     public void save() { stack.Push(st); C.Save(); }
+    /// <summary>save() со слоем: всё до restore() внутри прямоугольника перекрашивается матрицей цвета 4×5 (так рисуются каменные статуи).</summary>
+    public void saveLayerColor(double x, double y, double w, double h, float[] matrix)
+    {
+        stack.Push(st);
+        using var p = new SKPaint { ColorFilter = SKColorFilter.CreateColorMatrix(matrix) };
+        C.SaveLayer(SKRect.Create((float)x, (float)y, (float)w, (float)h), p);
+    }
     public void restore() { if (stack.Count == 0) return; st = stack.Pop(); C.Restore(); }
 
     // ---------- трансформації ----------

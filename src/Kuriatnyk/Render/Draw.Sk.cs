@@ -315,6 +315,41 @@ public static partial class G
             }
             c.restore(); return true;
         }
+        if (o.type == "statue")
+        { // каменная птица на постаменте: ждёт поклона — мерцает золотом, выбранная — сияет, остальные гаснут
+            bool lit = o.st == 1, dark = o.st == 2;
+            string stone = dark ? "#6f6b66" : lit ? "#f2d27a" : "#b9b5ad", stone2 = dark ? "#5c5853" : lit ? "#d9b04a" : "#9a958c";
+            c.save(); c.translate(o.x, o.y + 10); c.strokeStyle = INK; c.lineWidth = 2.4; c.lineJoin = "round";
+            c.fillStyle = "rgba(25,50,10,.3)"; c.beginPath(); c.ellipse(4, 2, 38, 10, 0, 0, TAU); c.fill();
+            if (!dark)
+            {
+                c.save(); c.globalAlpha = lit ? .35 + Math.Sin(S.t * 3) * .1 : .14 + Math.Sin(S.t * 4 + o.x) * .08;
+                var g = c.createRadialGradient(0, -50, 4, 0, -50, 70); g.addColorStop(0, "rgba(255,224,102,.9)"); g.addColorStop(1, "rgba(255,224,102,0)");
+                c.fillStyle = g; c.beginPath(); c.arc(0, -50, 70, 0, TAU); c.fill(); c.restore();
+            }
+            // постамент
+            c.fillStyle = stone2; rr(c, -26, -26, 52, 26, 3); c.fill(); c.stroke();
+            c.fillStyle = stone; rr(c, -31, -34, 62, 10, 3); c.fill(); c.stroke();
+            c.strokeStyle = "rgba(43,29,20,.35)"; c.lineWidth = 1.2; seg(c, -26, -13, 26, -13); seg(c, -8, -26, -8, -13); seg(c, 10, -13, 10, 0);
+            c.strokeStyle = INK; c.lineWidth = 2; c.fillStyle = dark ? "#4a4642" : SKU.Gem(o.kind);
+            c.beginPath(); c.moveTo(0, -22); c.lineTo(6, -16); c.lineTo(0, -10); c.lineTo(-6, -16); c.closePath(); c.fill(); c.stroke(); // самоцвет
+            // птица героя, чья это ульта, — вся из камня (выбранная — золотая, погасшая — тёмная)
+            var (tr, tg, tb) = lit ? (1.25f, 1.02f, .5f) : dark ? (.55f, .53f, .5f) : (.92f, .9f, .85f);
+            c.saveLayerColor(-60, -130, 120, 100, new[] { .3f * tr, .59f * tr, .11f * tr, 0, 0, .3f * tg, .59f * tg, .11f * tg, 0, 0, .3f * tb, .59f * tb, .11f * tb, 0, 0, 0, 0, 0, 1, 0 });
+            int face = o.x < (P?.x ?? o.x) ? 1 : -1;
+            c.save(); c.translate(0, -34); c.scale(1.15, 1.15);
+            if (o.kind == SKU.SUMMON) drawBird(c, new Sprite { face = face, kind = "player", sp = "goose", body = "#fbfbf7", wing = "#dcdcd4", tail = "#dcdcd4", head = "#fbfbf7", hat = "none" });
+            else drawBird(c, new Sprite { face = face, kind = "player" }.With(lookFor(o.kind)));
+            c.restore();
+            if (o.kind == SKU.SUMMON)
+            { // у «Подкрепления» в крыле горн
+                c.save(); c.translate(face * 16, -60); c.scale(face, 1);
+                c.fillStyle = "#e8b23a"; c.strokeStyle = INK; c.lineWidth = 1.8;
+                c.beginPath(); c.moveTo(-8, -1.5); c.lineTo(6, -3); c.lineTo(12, -8); c.lineTo(12, 8); c.lineTo(6, 3); c.lineTo(-8, 1.5); c.closePath(); c.fill(); c.stroke(); c.restore();
+            }
+            c.restore(); // слой камня
+            c.restore(); return true;
+        }
         if (o.type == "counter")
         {
             c.save(); c.translate(o.x, o.y);
@@ -328,9 +363,12 @@ public static partial class G
             c.fillStyle = "#8a5a2b"; rr(c, -60, -4, 120, 30, 5); c.fill(); c.stroke();
             c.fillStyle = "#b07a45"; rr(c, -64, -12, 128, 12, 4); c.fill(); c.stroke();
             c.strokeStyle = "rgba(43,29,20,.4)"; c.lineWidth = 1.4; for (double x = -50; x < 60; x += 20) seg(c, x, 0, x, 22);
-            // вывеска с пивчиком — на передней стенке прилавка
-            c.strokeStyle = INK; c.lineWidth = 2; c.fillStyle = "#fff4dc"; rr(c, -30, 3, 60, 19, 6); c.fill(); c.stroke(); Hud.Piv(c, -18, 12.5, 13);
-            c.font = "900 11px Rubik"; c.textAlign = "left"; c.fillStyle = INK; c.fillText(T("Лавка"), -9, 16.5);
+            // вывеска с пивчиком — на передней стенке прилавка; ширина по слову («Крамниця», «Échoppe» длиннее «Лавки»), слишком длинное — мельче
+            var sign = T("Лавка"); double fs = 11; c.font = "900 11px Rubik"; double tw = c.measureText(sign);
+            if (tw > 88) { fs = Math.Max(7, 11 * 88 / tw); c.font = "900 " + fs.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "px Rubik"; tw = c.measureText(sign); }
+            double sw = Math.Max(60, tw + 32), sx = -sw / 2;
+            c.strokeStyle = INK; c.lineWidth = 2; c.fillStyle = "#fff4dc"; rr(c, sx, 3, sw, 19, 6); c.fill(); c.stroke(); Hud.Piv(c, sx + 12, 12.5, 13);
+            c.textAlign = "left"; c.fillStyle = INK; c.fillText(sign, sx + 22, 12.5 + fs * .36);
             if (near) { c.font = "800 12px Rubik"; c.textAlign = "center"; c.lineWidth = 3.5; c.strokeStyle = INK; c.strokeText(T("Заходи, покупай!"), 0, -104); c.fillStyle = "#fff"; c.fillText(T("Заходи, покупай!"), 0, -104); }
             c.restore(); return true;
         }

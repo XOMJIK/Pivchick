@@ -15,8 +15,8 @@ namespace Kuriatnyk;
 
 public sealed class Room
 {
-    public double x, y, w, h; public string type; // start, fight, end, boss (обязательный), bossopt (необязательный), hub
-    public bool cleared; public int wave, waves; public double waveT; public Enemy boss;
+    public double x, y, w, h; public string type; // start, fight, end, boss (обязательный), bossopt (необязательный), shop, chest, shrine (святилище со статуями), hub
+    public bool cleared, seen; public int wave, waves; public double waveT; public Enemy boss; // seen — герой тут был (для мини-карты)
     public List<Corr> cors = new();
     public double cx => x + w / 2; public double cy => y + h / 2;
 }
@@ -63,7 +63,7 @@ public static partial class G
         P = newPlayer(heroId); allies = new();
         // оружие сюжета сюда не берём: забег начинается с рогатки и палки
         P.bag = new List<string>(SKW.START); P.slot = 0; P.w = P.prim = P.bag[0]; P.bagMax = 2;
-        P.stamMax = P.stam = SK_STAM_MAX;
+        P.stamMax = P.stam = SK_STAM_MAX; P.nades = 0; // гранат в подземелье нет
         enemies = new(); bullets = new(); parts = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); holes = new(); zones = new(); strikes = new(); puddles = new(); goo = new();
         S.piv = 0; S.skPass = new();
         S.mode = "play"; S.kind = "sk"; S.skHero = heroId; S.lvIdx = 0; S.L = null; S.diff = 1; S.night = false; S.t = 0; S.score = 0; S.wave = 0; S.toSpawn = 0; S.spawnT = 0;
@@ -77,7 +77,8 @@ public static partial class G
     static void resetField()
     {
         enemies = new(); bullets = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); zones = new(); strikes = new(); puddles = new(); goo = new();
-        S.boss = null; bossBarOn = false; RIVERS = new(); RIVER = null; actPick = null; fish = new();
+        S.boss = null; bossBarOn = false; RIVERS = new(); RIVER = null; actPick = null; actVend = actStatue = null; fish = new();
+        allies = new(); // бойцы «Подкрепления» на следующий уровень не идут
     }
     static void snapCamera() { double vw = VW / SC, vh = VH / SC; camX = P.x - vw / 2; camY = P.y - 28 - vh / 2; }
 
@@ -99,7 +100,7 @@ public static partial class G
     {
         resetField(); S.skLv = lv; S.lvIdx = lv; S.diff = 1 + (lv - 1) * 1.3; WW = WH = SK_SIZE;
         buildLevel(lv); renderDungeon();
-        var st = DUN.rooms.First(r => r.type == "start");
+        var st = DUN.rooms.First(r => r.type == "start"); st.seen = true;
         P.x = st.cx; P.y = st.cy + 30; P._px = P.x; P._py = P.y; P.buff = null; P.inv = 1;
         if (lv > 1) { var h = Math.Round(P.max * .25); P.hp = Math.Min(P.max, P.hp + h); } // между уровнями немного лечимся
         snapCamera(); DUN.enterCd = 1.2;
@@ -113,9 +114,11 @@ public static partial class G
     {
         double cs = (WW - 2 * FENCE) / 3;
         int wl = skWl(lv), len = lv == 1 ? 4 : 5;
-        // в стороне от пути: торговец и сундук на каждом уровне, на 0-4 и 1-4 ещё необязательный босс
-        var extraTypes = new List<string> { "shop", "chest" }; if (wl == 4) extraTypes.Insert(0, "bossopt");
+        // в стороне от пути: торговец и сундук на каждом уровне, на 0-4 и 1-4 ещё необязательный босс;
+        // святилище со статуями — если для него нашлось место
+        var extraTypes = new List<string> { "shop", "chest", "shrine" }; if (wl == 4) extraTypes.Insert(0, "bossopt");
         List<(int x, int y)> path = null, any = null; List<((int x, int y) cell, int at, string type)> extras = null;
+        List<(int x, int y)> fbPath = null; List<((int x, int y) cell, int at, string type)> fbExtras = null; // запасной вариант без святилища
         static IEnumerable<(int x, int y)> nbs((int x, int y) c) => new[] { (c.x + 1, c.y), (c.x - 1, c.y), (c.x, c.y + 1), (c.x, c.y - 1) }.Where(q => q.Item1 >= 0 && q.Item1 < 3 && q.Item2 >= 0 && q.Item2 < 3);
         for (int tries = 0; tries < 600 && extras == null; tries++)
         {
@@ -133,17 +136,20 @@ public static partial class G
             {
                 var opts = new List<((int x, int y) c, int at)>();
                 for (int i = t == "bossopt" ? 1 : 0; i < len - 1; i++) foreach (var c in nbs(p[i])) if (!used.Contains(c)) opts.Add((c, i));
-                if (opts.Count == 0) { ok = false; break; }
+                if (opts.Count == 0) { if (t != "shrine") ok = false; break; }
                 var o = opts[(int)(rnd() * opts.Count)]; used.Add(o.c); ex.Add((o.c, o.at, t));
             }
-            if (ok) { path = p; extras = ex; }
+            if (!ok) continue;
+            if (ex.Count == extraTypes.Count) { path = p; extras = ex; }
+            else if (fbPath == null) { fbPath = p; fbExtras = ex; }
         }
+        if (path == null && fbPath != null) { path = fbPath; extras = fbExtras; }
         if (path == null) { path = any; extras = new(); } // не нашлось места — уровень без комнат в стороне
         var D = new Dungeon();
         Room mk((int x, int y) g, string type)
         {
-            double w = type is "start" or "end" ? 300 : type is "boss" or "bossopt" ? 660 : type is "shop" or "chest" ? 340 : 600,
-                h = type is "start" or "end" ? 270 : type is "boss" or "bossopt" ? 600 : type is "shop" or "chest" ? 300 : 520;
+            double w = type is "start" or "end" ? 300 : type is "boss" or "bossopt" ? 660 : type is "shop" or "chest" or "shrine" ? 340 : 600,
+                h = type is "start" or "end" ? 270 : type is "boss" or "bossopt" ? 600 : type is "shop" or "chest" or "shrine" ? 300 : 520;
             var R = new Room { type = type, w = w, h = h };
             R.x = FENCE + cs * (g.x + .5) - w / 2; R.y = FENCE + cs * (g.y + .5) - h / 2; D.rooms.Add(R); return R;
         }
@@ -165,11 +171,18 @@ public static partial class G
         foreach (var (cell, at, type) in extras) { var X = mk(cell, type); X.cleared = type != "bossopt"; link(rooms[at], X); } // отдельный коридор в сторону
         // укрытия в боевых комнатах
         OBS = new();
+        // автомат с зельями — не больше одного на уровень: у торговца, в стартовой комнате или вовсе нет
+        double vr = rnd(); var vendRoom = vr < .4 ? D.rooms.FirstOrDefault(r => r.type == "shop") : vr < .75 ? D.rooms.First(r => r.type == "start") : null;
         foreach (var R in D.rooms)
         {
             if (R.type == "chest") OBS.Add(new Obs { x = R.cx, y = R.cy - 6, r = 26, type = "skchest" });
-            if (R.type == "start") OBS.Add(new Obs { x = R.x + 62, y = R.y + 62, r = 24, type = "vend" }); // автомат: один раз за уровень — случайное оружие или зелья
+            if (R == vendRoom) OBS.Add(new Obs { x = R.type == "shop" ? R.x + R.w - 46 : R.x + 62, y = R.y + 62, r = 24, type = "vend" });
             if (R.type == "shop") OBS.Add(new Obs { x = R.cx, y = R.y + 82, r = 34, type = "counter" });
+            if (R.type == "shrine")
+            { // две статуи с разными ультами, кроме той, что у героя сейчас
+                var pool = SKU.ALL.Where(u => u != (P?.ultId ?? P?.hid)).OrderBy(_ => rnd()).Take(2).ToList();
+                for (int i = 0; i < pool.Count; i++) OBS.Add(new Obs { x = R.cx + (i == 0 ? -82 : 82), y = R.cy - 36, r = 26, type = "statue", kind = pool[i] });
+            }
         }
         // речки на некоторых уровнях: на втором и четвёртом уровне мира — в двух боевых комнатах, на третьем — в одной
         DUN = D; RIVERS = new(); RIVER = null;
@@ -214,7 +227,7 @@ public static partial class G
     }
 
     /* ---------- где можно ходить ---------- */
-    static bool inRoom(Room R, double x, double y, double m) => x >= R.x + m && x <= R.x + R.w - m && y >= R.y + m && y <= R.y + R.h - m;
+    public static bool inRoom(Room R, double x, double y, double m) => x >= R.x + m && x <= R.x + R.w - m && y >= R.y + m && y <= R.y + R.h - m;
     static bool inCorr(Corr c, double x, double y, double m) => c.horiz ? x >= c.x && x <= c.x + c.w && y >= c.y + m && y <= c.y + c.h - m : y >= c.y && y <= c.y + c.h && x >= c.x + m && x <= c.x + c.w - m;
     public static bool dunWalk(double x, double y, double m)
     {
@@ -269,6 +282,12 @@ public static partial class G
             if (D.doorMsgT <= 0 && hypot(P.x - D.doorX, P.y - D.doorY) < 80) { D.doorMsgT = 3; ftext(D.doorX, D.doorY + 10, T("Закрыто · скоро откроется"), "#e8d3a8", 13); Sfx.creak(); }
             return;
         }
+        foreach (var R in D.rooms)
+            if (!R.seen && inRoom(R, P.x, P.y, 0))
+            { // первый раз в комнате — она появляется на мини-карте
+                R.seen = true;
+                if (R.type == "shrine" && OBS.Any(o => o.type == "statue" && o.st == 0)) showBanner(T("Святилище"), T("Поклонись статуе — её ульта заменит твою"));
+            }
         if (D.active == null)
         {
             foreach (var R in D.rooms)
@@ -329,9 +348,7 @@ public static partial class G
         R.cleared = true; DUN.active = null; Sfx.pick(); S.shake += 3;
         int bonus = 6 + S.skLv * 3; S.coins += bonus;
         ftext(P.x, P.y - 62, T("Комната зачищена!") + " +" + bonus, "#9cf27a", 15);
-        double r = rnd();
-        if (r < .4) pickups.Add(new Pickup { x = R.cx, y = R.cy, kind = "corn", t = 60, ph = 0 });
-        else if (r < .65) pickups.Add(new Pickup { x = R.cx, y = R.cy, kind = "nade", t = 60, ph = 0 });
+        if (rnd() < .45) pickups.Add(new Pickup { x = R.cx, y = R.cy, kind = "corn", t = 60, ph = 0 });
         if (rnd() < .6) pickups.Add(new Pickup { x = R.cx + 30, y = R.cy + 10, kind = "stam", t = 60, ph = 0 }); // стамина сама не копится — кристалл за комнату
         dropPiv(R.cx, R.cy, 2 + S.skLv / 2);
         if (R.type == "bossopt")
