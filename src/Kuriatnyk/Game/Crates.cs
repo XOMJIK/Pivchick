@@ -36,9 +36,9 @@ public static partial class G
         puff(o.x, o.y, "#c9a06a", 8, 1.1);
         if (S.kind == "sk")
         { // в подземелье — пивчики, иногда стамина или кукуруза
-            dropPiv(o.x, o.y, 2 + (int)(rnd() * 3));
+            if (rnd() < .5) dropPiv(o.x, o.y, 1 + (rnd() < .3 ? 1 : 0));
             double r = rnd();
-            if (r < .22) pickups.Add(new Pickup { x = o.x + 10, y = o.y, kind = "stam", t = 14, ph = 0 });
+            if (r < .3) pickups.Add(new Pickup { x = o.x + 10, y = o.y, kind = "stam", t = 14, ph = 0 });
             else if (r < .36) pickups.Add(new Pickup { x = o.x - 10, y = o.y, kind = "corn", t = 14, ph = 0 });
             return;
         }

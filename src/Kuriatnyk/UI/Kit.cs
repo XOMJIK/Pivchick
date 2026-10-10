@@ -47,7 +47,7 @@ public static class K
     /// <summary>Иконки валют: coin, tok, btok, gegg, sch (как .coin/.tok/… в CSS).</summary>
     public static Control Icon(string kind, double size = 14)
     {
-        var v = new SkiaView((c, w, h) => DrawIcon(c, kind, w, h)) { Width = kind is "gegg" or "sch" ? size * .82 : size, Height = size, VerticalAlignment = VerticalAlignment.Center };
+        var v = new SkiaView((c, w, h) => DrawIcon(c, kind, w, h)) { Width = kind is "gegg" or "sch" or "lch" ? size * .82 : size, Height = size, VerticalAlignment = VerticalAlignment.Center };
         return v;
     }
     public static void DrawIcon(Ctx c, string kind, double w, double h)
@@ -60,10 +60,12 @@ public static class K
             case "btok": Hud.Tok(c, cx, cy, s * 1.08, "#b06cff", "#ffe9a8"); break;
             case "gegg":
             case "sch":
+            case "lch":
                 {
                     bool g = kind == "gegg";
                     var gr = c.createRadialGradient(w * .35, h * .3, 0, w * .35, h * .3, h * .85);
                     if (g) { gr.addColorStop(0, "#fffbe0"); gr.addColorStop(.17, "#fffbe0"); gr.addColorStop(.38, "#ffd84a"); gr.addColorStop(.9, "#e9a21c"); }
+                    else if (kind == "lch") { gr.addColorStop(0, "#fff1c2"); gr.addColorStop(.2, "#fff1c2"); gr.addColorStop(.5, "#ff8a1a"); gr.addColorStop(1, "#b3261e"); }
                     else { gr.addColorStop(0, "#fbefff"); gr.addColorStop(.17, "#fbefff"); gr.addColorStop(.47, "#b46cff"); gr.addColorStop(1, "#5a2aa8"); }
                     c.fillStyle = gr; c.strokeStyle = G.INK; c.lineWidth = 2;
                     c.beginPath(); c.ellipse(cx, h * .58, w / 2 - 1, h * .58 - 1, 0, Math.PI, Ctx.TAU); c.ellipse(cx, h * .58, w / 2 - 1, h * .42 - 1, 0, 0, Math.PI); c.closePath(); c.fill(); c.stroke();

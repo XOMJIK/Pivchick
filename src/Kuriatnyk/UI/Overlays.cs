@@ -472,7 +472,7 @@ public static class Overlays
             var t = Txt(text, 13.5, FontWeight.Medium); t.VerticalAlignment = VerticalAlignment.Center; d.Children.Add(t); return d;
         }
         var how = Box(Col(8, li("◀", "#5fcf3f", "#2b1d14", T("Левый палец — бежать")), li("●", "#c0392b", "#ffffff", T("Правый палец — целиться и стрелять. Держи на месте — бьёт по ближнему")),
-            li("", "#fff4dc", "#2b1d14", T("«Бум» — яйцо-граната")), li("★", "#ffc93a", "#2b1d14", T("Ульта копится от урона по врагам")), li("◆", "#4cc3ff", "#2b1d14", T("В режиме Soul Knight голубая полоска — стамина: выстрелы тратят её, а сама она понемногу восстанавливается")),
+            li("", "#fff4dc", "#2b1d14", T("«Бум» — яйцо-граната")), li("★", "#ffc93a", "#2b1d14", T("Ульта копится от урона по врагам")), li("◆", "#4cc3ff", "#2b1d14", T("В режиме Soul Knight голубая полоска — стамина: выстрелы тратят её, а пополняют только синие кристаллы с врагов и зелья")),
             li("!", "#ff4a3a", "#ffffff", T("Цветная аура у врага — бафф: красная — сила, зелёная — скорость, жёлтая — скорострельность"))), StrawB, 0, 16, new Thickness(12));
         var desk = Txt(T("На компьютере: ") + G.keyHint("up") + G.keyHint("left") + G.keyHint("down") + G.keyHint("right") + T(" — бег, автонаводка стреляет сама (") + G.keyHint("auto") + T(" — вкл/выкл), зажатая мышь — ручная стрельба, ") + G.keyHint("nade") + T(" — граната, ") + G.keyHint("ult") + T(" — ульта, ") + G.keyHint("swap") + T(" — смена оружия, ") + G.keyHint("act") + T(" — взять или купить, ") + G.keyHint("full") + T(" — полный экран. Клавиши меняются в настройках."), 12, FontWeight.Medium, B("#b32b1d14"), TextAlignment.Center);
         var card = CardBox(380, Logo(T("Как играть"), LogoSize(mv)), how, desk, Best(T("Версия ") + GAME_VERSION), Btn(T("Понятно"), () => mv.Hide("helpOv")));
@@ -540,7 +540,7 @@ public static class Overlays
         ciTier = tier; Audio.Init(); Sfx.pick();
         var C = CHESTS[tier]; var o = Chests.Odds(tier);
         var pv = new SkiaView((c, w, h) => { c.translate(w / 2, h - 10); c.scale(.78, .78); G.drawChest(c, tier, 0, 0); }) { Height = 128 };
-        var pvb = Box(pv, PvBg(new[] { "nest", "gold", "amet" }[tier]), 2, 14); pvb.IsVisible = !ShortLand(mv); pvb.ClipToBounds = true;
+        var pvb = Box(pv, PvBg(ChestBg(tier)), 2, 14); pvb.IsVisible = !ShortLand(mv); pvb.ClipToBounds = true;
         TextBlock h(string s) { var t = Txt(s.ToUpper(L.Culture), 13, FontWeight.Black); t.LetterSpacing = 1; t.Margin = new Thickness(0, 10, 0, 2); return t; }
         Control rb(Rar R) => Rar(R.name, R.c);
         var t1 = Table(new[] { T("Награда"), T("Сколько") }, new()
@@ -564,11 +564,13 @@ public static class Overlays
         card.MaxWidth = 560;
         mv.Show("chestInfoOv", Ov(mv, card, true), 8);
     }
+    public static string ChestBg(int tier) => new[] { "nest", "gold", "amet", "fire" }[tier];
     public static IBrush PvBg(string kind) => kind switch
     {
         "nest" => new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#ffeab0"), 0), new GradientStop(Color.Parse("#f0c56a"), 1) } },
         "gold" => new RadialGradientBrush { Center = new RelativePoint(.5, .62, RelativeUnit.Relative), GradientOrigin = new RelativePoint(.5, .62, RelativeUnit.Relative), RadiusX = new RelativeScalar(.75, RelativeUnit.Relative), RadiusY = new RelativeScalar(.75, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#fff3c0"), 0), new GradientStop(Color.Parse("#f1b545"), .62), new GradientStop(Color.Parse("#c47a1f"), 1) } },
         "amet" => new RadialGradientBrush { Center = new RelativePoint(.5, .6, RelativeUnit.Relative), GradientOrigin = new RelativePoint(.5, .6, RelativeUnit.Relative), RadiusX = new RelativeScalar(.75, RelativeUnit.Relative), RadiusY = new RelativeScalar(.75, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#f3e2ff"), 0), new GradientStop(Color.Parse("#b88ae8"), .6), new GradientStop(Color.Parse("#6a3fb5"), 1) } },
+        "fire" => new RadialGradientBrush { Center = new RelativePoint(.5, .6, RelativeUnit.Relative), GradientOrigin = new RelativePoint(.5, .6, RelativeUnit.Relative), RadiusX = new RelativeScalar(.75, RelativeUnit.Relative), RadiusY = new RelativeScalar(.75, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#fff1c2"), 0), new GradientStop(Color.Parse("#ff9a3a"), .58), new GradientStop(Color.Parse("#b3261e"), 1) } },
         "dark" => new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#3b3550"), 0), new GradientStop(Color.Parse("#25213a"), 1) } },
         _ => new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative), GradientStops = { new GradientStop(Color.Parse("#9ed46f"), 0), new GradientStop(Color.Parse("#7cc451"), 1) } },
     };
@@ -598,7 +600,10 @@ public static class Overlays
             anim = null; mv.Hide("chestOv"); mv.AfterChange();
         };
         var title = Eyebrow(CHESTS[tier].name + (res.n > 1 ? " ×" + res.n : "") + " · " + CHESTS[tier].sub);
-        var card = CardBox(380, title, viewHit, rewards, take);
+        // награды прокручиваются внутри окна, а кнопка «Забрать» всегда видна снизу
+        if (ShortLand(mv)) { view.Height = 120; }
+        var list = new ScrollViewer { Content = rewards, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = Math.Max(110, mv.View.Height - view.Height - 250) };
+        var card = CardBox(380, title, viewHit, list, take);
         mv.Show("chestOv", Ov(mv, card, true), 8);
         mv.RefreshMenu(); Sfx.chest();
     }

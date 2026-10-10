@@ -57,7 +57,8 @@ public static class Chests
     /// <summary>Что и сколько списать за n сундуков: жетоны, большие жетоны, сверхбольшие или золотые яйца.</summary>
     public static Cost chestCost(int tier, string pay, int n)
     {
-        if (pay == "eggs") { long p = (tier == 2 ? SUPER_PRICE : EGG_PRICE) * n; return new Cost { have = SAVE.eggs, need = p, cur = "eggs" }; }
+        if (pay == "eggs") { long p = (tier == 3 ? LEG_PRICE : tier == 2 ? SUPER_PRICE : EGG_PRICE) * n; return new Cost { have = SAVE.eggs, need = p, cur = "eggs" }; }
+        if (tier == 3) return new Cost { have = SAVE.lchests, need = n, cur = "lch" };
         if (tier == 2) return new Cost { have = SAVE.schests, need = n, cur = "sch" };
         if (tier == 1) return new Cost { have = SAVE.btokens, need = 10 * n, cur = "btok" };
         return new Cost { have = SAVE.tokens, need = 100 * n, cur = "tok" };
@@ -65,7 +66,7 @@ public static class Chests
     public static Result Open(int tier, string pay, int n)
     {
         var c = chestCost(tier, pay == "eggs" ? "eggs" : null, n); if (c.have < c.need) return null;
-        if (c.cur == "eggs") SAVE.eggs -= (int)c.need; else if (c.cur == "sch") SAVE.schests -= (int)c.need; else if (c.cur == "btok") SAVE.btokens -= (int)c.need; else SAVE.tokens -= c.need;
+        if (c.cur == "eggs") SAVE.eggs -= (int)c.need; else if (c.cur == "lch") SAVE.lchests -= (int)c.need; else if (c.cur == "sch") SAVE.schests -= (int)c.need; else if (c.cur == "btok") SAVE.btokens -= (int)c.need; else SAVE.tokens -= c.need;
         var res = new Result { tier = tier, n = n };
         for (int i = 0; i < n; i++)
         {

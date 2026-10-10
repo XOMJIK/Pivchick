@@ -120,6 +120,7 @@ public static partial class G
         SAVE.coins += lc; SAVE.tokens += lt; int le = first ? Lv.eggs : 0; SAVE.eggs += le;
         bool big = first; if (big) SAVE.btokens += 1; // большой жетон — за каждое первое прохождение уровня
         bool sup = first && Lv.i == 19; if (sup) SAVE.schests++;
+        bool lch = sup && Lv.ch == CHAPTERS.Count - 1; if (lch) SAVE.lchests++; // за Императора Ворона — ещё и легендарный сундук
         if (first) SAVE.story.done.Add(i);
         persist();
         var w = new WinInfo
@@ -132,6 +133,7 @@ public static partial class G
         w.rows.Add(new WinRow { icon = "coin", text = "+" + (lc + sc) + T(" зёрен"), sub = first ? T("награда за первое прохождение") : T("повторное прохождение") });
         w.rows.Add(new WinRow { icon = "tok", text = "+" + (lt + st) + T(" жетонов"), sub = T("на обычный сундук: ") + L.Fmt(SAVE.tokens) + "/100" });
         if (le > 0) w.rows.Add(new WinRow { icon = "gegg", text = "+" + le + T(" золотых яиц"), sub = T("только за первое прохождение") });
+        if (lch) w.rows.Add(new WinRow { icon = "lch", text = T("Легендарный сундук!"), sub = T("за победу над Императором Вороном · открой в «Сундуках»") });
         if (sup) w.rows.Add(new WinRow { icon = "sch", text = StripIcon(T("<i class=\"sch\"></i>Сверхбольшой сундук!")), sub = T("за финального босса главы · открой в «Сундуках»") });
         if (big) w.rows.Add(new WinRow { icon = "btok", text = StripIcon(T("<i class=\"btok\"></i>+1 большой жетон")), sub = T("на большой сундук: ") + SAVE.btokens + "/10" });
         else w.rows.Add(new WinRow { icon = "btok", text = StripIcon(T("<i class=\"btok\"></i>Большой жетон — за первое прохождение")), sub = T("или каждые 5 волн в бесконечном бою") });

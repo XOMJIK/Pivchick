@@ -322,7 +322,7 @@ public static partial class G
     }
     public static void drawChest(Ctx c, int tier, double open, double shake, double crack = 0)
     {
-        bool big = tier >= 1, sup = tier == 2;
+        bool big = tier >= 1, sup = tier == 2, leg = tier == 3;
         c.save(); c.rotate(shake); c.lineJoin = "round"; c.lineCap = "round";
         c.fillStyle = "rgba(60,30,0,.22)"; c.beginPath(); c.ellipse(0, 3, big ? 82 : 64, 10, 0, 0, TAU); c.fill();
         if (!big)
@@ -365,20 +365,33 @@ public static partial class G
         }
         else
         {
-            // большой — золотое яйцо в гнезде, сверхбольшой — аметистовое яйцо с короной
+            // большой — золотое яйцо в гнезде, сверхбольшой — аметистовое яйцо с короной, легендарный — огненное яйцо в языках пламени
             const double EY = -62, RX = 38, RY = 48;
             chestRays(c, 0, EY, open);
+            if (leg)
+                for (int i = 0; i < 7; i++)
+                { // пламя за яйцом
+                    double a = -Math.PI / 2 + (i - 3) * .42, fl = 1 + .18 * Math.Sin(S.t * 9 + i * 1.7), r0 = RX * .7, r1 = (RX + 30) * fl;
+                    double bx = Math.Cos(a) * r0, by = EY + Math.Sin(a) * r0 * 1.15, tx = Math.Cos(a) * r1, ty = EY + Math.Sin(a) * r1 * 1.15 - 6;
+                    foreach (var (col, k) in new[] { ("#e8322a", 1.0), ("#ff8a1a", .72), ("#ffd23a", .45) })
+                    {
+                        c.fillStyle = col; c.beginPath(); c.moveTo(bx - Math.Sin(a) * 13 * k, by + Math.Cos(a) * 13 * k);
+                        c.quadraticCurveTo(bx + (tx - bx) * .5 - Math.Sin(a) * 10 * k, by + (ty - by) * .5 + Math.Cos(a) * 10 * k, bx + (tx - bx) * k, by + (ty - by) * k);
+                        c.quadraticCurveTo(bx + (tx - bx) * .5 + Math.Sin(a) * 10 * k, by + (ty - by) * .5 - Math.Cos(a) * 10 * k, bx + Math.Sin(a) * 13 * k, by - Math.Cos(a) * 13 * k);
+                        c.closePath(); c.fill();
+                    }
+                }
             c.fillStyle = "#a87430"; c.strokeStyle = INK; c.lineWidth = 3; c.beginPath(); c.ellipse(0, -20, 76, 24, 0, Math.PI, TAU); c.closePath(); c.fill(); c.stroke();
             c.lineWidth = 2; for (int i = 0; i < 26; i++) { double a = Math.PI + .15 + fr(i) * (Math.PI - .3), x = Math.Cos(a) * 68, y = -20 + Math.Sin(a) * 20; c.strokeStyle = new[] { "#e8c26a", "#c9973f", "#f2d27a" }[i % 3]; seg(c, x - 7, y + 2, x + 7, y - 3); }
             void egg() { c.beginPath(); c.ellipse(0, EY, RX, RY, 0, 0, TAU); }
             void paintEgg()
             {
                 c.save(); egg(); c.clip();
-                var g = c.createLinearGradient(-RX, EY - RY, RX, EY + RY); var pal = sup ? new[] { "#f6e6ff", "#b46cff", "#5a2aa8" } : new[] { "#fff3b0", "#ffc93a", "#d9861a" };
+                var g = c.createLinearGradient(-RX, EY - RY, RX, EY + RY); var pal = leg ? new[] { "#fff1c2", "#ff8a1a", "#b3261e" } : sup ? new[] { "#f6e6ff", "#b46cff", "#5a2aa8" } : new[] { "#fff3b0", "#ffc93a", "#d9861a" };
                 g.addColorStop(0, pal[0]); g.addColorStop(.45, pal[1]); g.addColorStop(1, pal[2]); c.fillStyle = g; c.fillRect(-RX - 2, EY - RY - 2, RX * 2 + 4, RY * 2 + 4);
-                c.fillStyle = sup ? "rgba(255,255,255,.3)" : "rgba(205,120,20,.45)";
+                c.fillStyle = leg ? "rgba(255,230,120,.5)" : sup ? "rgba(255,255,255,.3)" : "rgba(205,120,20,.45)";
                 foreach (var (x, y, r) in new[] { (-15.0, -86.0, 5.0), (17.0, -70.0, 6.0), (-9.0, -42.0, 4.5), (21.0, -40.0, 3.5), (-24.0, -62.0, 3.2), (6.0, -96.0, 3.0) }) { c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); }
-                c.fillStyle = sup ? "#ffc93a" : "#e8322a"; c.fillRect(-6, EY - RY, 12, RY * 2); c.fillStyle = "rgba(255,255,255,.3)"; c.fillRect(-6, EY - RY, 3, RY * 2);
+                c.fillStyle = sup || leg ? "#ffc93a" : "#e8322a"; c.fillRect(-6, EY - RY, 12, RY * 2); c.fillStyle = "rgba(255,255,255,.3)"; c.fillRect(-6, EY - RY, 3, RY * 2);
                 c.fillStyle = "rgba(255,255,255,.78)"; c.beginPath(); c.ellipse(-17, EY - 22, 6.5, 13, -.4, 0, TAU); c.fill();
                 c.restore(); egg(); c.strokeStyle = INK; c.lineWidth = 3; c.stroke();
                 c.lineWidth = 2; seg(c, -6, EY - RY + 1, -6, EY + RY - 1); seg(c, 6, EY - RY + 1, 6, EY + RY - 1);
@@ -386,10 +399,10 @@ public static partial class G
             void bow()
             {
                 c.strokeStyle = INK; c.lineWidth = 2.4;
-                if (sup)
+                if (sup || leg)
                 {
-                    double y = EY - RY + 4; c.fillStyle = "#ffc93a"; c.beginPath(); c.moveTo(-15, y); c.lineTo(-17, y - 16); c.lineTo(-8, y - 8); c.lineTo(0, y - 20); c.lineTo(8, y - 8); c.lineTo(17, y - 16); c.lineTo(15, y); c.closePath(); c.fill(); c.stroke();
-                    c.lineWidth = 1.4; circ(c, 0, y - 6, 2.6, "#e8322a"); circ(c, -9, y - 4, 1.9, "#4cc3ff"); circ(c, 9, y - 4, 1.9, "#4cc3ff"); return;
+                    double y = EY - RY + 4; c.fillStyle = leg ? "#ffd23a" : "#ffc93a"; c.beginPath(); c.moveTo(-15, y); c.lineTo(-17, y - 16); c.lineTo(-8, y - 8); c.lineTo(0, y - 20); c.lineTo(8, y - 8); c.lineTo(17, y - 16); c.lineTo(15, y); c.closePath(); c.fill(); c.stroke();
+                    c.lineWidth = 1.4; circ(c, 0, y - 6, 2.6, leg ? "#ff8a1a" : "#e8322a"); circ(c, -9, y - 4, 1.9, leg ? "#e8322a" : "#4cc3ff"); circ(c, 9, y - 4, 1.9, leg ? "#e8322a" : "#4cc3ff"); return;
                 }
                 c.fillStyle = "#e8322a";
                 c.beginPath(); c.ellipse(-11, EY - RY - 6, 11, 6.5, .35, 0, TAU); c.fill(); c.stroke(); c.beginPath(); c.ellipse(11, EY - RY - 6, 11, 6.5, -.35, 0, TAU); c.fill(); c.stroke();
@@ -418,6 +431,13 @@ public static partial class G
             c.lineWidth = 2.2;
             for (int i = 0; i < 34; i++) { double a = .12 + fr(i + 40) * (Math.PI - .24), x = Math.Cos(a) * 68, y = -17 + Math.Sin(a) * 18; c.strokeStyle = new[] { "#f2d27a", "#a87430", "#e8c26a" }[i % 3]; c.beginPath(); c.moveTo(x - 8, y - 2); c.quadraticCurveTo(x, y + 3, x + 8, y - 1); c.stroke(); }
             c.strokeStyle = "#e8c26a"; c.lineWidth = 2.2; seg(c, -74, -16, -88, -26); seg(c, 72, -14, 90, -22); seg(c, -60, 4, -70, 10);
+            if (leg)
+                for (int i = 0; i < 9; i++)
+                { // искры поднимаются от огненного яйца
+                    double q = (S.t * .55 + i * .113) % 1, x = Math.Sin(i * 2.3 + S.t) * (30 + i * 4), y = -40 - q * 110;
+                    c.globalAlpha = 1 - q; c.fillStyle = i % 2 == 0 ? "#ffd23a" : "#ff8a1a"; c.beginPath(); c.arc(x, y, 2.4 + (1 - q) * 2, 0, TAU); c.fill();
+                }
+            c.globalAlpha = 1;
             if (sup)
                 foreach (var (x, y, ph) in new[] { (-58.0, -92.0, 0.0), (56.0, -104.0, 1.7), (-44.0, -128.0, 3.1), (62.0, -52.0, 4.4), (-66.0, -46.0, 5.2) })
                 {

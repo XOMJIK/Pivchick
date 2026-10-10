@@ -78,10 +78,10 @@ public static class D
 {
     public static readonly Dictionary<string, Rar> RAR = new()
     {
-        ["common"] = new() { nameRu = "Обычный", c = "#8f9ba6", w = 1, card = 1, need = 1, cost = 1, chance = new[] { 12.0, 30, 60 } },
-        ["rare"] = new() { nameRu = "Редкий", c = "#2f95d0", w = .75, card = .7, need = .7, cost = 1.25, chance = new[] { 10.0, 25, 45 } },
-        ["epic"] = new() { nameRu = "Эпический", c = "#8b4fd8", w = .5, card = .45, need = .5, cost = 1.5, chance = new[] { 3.0, 9, 22 } },
-        ["legendary"] = new() { nameRu = "Легендарный", c = "#f08c00", w = .35, card = .3, need = .35, cost = 2, chance = new[] { .6, 3, 10 } },
+        ["common"] = new() { nameRu = "Обычный", c = "#8f9ba6", w = 1, card = 1, need = 1, cost = 1, chance = new[] { 12.0, 30, 60, 80 } },
+        ["rare"] = new() { nameRu = "Редкий", c = "#2f95d0", w = .75, card = .7, need = .7, cost = 1.25, chance = new[] { 10.0, 25, 45, 70 } },
+        ["epic"] = new() { nameRu = "Эпический", c = "#8b4fd8", w = .5, card = .45, need = .5, cost = 1.5, chance = new[] { 3.0, 9, 22, 45 } },
+        ["legendary"] = new() { nameRu = "Легендарный", c = "#f08c00", w = .35, card = .3, need = .35, cost = 2, chance = new[] { .6, 3, 10, 30 } },
     };
     public static readonly string[] RAR_ORDER = { "legendary", "epic", "rare", "common" };
 
@@ -400,6 +400,17 @@ public static class D
     // патчноуты: показываются в окне «Об игре» (новые сверху)
     public static readonly Patch[] PATCH_NOTES =
     {
+        new(){v="0.8",itemsRu=new[]{
+            "Новый Легендарный сундук с огненным яйцом: больше всего карт и золотых яиц и самый высокий шанс на героя. Даётся за оба мира Soul Knight, 40-ю волну бесконечного боя и Императора Ворона или продаётся за 450 золотых яиц",
+            "Открытие сундуков: список наград прокручивается, а кнопка «Забрать» всегда на виду",
+            "Карточки героев, оружия и сундуков: значки и кнопка «Свойства» больше не закрывают картинку",
+            "Soul Knight: цена оружия зависит от его силы и растёт с каждым уровнем, а пивчиков падает намного меньше — на крутой ствол придётся копить",
+            "Soul Knight: стамина сама не восстанавливается — только синие кристаллы с врагов и зелья; кристаллы падают чаще",
+            "Soul Knight: в стартовой комнате каждого уровня стоит автомат — один раз за пивчики выдаёт случайное оружие или зелья стамины и здоровья",
+            "Soul Knight: торговец продаёт два ствола, зелье стамины и зелье здоровья",
+            "Soul Knight: у оружия на земле видны характеристики и сравнение с тем, что в руках",
+            "Пивчикомёт тратит 1 пивчик на 3 выстрела",
+            "Сборки игры для Windows и Android — на странице GitHub Releases"}},
         new(){v="0.7",itemsRu=new[]{
             "Сюжет: каждый уровень длится не меньше трёх минут — цели стали больше, а если справишься раньше, придётся продержаться до конца. На уровнях с боссом он выходит через 1:15",
             "Новый враг — Стриж-камикадзе: быстрая птица с бомбой летит прямо на тебя и взрывается. Поворачивает плавно — можно увернуться в последний момент или сбить на подлёте",
@@ -514,8 +525,10 @@ public static class D
             hb=M(("common",1),("rare",1),("epic",1),("legendary",1)),wb=M(("common",1),("rare",.8),("legendary",.45))},
         new(){nameRu="Сверхбольшой сундук",subRu="аметистовое яйцо",coins=new[]{500.0,800},hpacks=6,wpacks=4,hcard=new[]{14.0,22},wcard=new[]{15.0,25},egg=new[]{1.0,5,12},
             hb=M(("common",.8),("rare",1),("epic",1.2),("legendary",1.5)),wb=M(("common",1),("rare",1),("legendary",.8))},
+        new(){nameRu="Легендарный сундук",subRu="огненное яйцо",coins=new[]{1500.0,2500},hpacks=10,wpacks=6,hcard=new[]{22.0,34},wcard=new[]{24.0,36},egg=new[]{1.0,15,30},
+            hb=M(("common",.6),("rare",1),("epic",1.4),("legendary",2)),wb=M(("common",.8),("rare",1),("legendary",1.2))},
     };
-    public const int EGG_PRICE = 80, SUPER_PRICE = 200;
+    public const int EGG_PRICE = 80, SUPER_PRICE = 200, LEG_PRICE = 450;
 
     public sealed class Pack { public string nameRu, tagRu; public int eggs, coins; public string name => L.T(nameRu); }
     public static readonly Pack[] GEM_PACKS =

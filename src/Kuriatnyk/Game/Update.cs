@@ -136,9 +136,7 @@ public static partial class G
             var t = nearestTarget();
             if (t == null || hypot(t.x - P.x, t.y - P.y) - t.r > (PW.meleeR > 0 ? PW.meleeR : MELEE_R) + 20) firing = false; else P.ang = Math.Atan2(t.y - P.y, t.x - P.x);
         }
-        if (P.noStamT > 0) P.noStamT -= dt;
-        P.stamT += dt;
-        if (P.stam < P.stamMax && (S.kind != "sk" || P.stamT > SK_STAM_PAUSE)) P.stam = Math.Min(P.stamMax, P.stam + P.stamRegen * dt);
+        if (P.noStamT > 0) P.noStamT -= dt; // стамина сама не восстанавливается — только кристаллы и зелья
         if (P.swing > 0) P.swing -= dt;
         P.face = Math.Cos(P.ang) >= 0 ? 1 : -1;
         foreach (var e in enemies) { if (e.T.fly) continue; double dx = P.x - e.x, dy = P.y - e.y, d = hypot(dx, dy); if (d == 0) d = 1; double m = P.r + e.r; if (d < m) { P.x += dx / d * (m - d) * .5; P.y += dy / d * (m - d) * .5; } }

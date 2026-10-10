@@ -38,6 +38,7 @@ public sealed class SaveData
     public int skinRefund { get; set; } = 1;
     public Dictionary<string, LvRec> wlv { get; set; } = new();
     public int schests { get; set; }
+    public int lchests { get; set; } // легендарные сундуки
     public string menuBg { get; set; } = "yard";
     public string shopDay { get; set; } // день, на который разложены карточки в магазине
     public List<Offer> offers { get; set; } = new();
@@ -149,7 +150,7 @@ public static class Store
             w.lv = Math.Clamp(w.lv == 0 ? 1 : w.lv, 1, 10); w.cards = Math.Max(0, w.cards);
         }
         o.best ??= new();
-        o.schests = Math.Max(0, o.schests); o.menuBg ??= "yard";
+        o.schests = Math.Max(0, o.schests); o.lchests = Math.Max(0, o.lchests); o.menuBg ??= "yard";
         o.offers ??= new(); o.offers = o.offers.Where(f => f != null && (f.kind == "hero" ? D.HEROES.ContainsKey(f.id ?? "") : D.WEAP.TryGetValue(f.id ?? "", out var fw) && fw.rar != null)).ToList();
         o.v = 2; return o;
     }

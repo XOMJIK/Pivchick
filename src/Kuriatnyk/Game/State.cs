@@ -28,8 +28,9 @@ public sealed class Player : Fighter
     public double medMul, rangeMul, ammo, magnet, ultRate, inv, spin, svx, svy;
     public bool medic, revive, alive, wasFiring;
     public double swing, swingA, swingR; // взмах ближним оружием
-    // стамина: тратится на выстрелы и понемногу восстанавливается; в сюжете при нехватке оружие стреляет вдвое реже
-    public double stam, stamMax, stamRegen, stamMul = 1, noStamT, stamT; // stamT — сколько секунд стамину не тратили
+    // стамина (только Soul Knight): тратится на выстрелы и сама не восстанавливается — только кристаллы с врагов и зелья
+    public double stam, stamMax, stamGain = 1, stamMul = 1, noStamT; // stamGain — во сколько раз больше дают кристаллы и зелья
+    public int coinN; // Пивчикомёт: пивчик списывается раз в 3 выстрела
     // Soul Knight: оружие в рюкзаке (до bagMax) и бонусы пассивок забега
     public List<string> bag; public int slot, bagMax = 2;
     public double vamp, meleeMul = 1, pivMul = 1; public int luck; public bool magnetFar;
@@ -183,7 +184,7 @@ public static partial class G
         };
     }
     // в подземелье стамина восстанавливается медленно и только когда 1,5 с не стреляешь — основное пополнение из кристаллов
-    public const double STAM_MAX = 50, STAM_REGEN = 5, SK_STAM_MAX = 100, SK_STAM_REGEN = .6, SK_STAM_PAUSE = 1.5;
+    public const double STAM_MAX = 50, SK_STAM_MAX = 100;
 
     public static Player newPlayer(string heroId = null)
     {
@@ -198,7 +199,7 @@ public static partial class G
             nades = Math.Min(6, 2 + H.nade), hop = id == "duck", kitT = 8, prim = gun, w = gun, ammo = double.PositiveInfinity, magnet = 20,
             ult = 0, ultRate = (id == "chick" && Lv >= 10) ? 1.4 : 1, revive = id == "duck" && Lv >= 10,
             look = lookFor(id), lastHit = -9, face = 1, alive = true,
-            stam = STAM_MAX, stamMax = STAM_MAX, stamRegen = STAM_REGEN
+            stam = STAM_MAX, stamMax = STAM_MAX
         };
     }
     public static bool hasP(int n) => P != null && P.hlv >= n;

@@ -25,13 +25,17 @@ public static class Panels
     public static Control HeroPv(string id, double w, double h, double k) => BirdPv(G.lookFor(id), gunOf(id), w, h, k);
     public static Control GunPv(string id, double w = 56, double h = 46, double k = 1.15) => Preview(w, h, (c, W, H) => { c.translate(W / 2 - 14 * k, H / 2 + 2); c.scale(k, k); G.drawGun(c, id); });
 
-    /// <summary>Рамка превью (.pv): градиент, рамка, значки «Ур. N» слева и «Закрыто» справа.</summary>
+    /// <summary>Рамка превью (.pv): градиент, рамка, значки «Ур. N» слева и «Закрыто» или «Свойства» справа.
+    /// Значки — в отдельной полосе над картинкой, чтобы не закрывать героя или сундук.</summary>
     public static Control Pv(Control content, string bg = "grass", string lvl = null, string lockTxt = null, Control extra = null, string borderColor = null)
     {
-        var g = new Grid(); content.HorizontalAlignment = HorizontalAlignment.Center; content.VerticalAlignment = VerticalAlignment.Center; g.Children.Add(content);
-        if (lvl != null) { var b = Box(Txt(lvl, 12, FontWeight.Black, YolkB, wrap: false), InkB, 0, 8, new Thickness(7, 4)); b.HorizontalAlignment = HorizontalAlignment.Left; b.VerticalAlignment = VerticalAlignment.Top; b.Margin = new Thickness(8); g.Children.Add(b); }
-        if (lockTxt != null) { var b = Box(Txt(lockTxt, 11, FontWeight.ExtraBold, PaperB, wrap: false), B("#d92b1d14"), 0, 8, new Thickness(7, 4)); b.HorizontalAlignment = HorizontalAlignment.Right; b.VerticalAlignment = VerticalAlignment.Top; b.Margin = new Thickness(8); g.Children.Add(b); }
-        if (extra != null) g.Children.Add(extra);
+        var g = new Grid { RowDefinitions = new RowDefinitions("Auto,*") }; content.HorizontalAlignment = HorizontalAlignment.Center; content.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetRow(content, 1); g.Children.Add(content);
+        var bar = new Grid();
+        if (lvl != null) { var b = Box(Txt(lvl, 12, FontWeight.Black, YolkB, wrap: false), InkB, 0, 8, new Thickness(7, 4)); b.HorizontalAlignment = HorizontalAlignment.Left; b.VerticalAlignment = VerticalAlignment.Top; b.Margin = new Thickness(8, 8, 8, 0); bar.Children.Add(b); }
+        if (lockTxt != null) { var b = Box(Txt(lockTxt, 11, FontWeight.ExtraBold, PaperB, wrap: false), B("#d92b1d14"), 0, 8, new Thickness(7, 4)); b.HorizontalAlignment = HorizontalAlignment.Right; b.VerticalAlignment = VerticalAlignment.Top; b.Margin = new Thickness(8, 8, 8, 0); bar.Children.Add(b); }
+        if (extra != null) { extra.Margin = new Thickness(8, 8, 8, 0); bar.Children.Add(extra); }
+        g.Children.Add(bar);
         var box = Box(g, Overlays.PvBg(bg), 2, 12, borderBrush: borderColor != null ? B(borderColor) : null); box.ClipToBounds = true; return box;
     }
 
@@ -243,7 +247,7 @@ public sealed class WeaponsPanel : BoardPanel
     /// <summary>Справочник оружия Soul Knight: его не покупают здесь — оно падает в подземелье.</summary>
     void SkCatalog()
     {
-        body.Children.Add(Note(T("Это оружие есть только в режиме Soul Knight: оно падает из сундуков в подземелье и продаётся у торговца за пивчики. С собой можно нести 2 ствола (пассивка «Рюкзак» даёт третье место). Стамины в забеге 100: рогатка, водный пистолет и почти всё ближнее оружие её не тратят.")));
+        body.Children.Add(Note(T("Это оружие есть только в режиме Soul Knight: оно падает из сундуков в подземелье и продаётся у торговца за пивчики. С собой можно нести 2 ствола (пассивка «Рюкзак» даёт третье место). Цена зависит от силы ствола и растёт с каждым уровнем подземелья. Стамины в забеге 100, сама она не восстанавливается — только синие кристаллы с врагов и зелья; рогатка, водный пистолет и почти всё ближнее оружие её не тратят.")));
         var groups = new[] { ("melee", T("Ближний бой")), ("gun", T("Стрелковое")), ("staff", T("Посохи")) };
         for (int gi = 0; gi < groups.Length; gi++)
         {
@@ -257,12 +261,12 @@ public sealed class WeaponsPanel : BoardPanel
                 string dps = W.special == "melee" ? T("Урон ") + W.dmg + " · " + (1 / W.rate).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + T(" удар/с")
                     : W.special == "chain" ? T("Урон ") + W.dmg + T(" · цепь на ") + W.chain
                     : T("Урон ") + W.dmg + (W.pellets > 1 ? "×" + W.pellets : W.ring > 0 ? "×" + W.ring : "") + " · " + (1 / W.rate).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + T(" выстр/с");
-                string cost = W.coin ? T("1 пивчик за выстрел") : W.stam > 0 ? T("Стамина ") + W.stam.ToString("0.##", L.Culture) + T(" за выстрел") : T("Без стамины");
+                string cost = W.coin ? T("1 пивчик за 3 выстрела") : W.stam > 0 ? T("Стамина ") + W.stam.ToString("0.##", L.Culture) + T(" за выстрел") : T("Без стамины");
                 var top = new List<Control>
                 {
                     Panels.Pv(Panels.Preview(140, 80, (c, w, h) => { c.translate(w / 2 - 34, h / 2 + 2); c.scale(1.9, 1.9); G.drawGun(c, W.id); }), "grass", null, null, null, R.c),
-                    Badges(Rar(R.name, R.c), Rar(T("В лавке: ") + SKW.PRICE[W.skr], "#6b4428")),
-                    Panels.H4(W.name), Panels.P(W.desc), Panels.Meta(dps), Panels.Meta(cost, true)
+                    Badges(Rar(R.name, R.c), Rar(T("В лавке: ") + SKW.Price(W), "#6b4428")),
+                    Panels.H4(W.name), Panels.P(W.desc), Panels.Meta(dps), Panels.Meta(T("Урон в секунду") + ": " + Math.Round(SKW.Power(W))), Panels.Meta(cost, true)
                 };
                 if (SKW.START.Contains(W.id)) top.Add(Panels.Meta(T("С ним начинается забег")));
                 g.Children.Add(Panels.Item(top, Array.Empty<Control>()));
@@ -510,7 +514,7 @@ public sealed class StoryPanel : BoardPanel
 /* ---------- сундуки ---------- */
 public sealed class ChestPanel : BoardPanel
 {
-    static readonly int[] chestN = { 1, 1, 1 }; // сколько сундуков открыть за раз: ×1, ×3 или ×10
+    static readonly int[] chestN = { 1, 1, 1, 1 }; // сколько сундуков открыть за раз: ×1, ×3 или ×10
     public ChestPanel(MainView mv) : base(mv, "Сундуки") { Render(); }
     Control ChestCard(int tier)
     {
@@ -520,13 +524,14 @@ public sealed class ChestPanel : BoardPanel
         var props = new Press(Row(6, ib, Txt(T("Свойства"), 12.5, FontWeight.ExtraBold, InkB, wrap: false)), PaperB, 2, 999, new Thickness(6, 6, 11, 6), 2)
         { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(8) };
         props.Click += () => Overlays.OpenChestInfo(mv, tier);
-        var pv = Panels.Pv(Panels.Preview(220, 150, (c, w, h) => { c.translate(w / 2, h - 12); c.scale(.9, .9); G.drawChest(c, tier, 0, 0); }), new[] { "nest", "gold", "amet" }[tier], null, null, props);
+        var pv = Panels.Pv(Panels.Preview(220, 150, (c, w, h) => { c.translate(w / 2, h - 12); c.scale(.9, .9); G.drawChest(c, tier, 0, 0); }), Overlays.ChestBg(tier), null, null, props);
         var eggTxt = C.egg[0] >= 1 ? C.egg[1] + "–" + C.egg[2] + T(" золотых яиц") : T("шанс золотых яиц");
         var top = new List<Control> { pv, Panels.H4(C.name),
             Rich(C.coins[0] + "–" + C.coins[1] + T(" зёрен · ") + C.hpacks + T(" пачки карт героев · ") + C.wpacks + (C.wpacks > 1 ? T(" пачки") : T(" пачка")) + T(" карт оружия · ") + eggTxt, 12.5, FontWeight.Medium, B("#d92b1d14")) };
         Control bar(long have, long need, string ic, string label, string col) => Col(3, ProgT("<i class=\"" + ic + "\"></i>" + label, L.Fmt(have) + " / " + need), Prog((double)have / need, col));
         if (tier == 0) { top.Add(bar(SAVE.tokens, 100, "tok", T("Жетоны"), "#4cc3ff")); top.Add(Panels.Meta(T("Жетоны дают за врагов, волны и уровни сюжета."))); }
         else if (tier == 1) { top.Add(bar(SAVE.btokens, 10, "btok", T("Большие жетоны"), "#b06cff")); top.Add(Panels.Meta(T("Большой жетон дают за первое прохождение каждого уровня сюжета и за каждые 5 волн в бесконечном бою."))); }
+        else if (tier == 3) top.Add(Panels.Meta("<b>" + T("Есть: ") + SAVE.lchests + "</b>" + T(" · за первое прохождение обоих миров Soul Knight, за 40-ю волну в бесконечном бою и за победу над Императором Вороном.")));
         else top.Add(Panels.Meta("<b>" + T("Есть: ") + SAVE.schests + "</b>" + T(" · по одному за каждого финального босса главы (20-й уровень, первое прохождение) и за 25-ю и 50-ю волну в бесконечном бою.")));
         // выбор количества
         var seg = new UniformGrid { Columns = 3 };
@@ -542,12 +547,12 @@ public sealed class ChestPanel : BoardPanel
         var segB = Box(seg, PaperB, 2.5, 12); segB.ClipToBounds = true;
         int cnt = chestN[tier];
         var own = Chests.chestCost(tier, null, cnt); bool ok = own.have >= own.need;
-        var ic = own.cur switch { "tok" => "<i class=\"tok\"></i>", "btok" => "<i class=\"btok\"></i>", _ => "<i class=\"sch\"></i>" };
+        var ic = own.cur switch { "tok" => "<i class=\"tok\"></i>", "btok" => "<i class=\"btok\"></i>", "lch" => "<i class=\"lch\"></i>", _ => "<i class=\"sch\"></i>" };
         var b = Panels.PBtn(ok ? T("Открыть") + (cnt > 1 ? " ×" + cnt : "") : ic + T("ещё ") + (own.need - own.have), ok ? "go" : "poor", () =>
         {
             if (!ok)
             {
-                mv.Toast(tier == 0 ? T("Нужно ещё ") + (own.need - own.have) + T(" жетонов") : tier == 1 ? T("Большие жетоны: за первое прохождение уровня сюжета и каждые 5 волн в бесконечном бою") : T("Победи финального босса главы — получишь сверхбольшой сундук"));
+                mv.Toast(tier == 0 ? T("Нужно ещё ") + (own.need - own.have) + T(" жетонов") : tier == 1 ? T("Большие жетоны: за первое прохождение уровня сюжета и каждые 5 волн в бесконечном бою") : tier == 3 ? T("Легендарный сундук — за оба мира Soul Knight, 40-ю волну бесконечного боя и Императора Ворона") : T("Победи финального босса главы — получишь сверхбольшой сундук"));
                 return;
             }
             Open(tier, "own", cnt);
@@ -564,7 +569,7 @@ public sealed class ChestPanel : BoardPanel
             row = Panels.BRow(true, b, b2);
         }
         else row = b;
-        var card = Panels.Item(top, new Control[] { segB, row }, false, tier == 2 ? "#6a3fb5" : null);
+        var card = Panels.Item(top, new Control[] { segB, row }, false, tier == 3 ? "#c0392b" : tier == 2 ? "#6a3fb5" : null);
         return card;
     }
     void Open(int tier, string pay, int n)
@@ -575,11 +580,11 @@ public sealed class ChestPanel : BoardPanel
     protected override void Build()
     {
         var g = new AutoGrid { Min = 230, Gap = 12 };
-        for (int t = 0; t < 3; t++) g.Children.Add(ChestCard(t));
+        for (int t = 0; t < CHESTS.Length; t++) g.Children.Add(ChestCard(t));
         body.Children.Add(g);
         var n = Note(T("У каждого сундука свои шансы — нажми «Свойства» на картинке сундука. Герои выпадают только из сундуков. Карты героев падают только для открытых героев, карты оружия — только для купленных стволов тех классов, для которых у тебя есть боец."));
         n.Margin = new Thickness(0, 12, 0, 12); body.Children.Add(n);
         body.Children.Add(Sect(T("Золотые яйца")));
-        body.Children.Add(Note(T("Редкая валюта: у тебя <b>") + SAVE.eggs + T("</b>. Большой сундук стоит ") + EGG_PRICE + T(", сверхбольшой — ") + SUPER_PRICE + T(". Где взять: первое прохождение уровней сюжета (3–15 за уровень), волны 5, 10, 15, 20, 25, 30, 40 и 50 в бесконечном бою (один раз), Soul Knight, 5-й и 10-й уровень героя, сундуки. Ещё за яйца продаются Нимб, Платиновый окрас и Рельсотрон.")));
+        body.Children.Add(Note(T("Редкая валюта: у тебя <b>") + SAVE.eggs + T("</b>. Большой сундук стоит ") + EGG_PRICE + T(", сверхбольшой — ") + SUPER_PRICE + T(", легендарный — ") + LEG_PRICE + T(". Где взять: первое прохождение уровней сюжета (3–15 за уровень), волны 5, 10, 15, 20, 25, 30, 40 и 50 в бесконечном бою (один раз), Soul Knight, 5-й и 10-й уровень героя, сундуки. Ещё за яйца продаются Нимб, Платиновый окрас и Рельсотрон.")));
     }
 }

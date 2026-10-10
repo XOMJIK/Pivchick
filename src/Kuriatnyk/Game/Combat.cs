@@ -89,6 +89,7 @@ public static partial class G
         S.wave++;
         if (holesOn() && rnd() < .6) spawnHole();
         if (S.kind == "endless" && S.wave == 25 && !SAVE.eggMs.ContainsKey("sup25")) { SAVE.eggMs["sup25"] = 1; SAVE.schests++; persist(); Later(1.6, () => Ui.Toast(T("Волна 25! Сверхбольшой сундук ждёт в меню"))); }
+        if (S.kind == "endless" && S.wave == 40 && !SAVE.eggMs.ContainsKey("leg40")) { SAVE.eggMs["leg40"] = 1; SAVE.lchests++; persist(); Later(2.2, () => Ui.Toast(T("Волна 40! Легендарный сундук ждёт в меню"))); }
         if (S.kind == "endless" && S.wave == 50 && !SAVE.eggMs.ContainsKey("sup50")) { SAVE.eggMs["sup50"] = 1; SAVE.schests++; persist(); Later(1.6, () => Ui.Toast(T("Волна 50! Сверхбольшой сундук ждёт в меню"))); }
         if (S.kind == "endless")
         { // золотые яйца за рубежи — один раз за каждый
@@ -346,9 +347,9 @@ public static partial class G
             if (r < cornCh) pickups.Add(new Pickup { x = e.x, y = e.y, kind = "corn", t = 12, ph = 0 });
             else if (r < cornCh + .05 && !sk) pickups.Add(new Pickup { x = e.x, y = e.y, kind = rnd() < .5 ? "shotgun" : "smg", t = 12, ph = 0 }); // стволов сюжета в подземелье нет
             else if (r < cornCh + .09) pickups.Add(new Pickup { x = e.x, y = e.y, kind = "nade", t = 12, ph = 0 });
-            else if (sk && r < cornCh + .17) pickups.Add(new Pickup { x = e.x + rand(-8, 8), y = e.y, kind = "stam", t = 12, ph = 0 }); // стамина — только в подземелье
+            else if (sk && r < cornCh + .23) pickups.Add(new Pickup { x = e.x + rand(-8, 8), y = e.y, kind = "stam", t = 12, ph = 0 }); // стамина — только в подземелье
         }
-        if (sk) dropPiv(e.x, e.y, Tt.boss ? 30 : e.type == "rat" ? (rnd() < .5 ? 1 : 0) : 1 + (rnd() < .45 ? 1 : 0) + (Tt.hp >= 100 ? 1 : 0)); // пивчики
+        if (sk) dropPiv(e.x, e.y, Tt.boss ? 12 : (rnd() < (Tt.hp >= 100 ? .7 : e.type == "rat" ? .2 : .4) ? 1 : 0) + (Tt.hp >= 100 && rnd() < .3 ? 1 : 0)); // пивчики: редко, чтобы копить на хороший ствол
         if (S.kind == "story" && S.mode == "play")
         {
             var g = S.L.goal;

@@ -63,7 +63,7 @@ public static partial class G
         P = newPlayer(heroId); allies = new();
         // оружие сюжета сюда не берём: забег начинается с рогатки и палки
         P.bag = new List<string>(SKW.START); P.slot = 0; P.w = P.prim = P.bag[0]; P.bagMax = 2;
-        P.stamMax = P.stam = SK_STAM_MAX; P.stamRegen = SK_STAM_REGEN;
+        P.stamMax = P.stam = SK_STAM_MAX;
         enemies = new(); bullets = new(); parts = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); holes = new(); zones = new(); strikes = new(); puddles = new(); goo = new();
         S.piv = 0; S.skPass = new();
         S.mode = "play"; S.kind = "sk"; S.skHero = heroId; S.lvIdx = 0; S.L = null; S.diff = 1; S.night = false; S.t = 0; S.score = 0; S.wave = 0; S.toSpawn = 0; S.spawnT = 0;
@@ -168,6 +168,7 @@ public static partial class G
         foreach (var R in D.rooms)
         {
             if (R.type == "chest") OBS.Add(new Obs { x = R.cx, y = R.cy - 6, r = 26, type = "skchest" });
+            if (R.type == "start") OBS.Add(new Obs { x = R.x + 62, y = R.y + 62, r = 24, type = "vend" }); // автомат: один раз за уровень — случайное оружие или зелья
             if (R.type == "shop") OBS.Add(new Obs { x = R.cx, y = R.y + 82, r = 34, type = "counter" });
         }
         // речки на некоторых уровнях: на втором и четвёртом уровне мира — в двух боевых комнатах, на третьем — в одной
@@ -331,12 +332,12 @@ public static partial class G
         double r = rnd();
         if (r < .4) pickups.Add(new Pickup { x = R.cx, y = R.cy, kind = "corn", t = 60, ph = 0 });
         else if (r < .65) pickups.Add(new Pickup { x = R.cx, y = R.cy, kind = "nade", t = 60, ph = 0 });
-        if (rnd() < .35) pickups.Add(new Pickup { x = R.cx + 30, y = R.cy + 10, kind = "stam", t = 60, ph = 0 });
-        dropPiv(R.cx, R.cy, 5 + S.skLv * 2);
+        if (rnd() < .6) pickups.Add(new Pickup { x = R.cx + 30, y = R.cy + 10, kind = "stam", t = 60, ph = 0 }); // стамина сама не копится — кристалл за комнату
+        dropPiv(R.cx, R.cy, 2 + S.skLv / 2);
         if (R.type == "bossopt")
         {
             int eg = 2; SAVE.eggs += eg; S.coins += 60; persist();
-            var w = rollSkWeapon(S.skLv, P.luck + 2, skTaken()); dropWeapon(w, R.cx, R.cy + 40); dropPiv(R.cx, R.cy, 25);
+            var w = rollSkWeapon(S.skLv, P.luck + 2, skTaken()); dropWeapon(w, R.cx, R.cy + 40); dropPiv(R.cx, R.cy, 10);
             showBanner(T("Босс повержен!"), "+" + eg + T(" золотых яиц · +60 зёрен")); Music.Play("battle");
         }
         else if (R.type == "boss")
@@ -368,12 +369,12 @@ public static partial class G
         skCashPiv(); long sc = S.coins, st = S.tokens; bankCoins();
         bool first = !SAVE.eggMs.ContainsKey("skRun");
         long lc = 300, lt = 80; int le = first ? 15 : 0;
-        SAVE.coins += lc; SAVE.tokens += lt; SAVE.eggs += le; if (first) { SAVE.eggMs["skRun"] = 1; SAVE.btokens++; }
+        SAVE.coins += lc; SAVE.tokens += lt; SAVE.eggs += le; if (first) { SAVE.eggMs["skRun"] = 1; SAVE.btokens++; SAVE.lchests++; }
         persist();
         var w = new WinInfo { eyebrow = T("Режим Soul Knight") + " · " + skLvName(SK_LEVELS), lead = T("Оба мира пройдены! Лис-атаман и Доктор Хорёк повержены."), hasNext = false };
         w.rows.Add(new WinRow { icon = "coin", text = "+" + (lc + sc) + T(" зёрен"), sub = T("за забег и врагов") });
         w.rows.Add(new WinRow { icon = "tok", text = "+" + (lt + st) + T(" жетонов"), sub = T("на обычный сундук: ") + L.Fmt(SAVE.tokens) + "/100" });
-        if (first) { w.rows.Add(new WinRow { icon = "gegg", text = "+" + le + T(" золотых яиц"), sub = T("только за первое прохождение") }); w.rows.Add(new WinRow { icon = "btok", text = StripIcon(T("<i class=\"btok\"></i>+1 большой жетон")), sub = T("на большой сундук: ") + SAVE.btokens + "/10" }); }
+        if (first) { w.rows.Add(new WinRow { icon = "gegg", text = "+" + le + T(" золотых яиц"), sub = T("только за первое прохождение") }); w.rows.Add(new WinRow { icon = "btok", text = StripIcon(T("<i class=\"btok\"></i>+1 большой жетон")), sub = T("на большой сундук: ") + SAVE.btokens + "/10" }); w.rows.Add(new WinRow { icon = "lch", text = T("Легендарный сундук!"), sub = T("за первое прохождение обоих миров · открой в «Сундуках»") }); }
         Ui.ShowWin(w);
     }
     /// <summary>Подпись цели в HUD: «Лагерь» или «0-3 · комнаты 1/3».</summary>

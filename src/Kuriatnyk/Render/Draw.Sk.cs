@@ -219,10 +219,10 @@ public static partial class G
             c.translate(0, -14 + bo); c.fillStyle = "#4cc3ff"; c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.moveTo(0, -9); c.lineTo(7, 0); c.lineTo(0, 9); c.lineTo(-7, 0); c.closePath(); c.fill(); c.stroke();
             c.fillStyle = "#e3f7ff"; c.beginPath(); c.moveTo(0, -5); c.lineTo(3, 0); c.lineTo(0, 2); c.closePath(); c.fill(); c.restore(); return true;
         }
-        if (p.kind != "skw" && p.price <= 0) return false;
+        if (p.kind != "skw" && p.kind != "stamp" && p.kind != "hpp" && p.price <= 0) return false;
         double near = hypot(p.x - P.x, p.y - P.y);
         c.save(); c.translate(p.x, p.y);
-        string rc = p.kind == "skw" ? RAR[WEAP[p.wid].skr].c : "#4cc3ff";
+        string rc = p.kind == "skw" ? RAR[WEAP[p.wid].skr].c : p.kind == "hpp" ? "#ff6b5a" : "#4cc3ff";
         if (p.price > 0)
         { // подставка торговца
             c.fillStyle = "rgba(25,50,10,.3)"; c.beginPath(); c.ellipse(4, 3, 22, 7, 0, 0, TAU); c.fill();
@@ -237,9 +237,12 @@ public static partial class G
         if (p.kind == "skw") { c.save(); c.globalAlpha = .3; c.fillStyle = rc; c.beginPath(); c.arc(0, 0, 18, 0, TAU); c.fill(); c.restore(); c.rotate(-.35); c.scale(1.15, 1.15); c.translate(-13, 0); drawGun(c, p.wid); }
         else if (p.kind == "corn") { c.rotate(-.5); c.strokeStyle = INK; c.lineWidth = 2.2; c.fillStyle = "#f6c42d"; c.beginPath(); c.ellipse(0, 0, 6, 12, 0, 0, TAU); c.fill(); c.stroke(); c.fillStyle = "#6db343"; c.beginPath(); c.moveTo(0, 12); c.quadraticCurveTo(-11, 6, -8, -6); c.quadraticCurveTo(-4, 4, 0, 8); c.closePath(); c.fill(); c.stroke(); }
         else
-        { // зелье стамины
-            c.strokeStyle = INK; c.lineWidth = 2; c.fillStyle = "#cfefff"; rr(c, -3, -14, 6, 6, 1.5); c.fill(); c.stroke();
-            c.fillStyle = "#4cc3ff"; c.beginPath(); c.arc(0, 0, 9, 0, TAU); c.fill(); c.stroke(); c.fillStyle = "#e3f7ff"; c.beginPath(); c.ellipse(-3, -3, 2.4, 3.4, -.4, 0, TAU); c.fill();
+        { // зелье: синее — стамина, красное с крестиком — здоровье
+            bool hp = p.kind == "hpp";
+            c.strokeStyle = INK; c.lineWidth = 2; c.fillStyle = hp ? "#ffd9d4" : "#cfefff"; rr(c, -3, -14, 6, 6, 1.5); c.fill(); c.stroke();
+            c.fillStyle = hp ? "#e8322a" : "#4cc3ff"; c.beginPath(); c.arc(0, 0, 9, 0, TAU); c.fill(); c.stroke();
+            if (hp) { c.fillStyle = "#fff"; c.fillRect(-1.6, -5, 3.2, 10); c.fillRect(-5, -1.6, 10, 3.2); }
+            else { c.fillStyle = "#e3f7ff"; c.beginPath(); c.ellipse(-3, -3, 2.4, 3.4, -.4, 0, TAU); c.fill(); }
             c.fillStyle = "#c98a43"; rr(c, -3.5, -17, 7, 4, 1.5); c.fill(); c.stroke();
         }
         c.restore();
@@ -250,7 +253,7 @@ public static partial class G
             c.fillStyle = INK; rr(c, -tw / 2, ty, tw, 20, 9); c.fill(); Hud.Piv(c, -tw / 2 + 11, ty + 10, 13);
             c.textAlign = "left"; c.fillStyle = poor ? "#ff8a6b" : "#ffd25a"; c.fillText(pt, -tw / 2 + 20, ty + 14.5);
         }
-        if (p.kind == "skw" && near < 70)
+        if (p.kind == "skw" && (p == actPick || (actPick == null && near < 70)))
         { // название над оружием
             var nm = WEAP[p.wid].name; c.font = "900 12px Rubik"; c.textAlign = "center"; c.lineJoin = "round"; c.lineWidth = 3.5; c.strokeStyle = INK;
             double ny = -46 + bob; c.strokeText(nm, 0, ny); c.fillStyle = Hud.Rc(WEAP[p.wid].skr); c.fillText(nm, 0, ny);
@@ -280,6 +283,35 @@ public static partial class G
                 c.fillStyle = "#8a4f25"; c.beginPath(); c.moveTo(-29, -28); c.quadraticCurveTo(-29, -46, 0, -46); c.quadraticCurveTo(29, -46, 29, -28); c.closePath(); c.fill(); c.stroke();
                 c.fillStyle = "#c9a227"; foreach (var x in new[] { -24.0, 18.0 }) { c.beginPath(); c.moveTo(x, -28); c.lineTo(x, -43); c.lineTo(x + 6, -44); c.lineTo(x + 6, -28); c.closePath(); c.fill(); c.stroke(); }
                 c.fillStyle = "#ffc93a"; rr(c, -6, -34, 12, 12, 2); c.fill(); c.stroke(); c.fillStyle = INK; c.fillRect(-1.2, -30, 2.4, 5);
+            }
+            c.restore(); return true;
+        }
+        if (o.type == "vend")
+        { // автомат с сюрпризом: красный шкаф, витрина с товарами, монетоприёмник; после покупки — пустой и погасший
+            c.save(); c.translate(o.x, o.y + 14); c.strokeStyle = INK; c.lineWidth = 2.4; c.lineJoin = "round";
+            c.fillStyle = "rgba(25,50,10,.3)"; c.beginPath(); c.ellipse(4, 2, 32, 8, 0, 0, TAU); c.fill();
+            bool used = o.open; double gl = used ? 0 : .5 + .5 * Math.Sin(S.t * 3);
+            if (!used) { c.save(); c.globalAlpha = .18 + gl * .14; c.fillStyle = "#ffe066"; c.beginPath(); c.ellipse(0, -40, 46, 52, 0, 0, TAU); c.fill(); c.restore(); }
+            c.fillStyle = used ? "#7d6a64" : "#c0392b"; rr(c, -26, -86, 52, 86, 7); c.fill(); c.stroke();
+            c.fillStyle = used ? "#5f514c" : "#e8322a"; rr(c, -26, -86, 52, 14, 7); c.fill(); c.stroke();
+            c.fillStyle = used ? "#9c8f86" : "#ffc93a"; rr(c, -18, -84, 36, 10, 3); c.fill();
+            c.font = "900 10px Rubik"; c.textAlign = "center"; c.fillStyle = INK; c.fillText("? ? ?", 0, -76.5);
+            c.fillStyle = used ? "#3b3550" : "#cfefff"; rr(c, -19, -68, 30, 40, 4); c.fill(); c.stroke(); // витрина
+            if (!used)
+            {
+                c.strokeStyle = "rgba(43,29,20,.45)"; c.lineWidth = 1.4; seg(c, -18, -55, 10, -55); seg(c, -18, -42, 10, -42);
+                foreach (var (x, y, col) in new[] { (-12.0, -61.0, "#4cc3ff"), (-1.0, -61.0, "#e8322a"), (-12.0, -48.0, "#e8322a"), (-1.0, -48.0, "#ffc93a") })
+                { c.fillStyle = col; c.strokeStyle = INK; c.lineWidth = 1.2; c.beginPath(); c.arc(x, y, 3.6, 0, TAU); c.fill(); c.stroke(); }
+                c.fillStyle = "rgba(255,255,255,.55)"; c.fillRect(-17, -66, 4, 34);
+            }
+            c.strokeStyle = INK; c.lineWidth = 2; c.fillStyle = "#2b1d14"; rr(c, 15, -60, 6, 12, 2); c.fill(); // монетоприёмник
+            c.fillStyle = used ? "#9c8f86" : "#ffd25a"; c.beginPath(); c.arc(18, -40, 3.4, 0, TAU); c.fill(); c.stroke(); // кнопка
+            c.fillStyle = "#2b1d14"; rr(c, -18, -22, 36, 10, 3); c.fill(); // лоток
+            if (!used)
+            { // ценник
+                int pr = SKW.Cost(SKW.VEND_PRICE, S.skLv); c.font = "900 13px Rubik"; var pt = pr.ToString(); double tw = c.measureText(pt) + 26, ty = 6;
+                c.fillStyle = INK; rr(c, -tw / 2, ty, tw, 20, 9); c.fill(); Hud.Piv(c, -tw / 2 + 11, ty + 10, 13);
+                c.textAlign = "left"; c.fillStyle = S.piv < pr ? "#ff8a6b" : "#ffd25a"; c.fillText(pt, -tw / 2 + 20, ty + 14.5);
             }
             c.restore(); return true;
         }

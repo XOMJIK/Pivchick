@@ -199,25 +199,51 @@ public static partial class G
             pickups.Add(new Pickup { x = x, y = y, kind = "piv", n = v, t = 40, ph = rand(0, 6), vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp * .7, vz = rand(120, 220) });
         }
     }
-    /// <summary>Ближайший предмет, который берут кнопкой действия (оружие на земле, товар у торговца).</summary>
-    public static Pickup actPick;
+    /// <summary>Ближайший предмет, который берут кнопкой действия (оружие на земле, товар у торговца), или автомат в стартовой комнате.</summary>
+    public static Pickup actPick; public static Obs actVend;
     static void findAct()
     {
-        actPick = null; if (S.kind != "sk" || P == null || !P.alive) return; double bd = 46;
+        actPick = null; actVend = null; if (S.kind != "sk" || P == null || !P.alive) return; double bd = 46;
         foreach (var p in pickups) { if (p.kind != "skw" && p.price <= 0) continue; var d = hypot(p.x - P.x, p.y - P.y); if (d < bd) { bd = d; actPick = p; } }
+        if (actPick == null) foreach (var o in OBS) if (o.type == "vend" && !o.open && hypot(o.x - P.x, o.y + 30 - P.y) < 62) actVend = o;
     }
-    /// <summary>Подпись кнопки действия: «Взять: Топор», «Заменить на …», «Купить … · 30».</summary>
+    static string itemName(Pickup p) => p.kind == "skw" ? WEAP[p.wid].name : p.kind == "corn" ? T("Кукуруза") : p.kind == "hpp" ? T("Зелье здоровья") : T("Зелье стамины");
+    /// <summary>Подпись кнопки действия: «Взять: Топор», «Заменить на …», «Купить …», «Автомат: случайный предмет».</summary>
     public static string actLabel()
     {
+        if (actVend != null) return T("Автомат: случайный предмет");
         var p = actPick; if (p == null) return null;
-        var nm = p.kind == "skw" ? WEAP[p.wid].name : p.kind == "corn" ? T("Кукуруза") : T("Зелье стамины");
+        var nm = itemName(p);
         if (p.price > 0) return T("Купить: ") + nm;
         return (P.bag.Count < P.bagMax ? T("Взять: ") : T("Заменить на: ")) + nm;
+    }
+    /// <summary>Цена на кнопке действия (0 — бесплатно).</summary>
+    public static int actPrice() => actVend != null ? vendPrice() : actPick?.price ?? 0;
+    static int vendPrice() => SKW.Cost(SKW.VEND_PRICE, S.skLv);
+    /// <summary>Автомат: один раз за уровень за пивчики выдаёт случайное — оружие или пару зелий (стамины и здоровья).</summary>
+    static void useVend(Obs o)
+    {
+        int price = vendPrice();
+        if (S.piv < price) { ftext(P.x, P.y - 58, T("Не хватает пивчиков"), "#ffb3a3", 13); Sfx.hurt(); return; }
+        S.piv -= price; o.open = true; Sfx.buy(); Sfx.chest(); puff(o.x, o.y - 20, "#ffe066", 8, 1);
+        double x = o.x, y = o.y + 44;
+        if (rnd() < .4)
+        {
+            var id = rollSkWeapon(S.skLv, P.luck, skTaken()); dropWeapon(id, x, y);
+            ftext(o.x, o.y - 70, WEAP[id].name, RAR[WEAP[id].skr].c, 15);
+        }
+        else
+        {
+            pickups.Add(new Pickup { x = x - 16, y = y, kind = "stamp", t = 1e9, ph = rand(0, 6), vz = 150 });
+            pickups.Add(new Pickup { x = x + 16, y = y, kind = "hpp", t = 1e9, ph = rand(0, 6), vz = 150 });
+            ftext(o.x, o.y - 70, T("Зелья!"), "#9cf27a", 15);
+        }
     }
     public static void interact()
     {
         if (S.mode != "play" || P == null || !P.alive) return;
-        findAct(); var p = actPick; if (p == null) return;
+        findAct(); if (actVend != null) { useVend(actVend); actVend = null; return; }
+        var p = actPick; if (p == null) return;
         if (p.price > 0)
         {
             if (S.piv < p.price) { ftext(P.x, P.y - 58, T("Не хватает пивчиков"), "#ffb3a3", 13); Sfx.hurt(); return; }
@@ -236,19 +262,20 @@ public static partial class G
     {
         o.open = true; Sfx.chest(); Sfx.win(); S.shake += 4; puff(o.x, o.y - 10, "#ffe066", 10, 1.2); ring(o.x, o.y, "#ffe066", 90, .5);
         var id = rollSkWeapon(S.skLv, P.luck + 1, skTaken()); dropWeapon(id, o.x, o.y + 46);
-        dropPiv(o.x, o.y + 10, 6 + S.skLv * 2);
+        dropPiv(o.x, o.y + 10, 3 + S.skLv);
         ftext(o.x, o.y - 50, WEAP[id].name, RAR[WEAP[id].skr].c, 16);
     }
     static void stockShop(Room R)
     {
+        // два ствола (цена по силе ствола) и два зелья — стамины и здоровья; глубже — дороже
         var taken = new List<string>(P?.bag ?? new List<string>());
         for (int i = 0; i < 2; i++)
         {
             var id = rollSkWeapon(S.skLv, P?.luck ?? 0, taken); taken.Add(id);
-            dropWeapon(id, R.cx - 95 + i * 95, R.cy + 44, SKW.PRICE[WEAP[id].skr]);
+            dropWeapon(id, R.cx - 120 + i * 80, R.cy + 44, SKW.Price(WEAP[id], S.skLv));
         }
-        bool corn = rnd() < .5;
-        pickups.Add(new Pickup { x = R.cx + 95, y = R.cy + 44, kind = corn ? "corn" : "stamp", t = 1e9, ph = rand(0, 6), price = corn ? SKW.CORN_PRICE : SKW.STAM_PRICE });
+        pickups.Add(new Pickup { x = R.cx + 40, y = R.cy + 44, kind = "stamp", t = 1e9, ph = rand(0, 6), price = SKW.Cost(SKW.STAM_PRICE, S.skLv) });
+        pickups.Add(new Pickup { x = R.cx + 120, y = R.cy + 44, kind = "hpp", t = 1e9, ph = rand(0, 6), price = SKW.Cost(SKW.HEAL_PRICE, S.skLv) });
     }
 
     /// <summary>Подбор пивчиков: катятся, подпрыгивают и летят к герою.</summary>
@@ -286,7 +313,7 @@ public static partial class G
             case "rate": P.rateMul *= 1.12; break;
             case "spd": P.spd *= 1.1; break;
             case "stam": P.stamMax += 30; P.stam += 30; break;
-            case "sregen": P.stamRegen *= 2; break;
+            case "sregen": P.stamGain *= 2; break;
             case "thrift": P.stamMul *= .75; break;
             case "armor": P.armor = 1 - (1 - P.armor) * .88; break;
             case "vamp": P.vamp += 2; break;

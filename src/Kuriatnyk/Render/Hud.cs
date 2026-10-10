@@ -223,14 +223,15 @@ public static class Hud
             var lbl = actLabel();
             if (lbl != null)
             {
-                var p = actPick; c.font = "900 15px Rubik"; double lw = c.measureText(lbl), pw = p.price > 0 ? c.measureText(p.price.ToString()) + 30 : 0;
+                int price = actPrice(); c.font = "900 15px Rubik"; double lw = c.measureText(lbl), pw = price > 0 ? c.measureText(price.ToString()) + 30 : 0;
                 double bw = lw + pw + 30 + (COARSE ? 0 : 26), bh = 38, bx = VW / 2 - bw / 2, by = y - 16 - bh;
-                bool poor = p.price > 0 && S.piv < p.price;
-                RRect(c, bx, by, bw, bh, 14, poor ? "#d9cdb4" : p.price > 0 ? "#3fa535" : YOLK, 3, 3);
+                bool poor = price > 0 && S.piv < price;
+                RRect(c, bx, by, bw, bh, 14, poor ? "#d9cdb4" : price > 0 ? "#3fa535" : YOLK, 3, 3);
                 double tx = bx + 15; if (!COARSE) { KeyCap(c, tx - 2, by + 8, keyHint("act")); tx += 26; }
-                c.textAlign = "left"; c.fillStyle = p.price > 0 && !poor ? "#fff" : INK; c.fillText(lbl, tx, by + 24.5);
-                if (p.price > 0) { Piv(c, tx + lw + 16, by + bh / 2, 16); c.fillText(p.price.ToString(), tx + lw + 27, by + 24.5); }
+                c.textAlign = "left"; c.fillStyle = price > 0 && !poor ? "#fff" : INK; c.fillText(lbl, tx, by + 24.5);
+                if (price > 0) { Piv(c, tx + lw + 16, by + bh / 2, 16); c.fillText(price.ToString(), tx + lw + 27, by + 24.5); }
                 btns["act"] = (bx, by, bw, bh);
+                if (actPick?.kind == "skw") WeaponCompare(c, WEAP[actPick.wid], WEAP[P.w], by - 8);
             }
         }
         // --- кнопка «Бум» (яйцо-граната) ---
@@ -272,6 +273,51 @@ public static class Hud
         }
         DrawBanner(c);
     }
+
+    /// <summary>Характеристики оружия на земле и сравнение с тем, что в руках (как в Soul Knight): зелёный треугольник — лучше, красный — хуже.</summary>
+    static void WeaponCompare(Ctx c, Weap W, Weap cur, double bottom)
+    {
+        bool same = W.id == cur.id;
+        (string label, double now, double was, bool higherBetter, string fmt)[] rows =
+        {
+            (T("Урон"), Dmg(W), Dmg(cur), true, "0"),
+            (W.special == "melee" ? T("Ударов в секунду") : T("Выстрелов в секунду"), 1 / W.rate, 1 / cur.rate, true, "0.#"),
+            (T("Урон в секунду"), SKW.Power(W), SKW.Power(cur), true, "0"),
+            (T("Стамина за выстрел"), W.stam, cur.stam, false, "0.##"),
+        };
+        double w = 280, rh = 19, pad = 10;
+        // описание — до двух строк по ширине окошка
+        c.font = "600 11px Rubik"; var lines = new List<string>(); var cur2 = "";
+        foreach (var word in W.desc.Split(' '))
+        {
+            var t = cur2.Length == 0 ? word : cur2 + " " + word;
+            if (c.measureText(t) > w - pad * 2 && cur2.Length > 0) { lines.Add(cur2); cur2 = word; } else cur2 = t;
+        }
+        if (cur2.Length > 0) lines.Add(cur2);
+        if (lines.Count > 2) { lines = lines.GetRange(0, 2); lines[1] += "…"; }
+        double h = pad * 2 + 22 + rows.Length * rh + 6 + lines.Count * 14, x = VW / 2 - w / 2, y = bottom - h;
+        RRect(c, x, y, w, h, 12, "rgba(43,29,20,.9)", 0);
+        c.strokeStyle = Rc(W.skr); c.lineWidth = 2.5; rr(c, x + 1.25, y + 1.25, w - 2.5, h - 2.5, 11); c.stroke();
+        c.textAlign = "left"; c.font = "900 15px Rubik"; c.fillStyle = Rc(W.skr); c.fillText(W.name, x + pad, y + pad + 14);
+        c.font = "800 11px Rubik"; c.textAlign = "right"; c.fillStyle = "rgba(255,244,220,.6)"; c.fillText(RAR[W.skr].name, x + w - pad, y + pad + 13);
+        double ry = y + pad + 22;
+        foreach (var (label, now, was, hb, fmt) in rows)
+        {
+            ry += rh;
+            c.textAlign = "left"; c.font = "700 12px Rubik"; c.fillStyle = "rgba(255,244,220,.75)"; c.fillText(label, x + pad, ry);
+            c.textAlign = "right"; c.font = "900 13px Rubik"; c.fillStyle = PAPER; double vx = x + w - pad - 58;
+            c.fillText(now.ToString(fmt, L.Culture), vx, ry);
+            if (same || Math.Abs(now - was) < 1e-6) continue;
+            bool better = hb ? now > was : now < was; double tx = vx + 10, ty = ry - 5;
+            c.fillStyle = better ? "#5fcf3f" : "#ff6b5a"; c.beginPath();
+            if (now > was) { c.moveTo(tx, ty + 4); c.lineTo(tx + 5, ty - 4); c.lineTo(tx + 10, ty + 4); } else { c.moveTo(tx, ty - 4); c.lineTo(tx + 5, ty + 4); c.lineTo(tx + 10, ty - 4); }
+            c.closePath(); c.fill();
+            c.font = "700 11px Rubik"; c.fillStyle = "rgba(255,244,220,.5)"; c.fillText(was.ToString(fmt, L.Culture), x + w - pad, ry);
+        }
+        c.textAlign = "left"; c.font = "600 11px Rubik"; c.fillStyle = "rgba(255,244,220,.7)";
+        for (int i = 0; i < lines.Count; i++) c.fillText(lines[i], x + pad, ry + 18 + i * 14);
+    }
+    static double Dmg(Weap W) => W.special == "chain" ? W.dmg * W.chain : W.dmg * Math.Max(1, W.pellets) * (W.ring > 0 ? W.ring : 1);
 
     /// <summary>Баннер «Волна N» с анимацией как @keyframes ban (2,1 с).</summary>
     static void DrawBanner(Ctx c)

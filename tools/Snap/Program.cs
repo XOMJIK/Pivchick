@@ -140,6 +140,11 @@ if (args.Length > 1 && args[1] == "sk")
         var path = G.DUN.rooms.Where(r => r.type is "start" or "fight" or "end" or "boss").ToList();
         Console.WriteLine($"level {G.skLvName(G.S.skLv)}: rooms={G.DUN.rooms.Count} ({string.Join(",", G.DUN.rooms.Select(r => r.type))}) corridors={G.DUN.cors.Count} bag={string.Join(",", G.P.bag)}");
         if (lv == 1) Shot("21-sk-0-1-start");
+        long pivStart = G.S.piv;
+        { // автомат в стартовой комнате
+            var vend = G.OBS.FirstOrDefault(o => o.type == "vend");
+            if (vend != null) { WalkTo(vend.x, vend.y + 40, 4); Tick(); if (lv == 1) Shot("21b-sk-vend"); long pv = G.S.piv; G.interact(); for (int k = 0; k < 40; k++) Tick(); Console.WriteLine($"  vend: used={vend.open} piv {pv}->{G.S.piv} drops={string.Join(",", G.pickups.Where(p => G.hypot(p.x - vend.x, p.y - vend.y) < 120).Select(p => p.kind + (p.wid != null ? ":" + p.wid : "")))}"); if (lv == 1) Shot("21c-sk-vend-used"); pivStart = G.S.piv; }
+        }
         Console.WriteLine($"  rivers={G.RIVERS.Count} fish={G.fish.Count} crates={G.OBS.Count(o => o.type == "crate")} world={G.WW}");
         int cur = 0;
         // по пути: в последней комнате не наступаем на портал в центре
@@ -197,7 +202,7 @@ if (args.Length > 1 && args[1] == "sk")
         {
             long before = G.S.piv; int items = G.pickups.Count(p => p.price > 0);
             var it = G.pickups.FirstOrDefault(p => p.price > 0 && p.kind == "skw");
-            if (it != null) { WalkTo(it.x, it.y + 6, 4); Tick(); G.interact(); }
+            if (it != null) { WalkTo(it.x, it.y + 6, 4); Tick(); if (lv == 1) Shot("30a-sk-compare"); Console.WriteLine($"  shop prices: {string.Join(", ", G.pickups.Where(p => p.price > 0).Select(p => (p.wid ?? p.kind) + "=" + p.price))}"); G.interact(); }
             if (lv == 1) Shot("30-sk-shop");
             Console.WriteLine($"  shop: items={items} piv {before}->{G.S.piv} bag={string.Join(",", G.P.bag)} on floor={G.pickups.Count(p => p.kind == "skw" && p.price == 0)}");
         });
@@ -215,6 +220,7 @@ if (args.Length > 1 && args[1] == "sk")
             while (!opt.cleared && simT - t0 < 120) Tick();
             Console.WriteLine($"  optional boss: cleared={opt.cleared} eggs={Store.SAVE.eggs}");
         });
+        Console.WriteLine($"  piv earned on level: {G.S.piv - pivStart} (before shop/extras)");
         Along(path.Count - 1);
         var portal = G.DUN.portals[0];
         Console.WriteLine($"  portal on={portal.on} passives={string.Join(",", G.S.skPass)}");

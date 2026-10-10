@@ -44,8 +44,8 @@ public static partial class G
         P.cd = rate / rm;
         double cost = shotCost(W, rate);
         if (cost > 0 && P.stam < cost) { noStamina(T("Нет стамины — смени оружие")); P.cd = .25; return; } // без стамины стреляет только оружие, которое её не тратит
-        if (W.coin) { if (S.piv < 1) { noStamina(T("Нет пивчиков")); P.cd = .3; return; } S.piv--; }
-        P.stam = Math.Max(0, P.stam - cost); if (cost > 0) P.stamT = 0;
+        if (W.coin) { if (S.piv < 1) { noStamina(T("Нет пивчиков")); P.cd = .3; return; } if (P.coinN++ % 3 == 0) S.piv--; } // пивчик — раз в 3 выстрела
+        P.stam = Math.Max(0, P.stam - cost);
         double ang = input.mouse ? P.ang : aimAssist(P.ang); P.ang = ang;
         double wm = P.w == P.prim ? wMul(P.w) : 1;
         if (W.special == "melee") meleeSwing(ang, W);
@@ -169,8 +169,13 @@ public static partial class G
         else if (p.kind == "nade") { P.nades = Math.Min(Math.Max(6, P.nades), P.nades + 1); ftext(P.x, P.y - 50, T("+1 яйцо"), "#ffc93a", 14); }
         else if (p.kind is "stam" or "stamp")
         {
-            double v = p.kind == "stamp" ? 60 : S.kind == "sk" ? 25 : 15, h = Math.Min(v, P.stamMax - P.stam); P.stam = Math.Min(P.stamMax, P.stam + v);
+            double v = (p.kind == "stamp" ? 60 : 25) * P.stamGain, h = Math.Min(v, P.stamMax - P.stam); P.stam = Math.Min(P.stamMax, P.stam + v);
             ftext(P.x, P.y - 50, "+" + Math.Round(Math.Max(0, h)) + T(" стамины"), "#7fd4ff", 14);
+        }
+        else if (p.kind == "hpp")
+        { // зелье здоровья: половина максимума
+            var h = Math.Min(P.max * .5, P.max - P.hp); P.hp = Math.Min(P.max, P.hp + P.max * .5); healFx(P);
+            ftext(P.x, P.y - 50, "+" + Math.Max(Math.Round(h, MidpointRounding.AwayFromZero), 0) + T(" здоровья"), "#7df05a", 14);
         }
         else if (p.kind == "piv") { S.piv += p.n; if (rnd() < .5) Sfx.coin(); }
         else { var W = WEAP[p.kind]; if (P.w == p.kind) P.ammo += W.ammo; else { P.w = p.kind; P.ammo = W.ammo; } ftext(P.x, P.y - 50, W.name, "#ffc93a", 15); }

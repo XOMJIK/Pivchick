@@ -282,6 +282,6 @@ public sealed class Lobby : Grid
             storySub.Text = T("Глава ") + (Lv.ch + 1) + " " + L.Qo + CHAPTERS[Lv.ch].name + L.Qc + " · " + CHAPTERS[Lv.ch].levels.Count(l => SAVE.story.done.Contains(l.gid)) + "/20";
         }
         bestText.Text = SAVE.best.score > 0 ? T("Рекорд: волна ") + SAVE.best.wave + " · " + L.Fmt(SAVE.best.score) + T(" очк.") : T("Рекорда пока нет — поставь первый");
-        chestBadge.IsVisible = SAVE.tokens >= 100 || SAVE.btokens >= 10 || SAVE.schests > 0;
+        chestBadge.IsVisible = SAVE.tokens >= 100 || SAVE.btokens >= 10 || SAVE.schests > 0 || SAVE.lchests > 0;
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -37,7 +38,7 @@ public static class SKW
         new(){id="accordion",skr="epic",nameRu="Баян",rate=.5,dmg=22,pellets=3,spd=430,life=.55,spread=.5,pierce=99,size=14,stam=3,shape="note",sfx="pop",kick=1,descRu="Звуковые волны проходят сквозь всех"},
         new(){id="gauss",skr="legendary",nameRu="Гаусс-пушка",rate=1,dmg=140,spd=1700,life=.9,pierce=99,ghost=true,knock=4,stam=7,shape="slug",sfx="rail",kick=7,descRu="Магнитный снаряд пробивает врагов и даже укрытия"},
         new(){id="grinder",skr="legendary",nameRu="Мясорубка",rate=.05,dmg=13,spd=680,life=.6,spread=.16,spinUp=true,stam=.45,shape="meat",sfx="smg",kick=.8,descRu="Раскручивается и строчит фрикадельками"},
-        new(){id="coingun",skr="legendary",nameRu="Пивчикомёт",rate=.3,dmg=75,spd=760,life=.8,pierce=1,coin=true,shape="coin",sfx="shot",kick=2.5,descRu="Стреляет пивчиками: огромный урон, но каждый выстрел стоит 1 пивчик"},
+        new(){id="coingun",skr="legendary",nameRu="Пивчикомёт",rate=.3,dmg=75,spd=760,life=.8,pierce=1,coin=true,shape="coin",sfx="shot",kick=2.5,descRu="Стреляет пивчиками: огромный урон, но каждые 3 выстрела стоят 1 пивчик"},
         // --- посохи ---
         new(){id="sfire",skr="rare",nameRu="Посох огня",rate=.6,dmg=35,spd=520,life=.9,boomR=60,boomDmg=30,burnT=2.5,stam=3,shape="fireorb",sfx="throw",kick=1,descRu="Огненный шар взрывается и поджигает"},
         new(){id="sice",skr="rare",nameRu="Посох льда",rate=.4,dmg=30,spd=700,life=.8,split=3,chill=1.6,stam=2,shape="shard",sfx="ice",kick=1,descRu="Ледышка раскалывается на три осколка"},
@@ -51,8 +52,30 @@ public static class SKW
     public static readonly string[] IDS = LIST.Select(w => w.id).ToArray();
     /// <summary>С чем начинается забег: рогатка и палка, обе без стамины.</summary>
     public static readonly string[] START = { "sling", "stick" };
-    public static readonly Dictionary<string, int> PRICE = new() { ["common"] = 15, ["rare"] = 30, ["epic"] = 55, ["legendary"] = 90 };
-    public const int CORN_PRICE = 8, STAM_PRICE = 8;
+    /// <summary>Цены у торговца и в автомате на 0-1; чем глубже уровень, тем дороже (+15% за уровень).</summary>
+    public const int STAM_PRICE = 10, HEAL_PRICE = 12, VEND_PRICE = 12;
+    public static double LvMul(int lv) => 1 + .15 * (Math.Max(1, lv) - 1);
+    public static int Cost(double basePrice, int lv) => Math.Max(5, (int)(Math.Round(basePrice * LvMul(lv) / 5) * 5));
+    /// <summary>Сила ствола: урон в секунду с поправками на площадь, пробивание, самонаведение и эффекты.</summary>
+    public static double Power(Weap w)
+    {
+        double per = w.dmg * Math.Max(1, w.pellets) * (w.ring > 0 ? w.ring * .45 : 1);
+        if (w.special == "chain") per = w.dmg * w.chain * .7;
+        if (w.boomR > 0) per += (w.boomDmg > 0 ? w.boomDmg : w.dmg) * 1.4;
+        double dps = per / (w.spinUp ? w.rate * 2.2 : w.rate), k = 1;
+        if (w.special == "melee") k *= w.meleeR / 90 * (.7 + w.arc * .35);
+        if (w.pierce >= 99 || w.special == "beam" || w.ghost) k *= 1.5; else if (w.pierce > 0) k *= 1 + .2 * w.pierce;
+        if (w.boomer) k *= 1.6; if (w.hom > 0) k *= 1.15; if (w.chill > 0 || w.honey > 0 || w.stun > 0) k *= 1.15;
+        if (w.zone != null) k *= 1.25; if (w.burnT > 0) k *= 1.15; if (w.split > 0) k *= 1.3; if (w.heal > 0) k *= 1.25; if (w.reflect) k *= 1.15; if (w.knock >= 3) k *= 1.1;
+        if (w.wave > 0) dps += w.wave / w.rate;
+        return dps * k;
+    }
+    /// <summary>Цена ствола: основа по редкости плюс сила (корень, чтобы мощные не улетали в небо), с наценкой за уровень.</summary>
+    public static int Price(Weap w, int lv = 1)
+    {
+        double b = w.skr switch { "common" => 4, "rare" => 14, "epic" => 28, _ => 46 };
+        return Cost(b + Math.Sqrt(Power(w)) * 2.6, lv);
+    }
     static readonly HashSet<string> STAFFS = new() { "sfire", "sice", "sheal", "spoison", "sbolt", "sroot", "swind", "sstar" };
     /// <summary>Раздел справочника: melee — ближний бой, staff — посохи, gun — остальное.</summary>
     public static string Group(Weap w) => w.special == "melee" ? "melee" : STAFFS.Contains(w.id) ? "staff" : "gun";
@@ -70,7 +93,7 @@ public static class SKP
         new(){id="rate",nameRu="Быстрые лапки",descRu="+12% темпа стрельбы",icon="rate"},
         new(){id="spd",nameRu="Лёгкий пух",descRu="+10% скорости бега",icon="boot"},
         new(){id="stam",nameRu="Выносливость",descRu="+30 к максимуму стамины",icon="stam"},
-        new(){id="sregen",nameRu="Бодрость",descRu="Стамина восстанавливается вдвое быстрее",icon="stam"},
+        new(){id="sregen",nameRu="Бодрость",descRu="Кристаллы и зелья стамины дают вдвое больше",icon="stam"},
         new(){id="thrift",nameRu="Экономия",descRu="Оружие тратит на 25% меньше стамины",icon="stam"},
         new(){id="armor",nameRu="Скорлупа",descRu="−12% входящего урона",icon="shield"},
         new(){id="vamp",nameRu="Аппетит",descRu="Каждое убийство лечит 2 здоровья",icon="heart"},
