@@ -90,7 +90,7 @@ public static class D
         new Hero{id="hen",cls="assault",hat="bandana",nameRu="Пеструшка",rar="common",chance=null,sp="hen",hp=100,spd=205,r=15,dmg=1,rate=1,armor=0,regen=0,nade=1,body="#fbfbf4",wing="#e6e3d6",
             perkRu="Сбалансированная, берёт в бой лишнее яйцо",
             ultRu=new[]{"Яичный дождь","Одна зона там, где врагов гуще всего: в неё падают 8 яиц-бомб"},
-            p5Ru=new[]{"Запасливая","Каждая новая волна даёт +1 яйцо-гранату"},
+            p5Ru=new[]{"Запасливая","Каждая новая волна даёт +1 яйцо-гранату, а в Soul Knight — +15 стамины"},
             p10Ru=new[]{"Наседка","Кукуруза лечит вдвое сильнее и падает в полтора раза чаще"}},
         new Hero{id="chick",cls="sniper",hat="propeller",nameRu="Цыпа Шустрик",rar="common",chance=new[]{12.0,30},sp="chick",hp=75,spd=248,r=12,dmg=1,rate=1.25,armor=0,regen=0,nade=0,body="#ffd84a",wing="#f0b628",
             perkRu="Мелкий и быстрый, +25% темпа стрельбы",

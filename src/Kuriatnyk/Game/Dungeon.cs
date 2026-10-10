@@ -319,6 +319,11 @@ public static partial class G
     static void spawnRoomWave(Room R)
     {
         R.wave++; R.waveT = .9; int lv = S.skLv; var mix = skMix(lv);
+        if (P.hid == "hen" && hasP(5) && P.alive)
+        { // «Запасливая» в подземелье: гранат нет, поэтому каждая волна даёт стамину
+            double h = Math.Min(15, P.stamMax - P.stam); P.stam += h;
+            if (h > 0) ftext(P.x, P.y - 50, "+" + Math.Round(h) + T(" стамины"), "#7fd4ff", 14);
+        }
         int n = 3 + Math.Min(lv, 7) + (rnd() < .5 ? 1 : 0) + (R.wave == R.waves ? 1 : 0);
         for (int i = 0; i < n; i++)
         {
