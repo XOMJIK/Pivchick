@@ -126,5 +126,7 @@ public static class Music
 public static class Platform
 {
     public static Action<int> Vibrate;
+    /// <summary>Закрыть игру (окно на ПК, активити на Android). null — выходить некуда (Snap), кнопки выхода нет.</summary>
+    public static Action Quit;
     public static void Buzz(int ms) { try { Vibrate?.Invoke(ms); } catch { } }
 }

@@ -130,6 +130,42 @@ public static partial class G
         c.fillStyle = w; c.lineWidth = 2.2; c.beginPath(); c.moveTo(-3, -7); c.lineTo(-16, -7 + 14 * flap * .8); c.lineTo(5, -4); c.closePath(); c.fill(); c.stroke();
         c.restore();
     }
+    /// <summary>Стриж-камикадзе: тёмная стремительная птица с красной повязкой и бомбой под брюхом, смотрит туда, куда летит.</summary>
+    static void drawKamiBird(Ctx c, Enemy e)
+    {
+        double s = Sz(e), flap = Math.Sin(e.phase * 1.2), fz = 30 + Math.Sin(e.phase * .3) * 3; bool fl = e.flash > 0;
+        c.save(); c.translate(e.x, e.y); c.fillStyle = "rgba(25,50,10,.22)"; c.beginPath(); c.ellipse(0, 1, 10 * s, 3.5 * s, 0, 0, TAU); c.fill();
+        c.scale(s, s); c.translate(0, -fz); c.rotate(e.ang); if (Math.Cos(e.ang) < 0) c.scale(1, -1);
+        c.lineJoin = "round"; c.strokeStyle = INK; c.lineWidth = 2;
+        string body = fl ? "#fff" : "#2c3548", wing = fl ? "#fff" : "#1f2636";
+        c.fillStyle = wing; c.beginPath(); c.moveTo(1, -2); c.quadraticCurveTo(-7, -10 - 7 * flap, -21, -13 - 9 * flap); c.quadraticCurveTo(-10, -4, -4, -1); c.closePath(); c.fill(); c.stroke(); // дальнее крыло
+        c.fillStyle = body; c.beginPath(); c.moveTo(-9, -1); c.lineTo(-21, -6); c.lineTo(-15, 0); c.lineTo(-21, 5); c.closePath(); c.fill(); c.stroke(); // хвост вилкой
+        c.beginPath(); c.ellipse(0, 0, 12, 5.5, 0, 0, TAU); c.fill(); c.stroke();
+        c.fillStyle = fl ? "#fff" : "#f4efe6"; c.beginPath(); c.ellipse(6, 2, 4.5, 2.6, .2, 0, TAU); c.fill();
+        circ(c, 10, -2, 4.6, body);
+        c.fillStyle = "#f2b42c"; c.beginPath(); c.moveTo(14, -3.2); c.lineTo(19.5, -1.6); c.lineTo(14, 0); c.closePath(); c.fill(); c.stroke();
+        c.fillStyle = "#e8322a"; c.beginPath(); c.moveTo(6.5, -6.2); c.lineTo(13.5, -5.6); c.lineTo(13.2, -3.4); c.lineTo(6.2, -4); c.closePath(); c.fill(); // повязка
+        c.beginPath(); c.moveTo(6.6, -5.6); c.lineTo(0, -9 + flap * 2); c.lineTo(1.5, -5.6 + flap * 1.5); c.closePath(); c.fill();
+        circ(c, 11.6, -2.2, 1.7, "#fff", false); circ(c, 12.2, -2.2, .9, INK, false); c.lineWidth = 1.4; seg(c, 9.6, -4.6, 13.6, -3.3); c.lineWidth = 2;
+        c.fillStyle = "#2b2b33"; c.beginPath(); c.arc(-1, 6.8, 4.4, 0, TAU); c.fill(); c.stroke(); // бомба
+        c.strokeStyle = "#c9973f"; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-3.5, 3.5); c.quadraticCurveTo(-6.5, .5, -8.5, 1.5); c.stroke();
+        c.fillStyle = Odd(S.t * (e.kamiT < 1.2 ? 16 : 8)) ? "#ffd23a" : "#ff7a1a"; c.beginPath(); c.arc(-8.5, 1.5, 1.8 + rnd(), 0, TAU); c.fill();
+        c.strokeStyle = INK; c.lineWidth = 2; c.fillStyle = wing; c.beginPath(); c.moveTo(2, 1); c.quadraticCurveTo(-6, 9 + 7 * flap, -21, 12 + 9 * flap); c.quadraticCurveTo(-8, 3, -3, 2.5); c.closePath(); c.fill(); c.stroke(); // ближнее крыло
+        c.restore();
+    }
+    /// <summary>Цвет баффа моба: сила — красный, скорость — зелёный, скорострельность — жёлтый.</summary>
+    public static string buffCol(string b) => b switch { "str" => "#ff4a3a", "spd" => "#4fdc5a", _ => "#ffc93a" };
+    /// <summary>Значок баффа в кружке: гантель (сила), двойная стрелка (скорость), молния (скорострельность).</summary>
+    public static void drawBuffIcon(Ctx c, string b, double x, double y, double r = 8)
+    {
+        c.save(); c.translate(x, y); double k = r / 8;
+        c.fillStyle = buffCol(b); c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, r, 0, TAU); c.fill(); c.stroke();
+        c.scale(k, k); c.lineJoin = "round"; c.lineCap = "round";
+        if (b == "str") { c.lineWidth = 2; seg(c, -4, 0, 4, 0); c.fillStyle = INK; c.fillRect(-5.5, -3.5, 2.4, 7); c.fillRect(3.1, -3.5, 2.4, 7); }
+        else if (b == "spd") { c.lineWidth = 2; c.beginPath(); c.moveTo(-4.5, -3.5); c.lineTo(-1, 0); c.lineTo(-4.5, 3.5); c.moveTo(.5, -3.5); c.lineTo(4, 0); c.lineTo(.5, 3.5); c.stroke(); }
+        else { c.fillStyle = INK; c.beginPath(); c.moveTo(1.5, -5); c.lineTo(-3, .8); c.lineTo(0, .8); c.lineTo(-1.5, 5); c.lineTo(3, -.8); c.lineTo(0, -.8); c.closePath(); c.fill(); }
+        c.restore();
+    }
     static void drawOwl(Ctx c, Enemy e)
     {
         double s = Sz(e); c.save(); c.translate(e.x, e.y); c.scale(s, s); shadow(c, 13, 5); c.scale(e.face, 1); c.lineJoin = "round"; c.strokeStyle = INK; c.lineWidth = 2.4;
@@ -382,7 +418,7 @@ public static partial class G
     }
     static void drawEnemy(Ctx c, Enemy e)
     {
-        var Tt = e.T; double s = Sz(e);
+        var Tt = e.T; double s = Sz(e); var t0 = e.type;
         if (e.st == "tell")
         {
             double len = (Tt.dash > 0 ? Tt.dash : 520) * (e.dashLen > 0 ? e.dashLen : .5);
@@ -390,11 +426,19 @@ public static partial class G
         }
         if (e.kami)
         {   // камикадзе светится красным: пульсирующий ореол под ним и красный круг на земле — его видно издалека
-            double pl = .5 + .5 * Math.Sin(S.t * (e.kamiT < 1.2 ? 26 : 14));
-            var g = c.createRadialGradient(e.x, e.y - 18 * s, 0, e.x, e.y - 18 * s, e.r * 3.2);
+            double pl = .5 + .5 * Math.Sin(S.t * (e.kamiT < 1.2 ? 26 : 14)), ky = (t0 == "kamibird" ? 31 : 18) * s, kr = e.r * (t0 == "kamibird" ? 2.4 : 3.2); // стриж летит выше
+            var g = c.createRadialGradient(e.x, e.y - ky, 0, e.x, e.y - ky, kr);
             g.addColorStop(0, "rgba(255,40,20," + Inv(.55 + pl * .3) + ")"); g.addColorStop(.55, "rgba(255,40,20," + Inv(.25 + pl * .15) + ")"); g.addColorStop(1, "rgba(255,40,20,0)");
-            c.save(); c.fillStyle = g; c.beginPath(); c.arc(e.x, e.y - 18 * s, e.r * 3.2, 0, TAU); c.fill();
+            c.save(); c.fillStyle = g; c.beginPath(); c.arc(e.x, e.y - ky, kr, 0, TAU); c.fill();
             c.strokeStyle = "rgba(255,59,31," + Inv(.6 + pl * .4) + ")"; c.lineWidth = 3; c.beginPath(); c.ellipse(e.x, e.y, e.r * 1.6, e.r * .65, 0, 0, TAU); c.stroke(); c.restore();
+        }
+        if (e.buff != null)
+        {   // моб под баффом: цветная пульсирующая аура на земле и отсветы вокруг
+            double pl = .5 + .5 * Math.Sin(S.t * 6 + e.phase); var bc = buffCol(e.buff);
+            c.save(); c.globalAlpha = .28 + pl * .2; c.fillStyle = bc; c.beginPath(); c.ellipse(e.x, e.y, e.r * 1.75, e.r * .75, 0, 0, TAU); c.fill();
+            c.globalAlpha = .7 + pl * .3; c.strokeStyle = bc; c.lineWidth = 2.5; c.beginPath(); c.ellipse(e.x, e.y, e.r * (1.5 + pl * .3), e.r * (.62 + pl * .12), 0, 0, TAU); c.stroke();
+            for (int i = 0; i < 3; i++) { double a = S.t * 2.4 + i * TAU / 3, q = (S.t * .9 + i / 3.0) % 1; c.globalAlpha = .8 * (1 - q); c.fillStyle = bc; c.beginPath(); c.arc(e.x + Math.Cos(a) * e.r * 1.3, e.y - q * 34 * s, 2.4, 0, TAU); c.fill(); }
+            c.restore();
         }
         var t = e.type; bool hopW = e.hop && inWater(e.x, e.y); // курица над водой: подлетает, машет крыльями, по воде круги
         if (hopW)
@@ -412,6 +456,7 @@ public static partial class G
         else if (t is "ferret" or "drferret") drawFerret(c, e);
         else if (t == "badger") drawBadger(c, e);
         else if (t == "mole") drawMole(c, e);
+        else if (t == "kamibird") drawKamiBird(c, e);
         else if (t == "robohen") drawBird(c, EnemyBird(e, "zapper", true));
         else drawBird(c, EnemyBird(e, "eggun", false));
         if (hopW)
@@ -435,7 +480,8 @@ public static partial class G
             c.globalAlpha = .9; c.strokeStyle = "#ff8fc8"; c.lineWidth = 2; c.stroke(); c.fillStyle = "#fff"; c.beginPath(); c.ellipse(e.x - R * .4, cy - R * .45, R * .22, R * .12, -.6, 0, TAU); c.fill(); c.restore();
         }
         if (e.stun > 0) drawStars(c, e.x, e.y + top + 4);
-        if (e.kami)
+        if (e.buff != null) drawBuffIcon(c, e.buff, e.x + e.r + 6, e.y + top + 10, 7.5);
+        if (e.kami && t != "kamibird") // у стрижа бомба нарисована на нём самом
         {
             bool bl = Odd(S.t * (e.kamiT < 1.2 ? 16 : 8)); c.save(); c.globalAlpha = bl ? .55 : .35; c.fillStyle = "#ff3b1f"; c.beginPath(); c.ellipse(e.x, e.y - 18 * s, e.r * 1.4, e.r * 1.3, 0, 0, TAU); c.fill(); c.restore();
             double bx = e.x, by = e.y + top - 6; c.fillStyle = "#2b2b33"; c.strokeStyle = INK; c.lineWidth = 1.8; c.beginPath(); c.arc(bx, by, 6, 0, TAU); c.fill(); c.stroke();

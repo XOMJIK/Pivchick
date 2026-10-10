@@ -25,11 +25,11 @@ public static partial class G
         var b = new Bullet { x = x, y = y, vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp, r = r, dmg = dmg, fromP = true, life = life, max = life, kind = kind, pierce = pierce, hits = pierce > 0 ? new() : null, bounce = bounce, shape = shape };
         bullets.Add(b); return b;
     }
-    /// <summary>Сколько стамины стоит выстрел. Стволы сюжета — по редкости (в секунду стрельбы), Soul Knight — своё число,
-    /// временные стволы с патронами — бесплатно.</summary>
+    /// <summary>Сколько стамины стоит выстрел. Стамина есть только в Soul Knight: у каждого ствола своё число.</summary>
     public static double shotCost(Weap W, double rate)
     {
-        double c = W.skr != null ? W.stam : W.rar != null ? (W.rar == "legendary" ? 7 : W.rar == "rare" ? 5 : 2.5) * rate : 0;
+        if (S.kind != "sk" || W.skr == null) return 0; // стамина есть только в Soul Knight
+        double c = W.stam;
         return c * (P?.stamMul ?? 1);
     }
     static void noStamina(string msg)
@@ -43,11 +43,7 @@ public static partial class G
         double rate = W.rate; if (W.special == "mini" || W.spinUp) { P.spin = Math.Min(1, P.spin + .09); rate = .22 - (.22 - W.rate) * P.spin; }
         P.cd = rate / rm;
         double cost = shotCost(W, rate);
-        if (cost > 0 && P.stam < cost)
-        {
-            if (S.kind == "sk") { noStamina(T("Нет стамины — смени оружие")); P.cd = .25; return; } // в подземелье — только оружием без стамины
-            P.cd *= 2; noStamina(T("Устал!")); // в сюжете и бесконечном бое — стреляет вдвое реже, пока стамина не накопится
-        }
+        if (cost > 0 && P.stam < cost) { noStamina(T("Нет стамины — смени оружие")); P.cd = .25; return; } // без стамины стреляет только оружие, которое её не тратит
         if (W.coin) { if (S.piv < 1) { noStamina(T("Нет пивчиков")); P.cd = .3; return; } S.piv--; }
         P.stam = Math.Max(0, P.stam - cost); if (cost > 0) P.stamT = 0;
         double ang = input.mouse ? P.ang : aimAssist(P.ang); P.ang = ang;
@@ -103,7 +99,7 @@ public static partial class G
         for (int i = 0; i < enemies.Count; i++)
         {
             var e = enemies[i]; if (e.dead) continue; var t = clamp((e.x - x0) * ca + (e.y - y0) * sa, 0, Lb); double px = x0 + ca * t - e.x, py = y0 + sa * t - e.y;
-            if (px * px + py * py < (e.r + 9) * (e.r + 9)) { hitEnemy(e, dmg, ca, sa, fromP, 2 * width, width < 1); puff(e.x, e.y, col ?? "#bff4ff", width < 1 ? 1 : 4, .8); if (owner != null) owner.ult = Math.Min(100, owner.ult + dmg * .08); }
+            if (px * px + py * py < (e.r + 9) * (e.r + 9)) { hitEnemy(e, dmg, ca, sa, fromP, 2 * width, width < 1, owner); puff(e.x, e.y, col ?? "#bff4ff", width < 1 ? 1 : 4, .8); if (owner != null) owner.ult = Math.Min(100, owner.ult + dmg * .08); }
         }
         parts.Add(new Part { k = "beam", x = x0, y = y0, x2 = x1, y2 = y1, t = 0, max = width < 1 ? .1 : .3, col = col, s = width });
         for (int i = 0; i < puffs; i++) { var t = rand(0, Lb); parts.Add(new Part { k = "puff", x = x0 + ca * t, y = y0 + sa * t, z = 19, vx = rand(-20, 20), vy = rand(-20, 20), vz = rand(-10, 20), t = 0, max = rand(.25, .5), r = rand(2, 4), col = col ?? "#bff4ff" }); }
@@ -115,12 +111,13 @@ public static partial class G
         bullets.Add(new Bullet { x = x, y = y, vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp, r = kind == "fire" ? 6 : kind == "rock" ? 7 : kind == "pellet" ? 3.5 : 5, dmg = dmg, fromP = false, life = 2.4, kind = kind });
     }
     static double eDmg(double v) => v * (1.3 + (S.diff - 1) * .07); // урон врагов: база ×1.3 и +7% за ступень сложности
+    static double eDmgE(Enemy e, double v) => eDmg(v) * (e?.buff == "str" ? 1.5 : 1); // враг под баффом силы бьёт в полтора раза больнее
     static void enemyShoot(Enemy e, ET Tt, int spreadN, double gap = .22, string kind = null)
     {
         var tg = curTg ?? P; double lead = hypot(tg.x - e.x, tg.y - e.y) / Tt.bspd * rand(.3, .9);
         double vx = tg == P ? P.svx : tg.vx, vy = tg == P ? P.svy : tg.vy, tx = tg.x + vx * lead, ty = tg.y + vy * lead;
         var bas = Math.Atan2(ty - e.y, tx - e.x) + rand(-.07, .07);
-        for (int i = 0; i < spreadN; i++) { var a = bas + (i - (spreadN - 1) / 2.0) * gap; eBullet(e.x + Math.Cos(a) * 20, e.y + Math.Sin(a) * 20, a, Tt.bspd, eDmg(Tt.dmg), kind ?? Tt.bul ?? "egg"); }
+        for (int i = 0; i < spreadN; i++) { var a = bas + (i - (spreadN - 1) / 2.0) * gap; eBullet(e.x + Math.Cos(a) * 20, e.y + Math.Sin(a) * 20, a, Tt.bspd, eDmgE(e, Tt.dmg), kind ?? Tt.bul ?? "egg"); }
         e.ang = bas; Sfx.egg();
         parts.Add(new Part { k = "flash", x = e.x + Math.Cos(bas) * 26, y = e.y + Math.Sin(bas) * 26, z = 19, t = 0, max = .05, a = bas, s = .8 });
     }

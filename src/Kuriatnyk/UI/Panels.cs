@@ -200,7 +200,6 @@ public sealed class WeaponsPanel : BoardPanel
         if (tab == "sk") { SkCatalog(); return; }
         var myC = clsOf(SAVE.hero);
         body.Children.Add(Note(T("У каждого класса своё оружие: герой берёт в бой только стволы своего класса. Сейчас в бою ") + HEROES[SAVE.hero].name + T(" — класс «") + CLASSES[myC].name + T("». Патроны у основного ствола бесконечные.")));
-        body.Children.Add(Note(T("Выстрелы тратят стамину (голубая полоска под здоровьем, в бою её 50). Обычные стволы почти не устают, редкие и легендарные — быстрее; без стамины оружие стреляет вдвое реже, пока она не накопится.")));
         var order = new[] { myC }.Concat(CLASS_ORDER.Where(k => k != myC)).ToList();
         for (int oi = 0; oi < order.Count; oi++)
         {
@@ -217,8 +216,7 @@ public sealed class WeaponsPanel : BoardPanel
                     Panels.Pv(Panels.Preview(140, 90, (c, w, h) => { c.translate(w / 2 - 32, h / 2 + 2); c.scale(2.1, 2.1); G.drawGun(c, id); }), "grass", owned ? T("Ур. ") + lv : null, null, null, WR.c),
                     Badges(Rar(C.name, C.c), Rar(WR.name, WR.c)),
                     Panels.H4(W.name), Panels.P(W.desc),
-                    Panels.Meta(W.meta ?? (T("Урон ") + W.dmg + (W.pellets > 1 ? "×" + W.pellets : "") + " · " + (1 / W.rate).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + T(" выстр/с · ≈") + Math.Round(W.dmg * W.pellets / W.rate) + T(" в сек"))),
-                    Panels.Meta(T("Стамина: ") + (W.rar == "legendary" ? 7 : W.rar == "rare" ? 5 : 2.5).ToString("0.#", L.Culture) + T(" в секунду стрельбы"))
+                    Panels.Meta(W.meta ?? (T("Урон ") + W.dmg + (W.pellets > 1 ? "×" + W.pellets : "") + " · " + (1 / W.rate).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + T(" выстр/с · ≈") + Math.Round(W.dmg * W.pellets / W.rate) + T(" в сек")))
                 };
                 if (owned)
                 {
@@ -525,11 +523,11 @@ public sealed class ChestPanel : BoardPanel
         var pv = Panels.Pv(Panels.Preview(220, 150, (c, w, h) => { c.translate(w / 2, h - 12); c.scale(.9, .9); G.drawChest(c, tier, 0, 0); }), new[] { "nest", "gold", "amet" }[tier], null, null, props);
         var eggTxt = C.egg[0] >= 1 ? C.egg[1] + "–" + C.egg[2] + T(" золотых яиц") : T("шанс золотых яиц");
         var top = new List<Control> { pv, Panels.H4(C.name),
-            Rich(C.coins[0] + "–" + C.coins[1] + T(" зёрен · ") + C.hpacks + T(" пачки карт героев · ") + C.wpacks + (C.wpacks > 1 ? T(" пачки") : T(" пачка")) + T(" карт оружия · ") + eggTxt + (C.sure ? T(" · <b>гарантированный новый герой</b>, пока есть закрытые") : ""), 12.5, FontWeight.Medium, B("#d92b1d14")) };
+            Rich(C.coins[0] + "–" + C.coins[1] + T(" зёрен · ") + C.hpacks + T(" пачки карт героев · ") + C.wpacks + (C.wpacks > 1 ? T(" пачки") : T(" пачка")) + T(" карт оружия · ") + eggTxt, 12.5, FontWeight.Medium, B("#d92b1d14")) };
         Control bar(long have, long need, string ic, string label, string col) => Col(3, ProgT("<i class=\"" + ic + "\"></i>" + label, L.Fmt(have) + " / " + need), Prog((double)have / need, col));
         if (tier == 0) { top.Add(bar(SAVE.tokens, 100, "tok", T("Жетоны"), "#4cc3ff")); top.Add(Panels.Meta(T("Жетоны дают за врагов, волны и уровни сюжета."))); }
-        else if (tier == 1) { top.Add(bar(SAVE.btokens, 10, "btok", T("Большие жетоны"), "#b06cff")); top.Add(Panels.Meta(T("Большой жетон дают за первое прохождение каждого уровня сюжета и за каждые 10 волн в бесконечном бою."))); }
-        else top.Add(Panels.Meta("<b>" + T("Есть: ") + SAVE.schests + "</b>" + T(" · по одному за каждого финального босса главы (20-й уровень, первое прохождение) и за 25-ю волну в бесконечном бою.")));
+        else if (tier == 1) { top.Add(bar(SAVE.btokens, 10, "btok", T("Большие жетоны"), "#b06cff")); top.Add(Panels.Meta(T("Большой жетон дают за первое прохождение каждого уровня сюжета и за каждые 5 волн в бесконечном бою."))); }
+        else top.Add(Panels.Meta("<b>" + T("Есть: ") + SAVE.schests + "</b>" + T(" · по одному за каждого финального босса главы (20-й уровень, первое прохождение) и за 25-ю и 50-ю волну в бесконечном бою.")));
         // выбор количества
         var seg = new UniformGrid { Columns = 3 };
         foreach (var n in new[] { 1, 3, 10 })
@@ -549,7 +547,7 @@ public sealed class ChestPanel : BoardPanel
         {
             if (!ok)
             {
-                mv.Toast(tier == 0 ? T("Нужно ещё ") + (own.need - own.have) + T(" жетонов") : tier == 1 ? T("Большие жетоны: за первое прохождение уровня сюжета и каждые 10 волн в бесконечном бою") : T("Победи финального босса главы — получишь сверхбольшой сундук"));
+                mv.Toast(tier == 0 ? T("Нужно ещё ") + (own.need - own.have) + T(" жетонов") : tier == 1 ? T("Большие жетоны: за первое прохождение уровня сюжета и каждые 5 волн в бесконечном бою") : T("Победи финального босса главы — получишь сверхбольшой сундук"));
                 return;
             }
             Open(tier, "own", cnt);
@@ -582,6 +580,6 @@ public sealed class ChestPanel : BoardPanel
         var n = Note(T("У каждого сундука свои шансы — нажми «Свойства» на картинке сундука. Герои выпадают только из сундуков. Карты героев падают только для открытых героев, карты оружия — только для купленных стволов тех классов, для которых у тебя есть боец."));
         n.Margin = new Thickness(0, 12, 0, 12); body.Children.Add(n);
         body.Children.Add(Sect(T("Золотые яйца")));
-        body.Children.Add(Note(T("Редкая валюта: у тебя <b>") + SAVE.eggs + T("</b>. Большой сундук стоит ") + EGG_PRICE + T(", сверхбольшой — ") + SUPER_PRICE + T(". Где взять: первое прохождение уровней сюжета (3–15 за уровень), волны 10, 15 и 20 в бесконечном бою (один раз), 5-й и 10-й уровень героя, сундуки. Ещё за яйца продаются Нимб, Платиновый окрас и Рельсотрон.")));
+        body.Children.Add(Note(T("Редкая валюта: у тебя <b>") + SAVE.eggs + T("</b>. Большой сундук стоит ") + EGG_PRICE + T(", сверхбольшой — ") + SUPER_PRICE + T(". Где взять: первое прохождение уровней сюжета (3–15 за уровень), волны 5, 10, 15, 20, 25, 30, 40 и 50 в бесконечном бою (один раз), Soul Knight, 5-й и 10-й уровень героя, сундуки. Ещё за яйца продаются Нимб, Платиновый окрас и Рельсотрон.")));
     }
 }

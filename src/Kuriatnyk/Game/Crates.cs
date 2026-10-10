@@ -43,9 +43,8 @@ public static partial class G
             return;
         }
         double q = rnd();
-        if (q < .25) pickups.Add(new Pickup { x = o.x, y = o.y, kind = "corn", t = 14, ph = 0 });
-        else if (q < .45) pickups.Add(new Pickup { x = o.x, y = o.y, kind = "nade", t = 14, ph = 0 });
-        else if (q < .7) pickups.Add(new Pickup { x = o.x, y = o.y, kind = "stam", t = 14, ph = 0 });
+        if (q < .32) pickups.Add(new Pickup { x = o.x, y = o.y, kind = "corn", t = 14, ph = 0 });
+        else if (q < .6) pickups.Add(new Pickup { x = o.x, y = o.y, kind = "nade", t = 14, ph = 0 });
         else { int c = 3 + (int)(rnd() * 4); S.coins += c; ftext(o.x, o.y - 40, "+" + c + T(" зёрен"), "#ffc93a", 13); Sfx.coin(); }
     }
     /// <summary>Ящики в секторе удара ближним оружием или в радиусе взрыва.</summary>

@@ -17,6 +17,7 @@ public class Fighter : Unit
 {
     public string cls, buff; public Look look;
     public double spd, armor, regen, dmgMul, rateMul, buffT, fireT, ult, cd, ang, phase, flash, lastHit = -9, kitT = 8;
+    public double crit; // шанс критического удара ×2: у всех 5%, у снайперов 12%, в Soul Knight растёт от пассивки
     public double _px = double.NaN, _py = double.NaN;
     public int face = 1, catN, gN, aN; public bool moving, hop;
 }
@@ -31,7 +32,7 @@ public sealed class Player : Fighter
     public double stam, stamMax, stamRegen, stamMul = 1, noStamT, stamT; // stamT — сколько секунд стамину не тратили
     // Soul Knight: оружие в рюкзаке (до bagMax) и бонусы пассивок забега
     public List<string> bag; public int slot, bagMax = 2;
-    public double crit, vamp, meleeMul = 1, pivMul = 1; public int luck; public bool magnetFar;
+    public double vamp, meleeMul = 1, pivMul = 1; public int luck; public bool magnetFar;
 }
 
 public sealed class Ally : Fighter
@@ -46,7 +47,8 @@ public sealed class Enemy : Unit
         atkT = 2.5, spin, spinA, burstT, emerge, kamiT, iceT, frozen, tgT, navT, s, honey, bubble;
     public double? navBest;
     public int face = 1, pat = -1, burst, dashes, iceN, navAlt;
-    public bool moving, dead, hop, kami, kamiRolled, endless, hitThis;
+    public bool moving, dead, hop, kami, endless, hitThis;
+    public string buff; // бафф моба: str — сила, spd — скорость, rate — скорострельность
     public Unit tgt; public Room room; // комната подземелья, из которой враг не выходит
     public double _px = double.NaN, _py = double.NaN;
 }
@@ -80,7 +82,8 @@ public sealed class GState
     public double t; public long score; public int wave, toSpawn; public double spawnT, between; public bool running;
     public int kills, goalKills; public double survT; public Enemy boss; public double shake; public int combo;
     public double comboT, deadT, winT; public long coins, tokens; public bool banked = true;
-    public double holeT, bossT, kamiNext; public bool cleanup;
+    public double holeT, bossT; public bool cleanup;
+    public bool goalDone; // сюжет: цель выполнена раньше трёх минут — держимся до конца уровня
     public int skLv; public string skHero; // Soul Knight: уровень 0-N (0 — лагерь) и выбранный герой
     public long piv; public List<string> skPass = new(); // пивчики забега и взятые пассивки
 }
@@ -149,7 +152,7 @@ public static partial class G
             {
                 id = id, cls = C, lv = Lv, x = P.x + Math.Cos(a) * 60, y = P.y + Math.Sin(a) * 60, r = H.r, hp = max, max = max, spd = spd, armor = armor,
                 regen = H.regen + (C == "medic" ? 2 : 0), dmgMul = H.dmg * (1 + .05 * (Lv - 1)) * (C == "sniper" ? 1.2 : 1), rateMul = H.rate * (C == "assault" ? 1.1 : 1),
-                look = lookFor(id), gun = gunForAlly(id), hop = id == "duck", kitT = 8, cd = rand(0, .4), ult = rand(10, 40), phase = rand(0, 6), lastHit = -9
+                look = lookFor(id), gun = gunForAlly(id), hop = id == "duck", kitT = 8, cd = rand(0, .4), ult = rand(10, 40), phase = rand(0, 6), lastHit = -9, crit = critOf(C)
             };
             al.range = allyRange(al); return al;
         }).ToList();
@@ -162,7 +165,9 @@ public static partial class G
     }
 
     /// <summary>Характеристики героя на уровне Lv (класс, прокачка и пассивки, которые меняют числа).</summary>
-    public sealed class HStats { public double hp, dmg, rate, spd, armor, regen, range; }
+    public sealed class HStats { public double hp, dmg, rate, spd, armor, regen, range, crit; }
+    /// <summary>Шанс крита ×2: 5% у всех, 12% у снайперов.</summary>
+    public static double critOf(string cls) => cls == "sniper" ? .12 : .05;
     public static HStats heroStats(string id, int Lv)
     {
         var H = HEROES[id]; var C = H.cls;
@@ -174,7 +179,7 @@ public static partial class G
             spd = H.spd * (C == "assault" ? 1.1 : C == "tank" ? .92 : 1),
             armor = H.armor + (id == "duck" && Lv >= 5 ? .1 : 0) + (id == "goose" && Lv >= 10 ? .15 : 0) + (C == "tank" ? .1 : 0),
             regen = H.regen + (C == "medic" ? 1.2 : 0),
-            range = C == "sniper" ? 1.35 : 1,
+            range = C == "sniper" ? 1.35 : 1, crit = critOf(C),
         };
     }
     // в подземелье стамина восстанавливается медленно и только когда 1,5 с не стреляешь — основное пополнение из кристаллов
@@ -189,7 +194,7 @@ public static partial class G
         {
             hid = id, cls = C, hlv = Lv, x = WW / 2, y = WH / 2 + 40, r = H.r, hp = st.hp, max = st.hp,
             spd = st.spd, dmgMul = st.dmg, rateMul = st.rate, armor = st.armor, regen = H.regen, medMul = medMul,
-            medic = C == "medic", rangeMul = st.range,
+            medic = C == "medic", rangeMul = st.range, crit = st.crit,
             nades = Math.Min(6, 2 + H.nade), hop = id == "duck", kitT = 8, prim = gun, w = gun, ammo = double.PositiveInfinity, magnet = 20,
             ult = 0, ultRate = (id == "chick" && Lv >= 10) ? 1.4 : 1, revive = id == "duck" && Lv >= 10,
             look = lookFor(id), lastHit = -9, face = 1, alive = true,

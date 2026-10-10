@@ -29,6 +29,21 @@ void Shot(string name)
 }
 void Run(double sec) { for (double t = 0; t < sec; t += 1 / 60.0) { G.TickTimers(1 / 60.0); G.update(1 / 60.0); } }
 
+// все ли буквы всех языков есть в шрифтах игры
+if (args.Length > 1 && args[1] == "glyphs")
+{
+    var dir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "Kuriatnyk", "Assets");
+    var chars = new System.Collections.Generic.SortedSet<char>();
+    foreach (var f in Directory.GetFiles(Path.Combine(dir, "Lang"), "*.json"))
+        foreach (var ch in File.ReadAllText(f)) if (ch > 127) chars.Add(ch);
+    foreach (var font in Directory.GetFiles(Path.Combine(dir, "Fonts"), "*.ttf"))
+    {
+        using var tf = SKTypeface.FromFile(font); using var fnt = new SKFont(tf);
+        var miss = chars.Where(ch => fnt.GetGlyph(ch) == 0).ToList();
+        Console.WriteLine($"{Path.GetFileName(font)}: {chars.Count} chars, missing {miss.Count}: {string.Join(" ", miss.Select(ch => ch + "(U+" + ((int)ch).ToString("X4") + ")"))}");
+    }
+    return;
+}
 G.MenuAnchor = (W * .32, H * .62);
 G.toMenu(); Run(1); Shot("01-menu");
 
@@ -37,12 +52,27 @@ Run(12); Shot("03-endless-16s");
 G.input.keys.Add("KeyD"); Run(1.5); G.input.keys.Clear(); Shot("04-endless-moved");
 Run(30); Shot("05-endless-46s");
 
-G.startGame("story", 9); Run(6); Shot("06-boss-gturkey");
+G.startGame("story", 9); Run(6); Shot("06a-boss-level-start"); Run(72); Shot("06-boss-gturkey");
 G.P.ult = 100; G.useUlt(); Run(.5); Shot("07-ult");
 G.startGame("story", 6); Run(5); Shot("08-night");
 G.startGame("story", 40); Run(5); Shot("09-factory");
 G.startGame("story", 79); Run(7); Shot("10-emperor");
 
+// враги под баффами и стрижи-камикадзе рядом с героем
+G.startGame("endless"); Run(2);
+foreach (var (b, i) in new[] { "str", "spd", "rate" }.Select((b, i) => (b, i))) { var e = G.makeEnemy(new[] { "fox", "turkey", "hen" }[i], G.P.x - 160 + i * 160, G.P.y - 120); e.buff = b; }
+for (int i = 0; i < 2; i++) G.makeEnemy("kamibird", G.P.x - 260 + i * 520, G.P.y + 60);
+Run(.4); Shot("13-buffs-kamibird"); Run(1.2); Shot("14-kamibird-close");
+// сюжет: уровень не короче трёх минут (герой бессмертен и стреляет сам)
+if (args.Length > 1 && args[1] == "story")
+{
+    foreach (var idx in new[] { 0, 1, 2, 8, 9, 20, 39, 61, 79 })
+    {
+        G.startGame("story", idx); double t = 0; bool done = false;
+        while (t < 600 && G.S.mode is "play" or "won") { G.P.inv = 99; G.P.hp = G.P.max; G.TickTimers(1 / 60.0); G.update(1 / 60.0); t += 1 / 60.0; if (!done && G.S.goalDone) { done = true; Console.WriteLine($"  goal done at {t:0}s"); } }
+        Console.WriteLine($"story {idx} '{D.STORY[idx].nameRu}' goal={D.STORY[idx].goal.type}: mode={G.S.mode} t={G.S.t:0}s kills={G.S.kills} wave={G.S.wave}");
+    }
+}
 // листы со спрайтами: все птицы, все стволы, сундуки
 {
     var info = new SKImageInfo(1200, 700);
@@ -83,7 +113,7 @@ G.startGame("story", 79); Run(7); Shot("10-emperor");
     using var img = surf.Snapshot(); using var png = img.Encode(SKEncodedImageFormat.Png, 90);
     File.WriteAllBytes(Path.Combine(outDir, "12-sk-guns.png"), png.ToArray());
 }
-// Soul Knight: лагерь → портал → все комнаты 0-1 … 0-5 (герой бессмертен, идёт сам по коридорам)
+// Soul Knight: лагерь → портал → все комнаты 0-1 … 1-5 (герой бессмертен, идёт сам по коридорам)
 if (args.Length > 1 && args[1] == "sk")
 {
     double simT = 0;
@@ -104,11 +134,11 @@ if (args.Length > 1 && args[1] == "sk")
     // на каждом уровне — пара стволов из списка, чтобы прогнать их механику в бою
     string[] testGuns = { "plunger", "gauss", "grinder", "sbolt", "swind", "pumpkin", "rocket", "boomer", "laser", "sice", "spoison", "sroot", "sstar", "bees", "accordion", "cactus", "axe", "sword", "coingun", "bubble" };
     int tg = 0; bool riverShot = false, riverPic = false;
-    for (int lv = 1; lv <= 5 && G.S.mode == "play"; lv++)
+    for (int lv = 1; lv <= G.SK_LEVELS && G.S.mode == "play"; lv++)
     {
         G.P.bag = new() { testGuns[tg++ % testGuns.Length], testGuns[tg++ % testGuns.Length] }; G.P.slot = 0; G.P.w = G.P.prim = G.P.bag[0]; G.S.piv += 150;
         var path = G.DUN.rooms.Where(r => r.type is "start" or "fight" or "end" or "boss").ToList();
-        Console.WriteLine($"level 0-{G.S.skLv}: rooms={G.DUN.rooms.Count} ({string.Join(",", G.DUN.rooms.Select(r => r.type))}) corridors={G.DUN.cors.Count} bag={string.Join(",", G.P.bag)}");
+        Console.WriteLine($"level {G.skLvName(G.S.skLv)}: rooms={G.DUN.rooms.Count} ({string.Join(",", G.DUN.rooms.Select(r => r.type))}) corridors={G.DUN.cors.Count} bag={string.Join(",", G.P.bag)}");
         if (lv == 1) Shot("21-sk-0-1-start");
         Console.WriteLine($"  rivers={G.RIVERS.Count} fish={G.fish.Count} crates={G.OBS.Count(o => o.type == "crate")} world={G.WW}");
         int cur = 0;
@@ -152,7 +182,7 @@ if (args.Length > 1 && args[1] == "sk")
                 if (!R.cleared) foreach (var e in G.enemies) Console.WriteLine($"    stuck: {e.type} at ({e.x:0},{e.y:0}) hp={e.hp:0}/{e.max:0} st={e.st}");
                 if (!R.cleared) { Console.WriteLine($"    P=({G.P.x:0},{G.P.y:0}) R=({R.x:0},{R.y:0},{R.w:0},{R.h:0}) prev=({path[i - 1].x:0},{path[i - 1].y:0}) inWater={G.inWater(G.P.x, G.P.y)}"); foreach (var rv in G.RIVERS) Console.WriteLine($"    river {rv.axis} base={rv.@base:0} lo={rv.lo:0} hi={rv.hi:0} room=({rv.room.x:0},{rv.room.y:0}) bridges={string.Join(",", rv.bridges.Select(b => b.u.ToString("0")))}"); foreach (var o in G.OBS.Where(o => G.hypot(o.x - G.P.x, o.y - G.P.y) < 80)) Console.WriteLine($"    near obs {o.type} ({o.x:0},{o.y:0}) r={o.r}"); Shot("40-stuck"); }
                 Console.WriteLine($"  room {i} {R.type}: cleared={R.cleared} in {simT - t0:0.0}s kills={G.S.kills} piv={G.S.piv} goo={G.goo.Count}");
-                if (i == 1) Shot($"2{lv + 1}-sk-0-{lv}-fight-{G.P.w}");
+                if (i == 1) Shot($"{20 + lv}-sk-{G.skLvName(lv)}-fight-{G.P.w}");
                 if (!riverShot && G.RIVERS.Any(r => r.room == R)) { riverShot = true; Console.WriteLine($"    river room: crates left={G.OBS.Count(o => o.type == "crate")}"); }
             }
         }

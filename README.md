@@ -3,19 +3,20 @@
 A cartoon top-down shooter about chickens defending their coop — for **Windows** and **Android**. Works fully offline: graphics, sound, fonts and saves are all built into the app.
 
 ## Game modes
-- **Story** — 4 chapters × 20 levels, 8 bosses, night levels; goals get harder from the first chapter to the last
-- **Endless battle** — waves that keep growing, a boss every 5 waves
-- **Soul Knight mode** — pick a hero, step through the portal in the camp and fight through dungeon levels 0-1 … 0-5: rooms lock until every wave is cleared, an optional boss waits on 0-4 and the final boss on 0-5. The mode has its own 35 weapons (melee, guns and 8 staffs — from a plunger that shoots poop to a gauss gun and a meat grinder); you carry 2 of them, more drop from a chest room and are sold by a merchant on every level for pivchiki, the run's coins. Between levels the portal offers a choice of three passives (the +1 weapon slot one appears only once)
+- **Story** — 4 chapters × 20 levels, 8 bosses, night levels; goals get harder from the first chapter to the last. Every level lasts at least 3 minutes: finish the goal early and you hold out until the end; on boss levels the boss shows up at 1:15
+- **Endless battle** — waves that keep growing, a boss every 5 waves; grain and tokens for every wave, a big token every 5 waves, golden eggs for waves 5–50, Mega chests for waves 25 and 50 and a bonus for the wave you reach
+- **Soul Knight mode** — pick a hero, step through the portal in the camp and fight through two worlds: the forest dungeon 0-1 … 0-5 and the factory catacombs 1-1 … 1-5. Rooms lock until every wave is cleared, an optional boss waits on 0-4 and 1-4, a boss guards the portal on 0-5 and 1-5. The mode has its own 35 weapons (melee, guns and 8 staffs — from a plunger that shoots poop to a gauss gun and a meat grinder); you carry 2 of them, more drop from a chest room and are sold by a merchant on every level for pivchiki, the run's coins. Between levels the portal offers a choice of three passives (the +1 weapon slot one appears only once)
 - **Multiplayer** — coming soon
 
 ## Features
 - 9 heroes in 4 classes (Assault, Tank, Sniper, Medic), each with an ultimate and two passives
-- 17 story guns of three rarities, squad of up to 3 fighters; stamina (50 in story and endless, 100 in Soul Knight) is spent on shots
+- 17 story guns of three rarities, squad of up to 3 fighters; a ×2 crit chance for everyone (5%, snipers 12%); stamina (100) is spent on shots only in Soul Knight
 - Chests, hero and weapon cards, upgrades up to level 10; a hero's stats, upgrade table and abilities open from the "Details" button
 - Separate Weapons section (story guns plus a guide to the Soul Knight arsenal), shop with two random card packs a day
 - Windowed, borderless and fullscreen modes (F11 toggles fullscreen), rebindable keys
-- Piranhas in every river leap at anyone by the water or on a bridge; breakable crates with loot in every mode
-- Russian and English, switchable on the fly
+- Buffed enemies with a colored aura: strength, speed or fire rate; the Kamikaze Swift — a fast bird with a bomb that you dodge or shoot down
+- Piranhas in the rivers leap at the hero and the squad by the water or on a bridge; breakable crates with loot in every mode
+- 8 languages switchable on the fly: Russian, Ukrainian, English, Spanish, German, French, Portuguese and Polish
 - Scales to any screen: phones, tablets and large monitors
 
 ## Tech
@@ -34,11 +35,11 @@ src/Kuriatnyk/            shared code
   Render/                 rendering: Ctx.cs (canvas-style API over Skia), Draw.*.cs, Hud.cs
   Audio/                  synthesizer, sound effects and music
   UI/                     Avalonia UI: lobby, boards, overlays, game view
-  Assets/                 fonts, English dictionary (en.json), icon
+  Assets/                 fonts, dictionaries (Lang/en, uk, es, de, fr, pt, pl .json — keys are the Russian strings), icon
 src/Kuriatnyk.Desktop/    Windows launcher
 src/Kuriatnyk.Android/    Android launcher
 tools/Snap/               headless check: runs the game and saves frames as PNG; also a perf test and icon generator
-tools/export-lang.js      regenerates en.json from web/js/lang.js
+tools/export-lang.js      old exporter of en.json from web/js/lang.js (the dictionaries are now edited directly)
 web/                      browser version of the game
 ```
 
@@ -69,8 +70,8 @@ On the first run the script downloads the Android SDK; the APK goes to `dist/and
 `%LOCALAPPDATA%\BoevoyKuryatnik\save.json` and `settings.json` (on Android — the app's internal folder). The `KUR_DATA_DIR` environment variable overrides the folder, so tests don't touch real progress.
 
 ## Testing
-- `dotnet run --project tools/Snap -- <folder>` — headless battle run, frames saved as PNG; `-- <folder> perf` — performance test; `-- <folder> sk` — full Soul Knight run through levels 0-1 … 0-5.
-- `KUR_AUTOSHOT=<folder>` (optionally `KUR_SIZE=1180x720`) when launching the Windows build — the app walks through all screens, saves screenshots and exits.
+- `dotnet run --project tools/Snap -- <folder>` — headless battle run, frames saved as PNG; `-- <folder> perf` — performance test; `-- <folder> sk` — full Soul Knight run through levels 0-1 … 1-5; `-- <folder> story` — checks that story levels last at least 3 minutes; `-- <folder> glyphs` — checks that the fonts have every letter of every language.
+- `KUR_AUTOSHOT=<folder>` (optionally `KUR_SIZE=1180x720`, `KUR_AUTOSHOT_NOWIN=1` to skip the fullscreen/borderless steps) when launching the Windows build — the app walks through all screens, saves screenshots and exits.
 
 ## Credits
 - nutze (Arthur Dyakonov) — creator, game design, testing

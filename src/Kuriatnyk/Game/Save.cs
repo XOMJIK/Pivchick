@@ -88,7 +88,7 @@ public static class Store
     {
         SET = Read(SetPath, SaveJson.Default.Settings) ?? new Settings { lang = DefaultLang() };
         SET.music = Math.Clamp(SET.music, 0, 1); SET.sfx = Math.Clamp(SET.sfx, 0, 1);
-        if (SET.lang != "ru" && SET.lang != "en") SET.lang = "ru";
+        if (!L.Has(SET.lang)) SET.lang = "ru";
         if (SET.display is not ("windowed" or "borderless" or "fullscreen")) SET.display = "windowed";
         if (SET.lastWin is not ("windowed" or "borderless")) SET.lastWin = "windowed";
         SET.keys ??= new();
@@ -101,7 +101,7 @@ public static class Store
     static string DefaultLang()
     {
         var n = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.ToLowerInvariant();
-        return n is "ru" or "uk" or "be" or "kk" ? "ru" : "en";
+        return L.Has(n) ? n : n is "be" or "kk" ? "ru" : "en";
     }
 
     static T Read<T>(string path, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> ti) where T : class

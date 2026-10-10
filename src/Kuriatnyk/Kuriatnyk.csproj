@@ -13,7 +13,7 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets\Fonts\**" />
     <AvaloniaResource Include="Assets\*.png;Assets\*.ico" />
-    <EmbeddedResource Include="Assets\Lang\en.json" LogicalName="en.json" />
+    <EmbeddedResource Include="Assets\Lang\*.json" LogicalName="%(Filename)%(Extension)" />
     <EmbeddedResource Include="Assets\Fonts\*.ttf" LogicalName="Fonts.%(Filename)%(Extension)" />
   </ItemGroup>
 

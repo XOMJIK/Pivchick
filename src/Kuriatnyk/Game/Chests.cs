@@ -31,7 +31,6 @@ public static class Chests
             var pool = HERO_IDS.Where(id => !SAVE.heroes.ContainsKey(id) && HEROES[id].chance != null && HEROES[id].rar == rk).ToList();
             if (pool.Count > 0 && rnd() * 100 < RAR[rk].chance[tier]) { hero = pool[(int)Math.Floor(rnd() * pool.Count)]; break; }
         }
-        if (hero == null && C.sure) { var pool = HERO_IDS.Where(id => !SAVE.heroes.ContainsKey(id) && HEROES[id].chance != null).ToList(); if (pool.Count > 0) hero = pickW(pool, id => RAR[HEROES[id].rar].w); }
         res.eggs = rnd() < C.egg[0] ? (int)Math.Round(rand(C.egg[1], C.egg[2]), MidpointRounding.AwayFromZero) : 0;
         for (int i = 0; i < C.hpacks; i++)
         {
@@ -86,12 +85,6 @@ public static class Chests
         int Left(string rk) => HERO_IDS.Count(id => !SAVE.heroes.ContainsKey(id) && HEROES[id].chance != null && HEROES[id].rar == rk);
         foreach (var rk in RAR_ORDER) { int left = Left(rk); double p = left > 0 ? RAR[rk].chance[tier] / 100 : 0; o.hero[rk] = (miss * p, left); miss *= 1 - p; }
         bool lockedAny = HERO_IDS.Any(id => !SAVE.heroes.ContainsKey(id) && HEROES[id].chance != null);
-        if (C.sure && lockedAny)
-        {
-            double tot = RAR_ORDER.Sum(rk => Left(rk) * RAR[rk].w);
-            foreach (var rk in RAR_ORDER) { int n = Left(rk); var h = o.hero[rk]; o.hero[rk] = (h.p + miss * n * RAR[rk].w / tot, h.left); }
-            miss = 0;
-        }
         o.anyHero = lockedAny ? 1 - miss : 0;
         Dictionary<string, double> share(List<string> ids, Func<string, double> wf, string[] keys, Func<string, string> key)
         {

@@ -8,10 +8,10 @@ using static Kuriatnyk.Store;
 
 namespace Kuriatnyk;
 
-// Режим Soul Knight: лагерь с порталом, затем подземелье из пяти уровней 0-1 … 0-5.
+// Режим Soul Knight: лагерь с порталом, затем два мира по пять уровней: лесное подземелье 0-1 … 0-5 и заводские катакомбы 1-1 … 1-5.
 // Уровень — комнаты на сетке 3×3, соединённые коридорами. Заходишь в боевую комнату — двери закрываются,
 // пока не победишь все волны. В последней комнате портал на следующий уровень.
-// На 0-4 есть необязательная комната с боссом в стороне от пути, на 0-5 босс стоит перед порталом.
+// На 0-4 и 1-4 есть необязательная комната с боссом в стороне от пути, на 0-5 и 1-5 босс стоит перед порталом.
 
 public sealed class Room
 {
@@ -31,20 +31,29 @@ public sealed class Dungeon
 public static partial class G
 {
     public static Dungeon DUN;
-    public const int SK_LEVELS = 5;
+    public const int SK_LEVELS = 10, SK_WORLD = 5; // всего уровней и уровней в одном мире
     const double WALL = 22, CORR_W = 96, SK_SIZE = 2300; // уровень подземелья — мир 2300×2300, чтобы комнаты были просторными
     const string DUN_VOID = "#1b2018";
 
-    /// <summary>Какие враги живут на уровне 0-lv (чем глубже, тем злее).</summary>
+    /// <summary>Какие враги живут на уровне (чем глубже, тем злее). 1–5 — лес, 6–10 — заводские катакомбы.</summary>
     static Dictionary<string, double> skMix(int lv) => lv switch
     {
         1 => new() { ["hen"] = 1, ["rat"] = .6, ["fox"] = .6 },
         2 => new() { ["hen"] = .8, ["fox"] = .7, ["crow"] = .5, ["raccoon"] = .4, ["rat"] = .4 },
-        3 => new() { ["fox"] = .7, ["turkey"] = .4, ["bigrat"] = .6, ["crow"] = .5, ["raccoon"] = .5 },
-        4 => new() { ["wolf"] = .8, ["owl"] = .5, ["bigrat"] = .5, ["fox"] = .5, ["turkey"] = .3 },
-        _ => new() { ["wolf"] = .7, ["ferret"] = .7, ["robohen"] = .5, ["owl"] = .5, ["raccoon"] = .4 },
+        3 => new() { ["fox"] = .7, ["turkey"] = .4, ["bigrat"] = .6, ["crow"] = .5, ["raccoon"] = .5, ["kamibird"] = .25 },
+        4 => new() { ["wolf"] = .8, ["owl"] = .5, ["bigrat"] = .5, ["fox"] = .5, ["turkey"] = .3, ["kamibird"] = .3 },
+        5 => new() { ["wolf"] = .7, ["ferret"] = .7, ["robohen"] = .5, ["owl"] = .5, ["raccoon"] = .4, ["kamibird"] = .3 },
+        6 => new() { ["ferret"] = .9, ["bigrat"] = .6, ["robohen"] = .5, ["rat"] = .4, ["kamibird"] = .3 },
+        7 => new() { ["ferret"] = .7, ["robohen"] = .6, ["owl"] = .4, ["bigrat"] = .4, ["kamibird"] = .35 },
+        8 => new() { ["robohen"] = .8, ["ferret"] = .6, ["eagle"] = .4, ["owl"] = .4, ["kamibird"] = .4 },
+        9 => new() { ["robohen"] = .7, ["eagle"] = .5, ["wolf"] = .5, ["ferret"] = .5, ["kamibird"] = .4 },
+        _ => new() { ["robohen"] = .7, ["eagle"] = .6, ["ferret"] = .6, ["owl"] = .5, ["wolf"] = .4, ["kamibird"] = .45 },
     };
-    public static string skLvName(int lv) => "0-" + lv;
+    /// <summary>Номер уровня в мире: 1…5.</summary>
+    static int skWl(int lv) => (lv - 1) % SK_WORLD + 1;
+    /// <summary>Второй мир — заводские катакомбы.</summary>
+    static bool skFactory(int lv) => lv > SK_WORLD;
+    public static string skLvName(int lv) => lv > SK_WORLD ? "1-" + (lv - SK_WORLD) : "0-" + lv;
 
     /* ---------- запуск режима ---------- */
     public static void startSK(string heroId)
@@ -59,7 +68,7 @@ public static partial class G
         S.piv = 0; S.skPass = new();
         S.mode = "play"; S.kind = "sk"; S.skHero = heroId; S.lvIdx = 0; S.L = null; S.diff = 1; S.night = false; S.t = 0; S.score = 0; S.wave = 0; S.toSpawn = 0; S.spawnT = 0;
         S.between = 0; S.running = true; S.kills = 0; S.goalKills = 0; S.survT = 0; S.boss = null; S.bossT = 0; S.shake = 0;
-        S.combo = 0; S.comboT = 0; S.deadT = 0; S.winT = 0; S.coins = 0; S.tokens = 0; S.banked = false; S.cleanup = false; S.kamiNext = 0;
+        S.combo = 0; S.comboT = 0; S.deadT = 0; S.winT = 0; S.coins = 0; S.tokens = 0; S.banked = false; S.cleanup = false; S.goalDone = false;
         sticks.move = sticks.aim = null; clearBanner(); Ui.ToastClear(); bossBarOn = false;
         enterHub();
         Ui.OnGameStart();
@@ -88,23 +97,24 @@ public static partial class G
 
     static void enterLevel(int lv)
     {
-        resetField(); S.skLv = lv; S.lvIdx = lv; S.diff = 1 + (lv - 1) * 1.5; WW = WH = SK_SIZE;
+        resetField(); S.skLv = lv; S.lvIdx = lv; S.diff = 1 + (lv - 1) * 1.3; WW = WH = SK_SIZE;
         buildLevel(lv); renderDungeon();
         var st = DUN.rooms.First(r => r.type == "start");
         P.x = st.cx; P.y = st.cy + 30; P._px = P.x; P._py = P.y; P.buff = null; P.inv = 1;
         if (lv > 1) { var h = Math.Round(P.max * .25); P.hp = Math.Min(P.max, P.hp + h); } // между уровнями немного лечимся
         snapCamera(); DUN.enterCd = 1.2;
         Music.Play("battle"); Sfx.wave();
-        showBanner(skLvName(lv), lv == SK_LEVELS ? T("Логово главаря") : T("Лесное подземелье"));
+        bool fac = skFactory(lv), last = skWl(lv) == SK_WORLD;
+        showBanner(skLvName(lv), fac ? (last ? T("Логово доктора") : T("Заводские катакомбы")) : last ? T("Логово главаря") : T("Лесное подземелье"));
     }
 
     /* ---------- генерация уровня ---------- */
     static void buildLevel(int lv)
     {
         double cs = (WW - 2 * FENCE) / 3;
-        int len = lv switch { 1 => 4, _ => 5 };
-        // в стороне от пути: торговец и сундук на каждом уровне, на 0-4 ещё необязательный босс
-        var extraTypes = new List<string> { "shop", "chest" }; if (lv == 4) extraTypes.Insert(0, "bossopt");
+        int wl = skWl(lv), len = lv == 1 ? 4 : 5;
+        // в стороне от пути: торговец и сундук на каждом уровне, на 0-4 и 1-4 ещё необязательный босс
+        var extraTypes = new List<string> { "shop", "chest" }; if (wl == 4) extraTypes.Insert(0, "bossopt");
         List<(int x, int y)> path = null, any = null; List<((int x, int y) cell, int at, string type)> extras = null;
         static IEnumerable<(int x, int y)> nbs((int x, int y) c) => new[] { (c.x + 1, c.y), (c.x - 1, c.y), (c.x, c.y + 1), (c.x, c.y - 1) }.Where(q => q.Item1 >= 0 && q.Item1 < 3 && q.Item2 >= 0 && q.Item2 < 3);
         for (int tries = 0; tries < 600 && extras == null; tries++)
@@ -148,7 +158,7 @@ public static partial class G
         var rooms = new List<Room>();
         for (int i = 0; i < path.Count; i++)
         {
-            string type = i == 0 ? "start" : i == path.Count - 1 ? (lv == SK_LEVELS ? "boss" : "end") : "fight";
+            string type = i == 0 ? "start" : i == path.Count - 1 ? (wl == SK_WORLD ? "boss" : "end") : "fight";
             var R = mk(path[i], type); R.waves = lv <= 2 ? 2 : 3; rooms.Add(R);
             if (i > 0) link(rooms[i - 1], R);
         }
@@ -160,13 +170,13 @@ public static partial class G
             if (R.type == "chest") OBS.Add(new Obs { x = R.cx, y = R.cy - 6, r = 26, type = "skchest" });
             if (R.type == "shop") OBS.Add(new Obs { x = R.cx, y = R.y + 82, r = 34, type = "counter" });
         }
-        // речки на некоторых уровнях: в 0-2 и 0-4 — в двух боевых комнатах, в 0-3 — в одной
+        // речки на некоторых уровнях: на втором и четвёртом уровне мира — в двух боевых комнатах, на третьем — в одной
         DUN = D; RIVERS = new(); RIVER = null;
-        int nRiv = lv is 2 or 4 ? 2 : lv == 3 ? 1 : 0;
+        int nRiv = wl is 2 or 4 ? 2 : wl == 3 ? 1 : 0;
         foreach (var R in D.rooms.Where(r => r.type == "fight").OrderBy(_ => rnd()).Take(nRiv)) addRoomRiver(R);
         foreach (var b in allBridges()) b.ends = bridgeEnds(b);
         spawnFish();
-        var kinds = new[] { "barrel", "rock", "stump", "bush", "barrel", "rock" };
+        var kinds = skFactory(lv) ? new[] { "barrel", "rock", "barrel", "rock", "hay" } : new[] { "barrel", "rock", "stump", "bush", "barrel", "rock" };
         bool free(double x, double y, double r) => !OBS.Any(o => hypot(o.x - x, o.y - y) < o.r + r + 60) && !nearWater(x, y, r + 30) && bridgeAt(x, y) == null;
         foreach (var R in D.rooms.Where(r => r.type is "fight" or "bossopt" or "boss"))
         {
@@ -279,8 +289,9 @@ public static partial class G
         DUN.active = R; R.wave = 0; R.waveT = .6; Sfx.chest(); S.shake += 5;
         if (R.type is "boss" or "bossopt")
         {
-            var type = R.type == "boss" ? "ataman" : "gturkey";
-            var e = makeEnemy(type, R.cx, R.y + 110); e.room = R; e.atkT = 2; e.hp = e.max = R.type == "boss" ? 1700 : 950;
+            bool fac = skFactory(S.skLv); // во втором мире — роботы и сам доктор
+            var type = R.type == "boss" ? (fac ? "drferret" : "ataman") : fac ? "steelturkey" : "gturkey";
+            var e = makeEnemy(type, R.cx, R.y + 110); e.room = R; e.atkT = 2; e.hp = e.max = R.type == "boss" ? (fac ? 3200 : 1700) : fac ? 1900 : 950;
             R.boss = e; S.boss = e; bossBarOn = true; R.waves = 0; Music.Play("boss"); S.shake += 8; Sfx.gobble();
             showBanner(ETYPE[type].name, R.type == "boss" ? T("Победи главаря — откроется портал") : T("Необязательный босс · награда — золотые яйца"));
         }
@@ -288,7 +299,7 @@ public static partial class G
     static void spawnRoomWave(Room R)
     {
         R.wave++; R.waveT = .9; int lv = S.skLv; var mix = skMix(lv);
-        int n = 3 + lv + (rnd() < .5 ? 1 : 0) + (R.wave == R.waves ? 1 : 0);
+        int n = 3 + Math.Min(lv, 7) + (rnd() < .5 ? 1 : 0) + (R.wave == R.waves ? 1 : 0);
         for (int i = 0; i < n; i++)
         {
             var type = pickFrom(mix); var Tt = ETYPE[type];
@@ -331,7 +342,13 @@ public static partial class G
         else if (R.type == "boss")
         {
             foreach (var p in DUN.portals) p.on = true;
-            showBanner(T("Главарь повержен!"), T("Портал открыт")); Music.Play("battle");
+            string sub = T("Портал открыт");
+            if (S.skLv < SK_LEVELS)
+            { // конец первого мира: портал ведёт в заводские катакомбы, в первый раз — награда
+                sub = T("Портал ведёт в заводские катакомбы");
+                if (!SAVE.eggMs.ContainsKey("skW1")) { SAVE.eggMs["skW1"] = 1; SAVE.eggs += 5; persist(); sub += T(" · +5 золотых яиц"); }
+            }
+            showBanner(T("Главарь повержен!"), sub); Music.Play("battle");
         }
     }
     static void usePortal(Portal p)
@@ -350,10 +367,10 @@ public static partial class G
         S.mode = "result"; sticks.move = sticks.aim = null; input.firing = false;
         skCashPiv(); long sc = S.coins, st = S.tokens; bankCoins();
         bool first = !SAVE.eggMs.ContainsKey("skRun");
-        long lc = 150, lt = 40; int le = first ? 10 : 0;
+        long lc = 300, lt = 80; int le = first ? 15 : 0;
         SAVE.coins += lc; SAVE.tokens += lt; SAVE.eggs += le; if (first) { SAVE.eggMs["skRun"] = 1; SAVE.btokens++; }
         persist();
-        var w = new WinInfo { eyebrow = T("Режим Soul Knight") + " · " + skLvName(SK_LEVELS), lead = T("Подземелье пройдено! Лис-атаман повержен."), hasNext = false };
+        var w = new WinInfo { eyebrow = T("Режим Soul Knight") + " · " + skLvName(SK_LEVELS), lead = T("Оба мира пройдены! Лис-атаман и Доктор Хорёк повержены."), hasNext = false };
         w.rows.Add(new WinRow { icon = "coin", text = "+" + (lc + sc) + T(" зёрен"), sub = T("за забег и врагов") });
         w.rows.Add(new WinRow { icon = "tok", text = "+" + (lt + st) + T(" жетонов"), sub = T("на обычный сундук: ") + L.Fmt(SAVE.tokens) + "/100" });
         if (first) { w.rows.Add(new WinRow { icon = "gegg", text = "+" + le + T(" золотых яиц"), sub = T("только за первое прохождение") }); w.rows.Add(new WinRow { icon = "btok", text = StripIcon(T("<i class=\"btok\"></i>+1 большой жетон")), sub = T("на большой сундук: ") + SAVE.btokens + "/10" }); }
@@ -423,8 +440,8 @@ public static partial class G
         var info = new SKImageInfo((int)(WW * res), (int)(WH * res), SKColorType.Rgba8888, SKAlphaType.Premul);
         using var surf = SKSurface.Create(info);
         var g = new Ctx(); g.Begin(surf.Canvas); g.scale(res, res);
-        bool hub = DUN.hub;
-        string floor = hub ? "#b88a57" : "#7d8b63", floor2 = hub ? "#a97c4b" : "#74825b", wallTop = hub ? "#6b4a2b" : "#4c5a44", wallFace = hub ? "#523620" : "#36412f";
+        bool hub = DUN.hub, fac = !hub && skFactory(S.skLv); // заводские катакомбы — серый камень и металл
+        string floor = hub ? "#b88a57" : fac ? "#858c96" : "#7d8b63", floor2 = hub ? "#a97c4b" : fac ? "#7a818b" : "#74825b", wallTop = hub ? "#6b4a2b" : fac ? "#4a4f5c" : "#4c5a44", wallFace = hub ? "#523620" : fac ? "#33363f" : "#36412f";
         g.fillStyle = DUN_VOID; g.fillRect(0, 0, WW, WH);
         var Gr = seeded(4242 + S.skLv * 17 + (long)(rnd() * 1000));
         void wallRect(double x, double y, double w, double h)
@@ -447,7 +464,7 @@ public static partial class G
                     if (Gr() < .35) { g.fillStyle = Gr() < .5 ? floor2 : "rgba(255,255,255,.05)"; g.fillRect(tx + 1, ty + 1, Math.Min(38, x + w - tx - 1), Math.Min(38, y + h - ty - 1)); }
                     g.fillStyle = "rgba(0,0,0,.13)"; g.fillRect(tx, ty, Math.Min(40, x + w - tx), 1.5); g.fillRect(tx, ty, 1.5, Math.Min(40, y + h - ty));
                 }
-            g.strokeStyle = "#5f9e3c"; g.lineWidth = 1.6; g.lineCap = "round";
+            g.strokeStyle = fac ? "#646a74" : "#5f9e3c"; g.lineWidth = 1.6; g.lineCap = "round"; // трава в лесу, царапины на заводе
             for (int i = 0; i < w * h / 2600; i++) { double px = x + Gr() * w, py = y + Gr() * h; g.beginPath(); g.moveTo(px, py); g.lineTo(px - 2, py - 5); g.moveTo(px + 2, py); g.lineTo(px + 3, py - 4); g.stroke(); }
             g.fillStyle = "rgba(60,50,40,.35)"; for (int i = 0; i < w * h / 5000; i++) { g.beginPath(); g.arc(x + Gr() * w, y + Gr() * h, 1.5 + Gr() * 2, 0, TAU); g.fill(); }
         }
@@ -462,7 +479,8 @@ public static partial class G
         if (RIVERS.Count > 0)
         { // речки в комнатах — только по полу своих комнат, не на стенах
             g.save(); g.beginPath(); foreach (var Rv in RIVERS) g.rect(Rv.room.x, Rv.room.y, Rv.room.w, Rv.room.h); g.clip();
-            paintRivers(g, "#8a7a55", "#3d8fb8", "#2f7aa0"); g.restore();
+            if (fac) paintRivers(g, "#6b6f78", "#4f8f8a", "#3f7a75"); else paintRivers(g, "#8a7a55", "#3d8fb8", "#2f7aa0");
+            g.restore();
         }
         if (hub)
         { // закрытая дверь в стене лагеря

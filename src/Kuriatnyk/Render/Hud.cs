@@ -116,16 +116,21 @@ public static class Hud
         c.fillStyle = P.hp < P.max * .3 ? "#ff5a3c" : HP; c.fillRect(Lf, Tp, hw * Math.Max(0, P.hp / P.max), hh); c.restore();
         c.strokeStyle = INK; c.lineWidth = 3; rr(c, Lf + 1.5, Tp + 1.5, hw - 3, hh - 3, 10.5); c.stroke();
         Outlined(c, Math.Ceiling(P.hp) + " / " + P.max, Lf + hw / 2, Tp + hh / 2 + 4.5, "800 13px Rubik", "#fff", 1);
-        // --- стамина: тонкая голубая полоска под здоровьем ---
-        double sy = Tp + hh + 6, shh = 12; bool low = P.stam < shotCost(WEAP[P.w], WEAP[P.w].rate);
-        RRect(c, Lf, sy, hw, shh, 7, "#1d3a4a", 0, 2);
-        c.save(); rr(c, Lf, sy, hw, shh, 7); c.clip();
-        c.fillStyle = low && (long)(Clock * 6) % 2 == 1 ? "#ff8a6b" : "#4cc3ff"; c.fillRect(Lf, sy, hw * Math.Clamp(P.stam / Math.Max(1, P.stamMax), 0, 1), shh); c.restore();
-        c.strokeStyle = INK; c.lineWidth = 2; rr(c, Lf + 1, sy + 1, hw - 2, shh - 2, 6); c.stroke();
-        Outlined(c, Math.Floor(P.stam) + " / " + P.stamMax, Lf + hw / 2, sy + shh / 2 + 3.6, "800 10px Rubik", "#fff", 1);
-        c.font = "800 10px Rubik"; c.textAlign = "left"; c.fillStyle = PAPER; c.lineWidth = 2; c.strokeStyle = INK; c.strokeText(T("стамина"), Lf + hw + 6, sy + 10); c.fillText(T("стамина"), Lf + hw + 6, sy + 10);
+        // --- стамина (только в Soul Knight): тонкая голубая полоска под здоровьем ---
+        double sy = Tp + hh + 6, shh = 12, cy = Tp + hh + 9;
+        if (S.kind == "sk")
+        {
+            bool low = P.stam < shotCost(WEAP[P.w], WEAP[P.w].rate);
+            RRect(c, Lf, sy, hw, shh, 7, "#1d3a4a", 0, 2);
+            c.save(); rr(c, Lf, sy, hw, shh, 7); c.clip();
+            c.fillStyle = low && (long)(Clock * 6) % 2 == 1 ? "#ff8a6b" : "#4cc3ff"; c.fillRect(Lf, sy, hw * Math.Clamp(P.stam / Math.Max(1, P.stamMax), 0, 1), shh); c.restore();
+            c.strokeStyle = INK; c.lineWidth = 2; rr(c, Lf + 1, sy + 1, hw - 2, shh - 2, 6); c.stroke();
+            Outlined(c, Math.Floor(P.stam) + " / " + P.stamMax, Lf + hw / 2, sy + shh / 2 + 3.6, "800 10px Rubik", "#fff", 1);
+            c.font = "800 10px Rubik"; c.textAlign = "left"; c.fillStyle = PAPER; c.lineWidth = 2; c.strokeStyle = INK; c.strokeText(T("стамина"), Lf + hw + 6, sy + 10); c.fillText(T("стамина"), Lf + hw + 6, sy + 10);
+            cy = sy + shh + 3 + 6;
+        }
         // --- фишки ---
-        double cx = Lf, cy = sy + shh + 3 + 6, maxX = Math.Max(Lf + 150, VW - 150);
+        double cx = Lf, maxX = Math.Max(Lf + 150, VW - 150);
         void chip(string t, string bg, string fg, string icon = null, bool brd = false)
         {
             c.font = "700 13px Rubik"; double need = c.measureText(t) + (icon != null ? 16.4 : 0) + 18;

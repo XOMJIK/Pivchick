@@ -20,6 +20,11 @@ public class MainActivity : AvaloniaMainActivity<App>
     {
         G.COARSE = true; // палец, а не мышь: стики и кнопки на экране
         Audio.Factory = () => AndroidAudio.Instance;
+        Platform.Quit = () =>
+        {
+            try { if (G.S.mode is "play" or "paused" or "dying" or "pick") G.bankCoins(); Store.persist(); } catch { }
+            AndroidAudio.Instance.Pause(); FinishAndRemoveTask();
+        };
         Platform.Vibrate = ms =>
         {
             if (!OperatingSystem.IsAndroidVersionAtLeast(26)) return;

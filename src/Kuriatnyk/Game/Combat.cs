@@ -75,7 +75,7 @@ public static partial class G
         var Lv = kind == "story" ? STORY[idx] : null;
         S.mode = "play"; S.kind = kind; S.lvIdx = idx; S.L = Lv; S.diff = Lv?.diff ?? 1; S.night = Lv != null && Lv.night; S.t = 0; S.score = 0; S.wave = 0; S.toSpawn = 0; S.spawnT = 0;
         S.between = 1.2; S.running = false; S.kills = 0; S.goalKills = 0; S.survT = Lv != null && Lv.goal.type == "survive" ? Lv.goal.t : 0; S.boss = null; S.bossT = 0; S.shake = 0;
-        S.combo = 0; S.comboT = 0; S.deadT = 0; S.winT = 0; S.coins = 0; S.tokens = 0; S.banked = false; S.cleanup = false; S.kamiNext = 0;
+        S.combo = 0; S.comboT = 0; S.deadT = 0; S.winT = 0; S.coins = 0; S.tokens = 0; S.banked = false; S.cleanup = false; S.goalDone = false;
         sticks.move = sticks.aim = null; clearBanner(); Ui.ToastClear(); Music.Play("battle"); Music.Duck(1); // старый баннер «Волна N» не всплывает после перезапуска
         bossBarOn = false; Ui.OnGameStart();
         if (Lv != null) showBanner(T("Глава ") + (Lv.ch + 1) + " · " + (Lv.i + 1) + "/20", Lv.name);
@@ -89,14 +89,15 @@ public static partial class G
         S.wave++;
         if (holesOn() && rnd() < .6) spawnHole();
         if (S.kind == "endless" && S.wave == 25 && !SAVE.eggMs.ContainsKey("sup25")) { SAVE.eggMs["sup25"] = 1; SAVE.schests++; persist(); Later(1.6, () => Ui.Toast(T("Волна 25! Сверхбольшой сундук ждёт в меню"))); }
+        if (S.kind == "endless" && S.wave == 50 && !SAVE.eggMs.ContainsKey("sup50")) { SAVE.eggMs["sup50"] = 1; SAVE.schests++; persist(); Later(1.6, () => Ui.Toast(T("Волна 50! Сверхбольшой сундук ждёт в меню"))); }
         if (S.kind == "endless")
-        {
-            int ms = S.wave switch { 10 => 5, 15 => 10, 20 => 15, _ => 0 };
+        { // золотые яйца за рубежи — один раз за каждый
+            int ms = S.wave switch { 5 => 3, 10 => 6, 15 => 10, 20 => 15, 25 => 20, 30 => 25, 40 => 35, 50 => 50, _ => 0 };
             if (ms > 0 && !SAVE.eggMs.ContainsKey("w" + S.wave)) { SAVE.eggMs["w" + S.wave] = 1; SAVE.eggs += ms; persist(); int w = S.wave; Later(.9, () => Ui.Toast(T("Волна ") + w + T(" впервые! +") + ms + T(" золотых яиц"))); }
         }
         if (S.kind == "endless") S.diff = S.wave;
         S.toSpawn = S.kind == "endless" ? Math.Min(4 + S.wave * 2, 40) : (int)Math.Min(Math.Round(4 + S.diff + S.wave * 2, MidpointRounding.AwayFromZero), 28); S.spawnT = .6;
-        var sub = S.kind == "story" ? T("Волна ") + S.wave + T(" из ") + S.L.goal.n : (S.wave == 1 ? T("Защити курятник!") : S.wave == 2 ? T("Лисы почуяли запах") : S.wave == 3 ? T("Пришли индюки") : S.wave == 4 ? T("Вороны в небе!") : S.wave == 5 ? T("Еноты вышли на охоту") : T("Врагов всё больше"));
+        var sub = S.kind == "story" ? (S.wave > S.L.goal.n ? T("Дополнительная волна — держись до конца уровня") : T("Волна ") + S.wave + T(" из ") + S.L.goal.n) : (S.wave == 1 ? T("Защити курятник!") : S.wave == 2 ? T("Лисы почуяли запах") : S.wave == 3 ? T("Пришли индюки") : S.wave == 4 ? T("Вороны в небе!") : S.wave == 5 ? T("Еноты вышли на охоту") : S.wave == 6 ? T("Берегись стрижей-камикадзе!") : T("Врагов всё больше"));
         bool bossWave = S.kind == "endless" && S.wave % 5 == 0; if (bossWave) { S.bossT = 2.2; S.toSpawn = (int)Math.Round(S.toSpawn * .5, MidpointRounding.AwayFromZero); } // каждые 5 волн — босс
         showBanner(S.kind == "story" ? S.L.name : T("Волна ") + S.wave, bossWave ? T("Волна босса!") : sub);
         Sfx.wave();
@@ -125,7 +126,7 @@ public static partial class G
         int w = S.wave; var mix = new Dictionary<string, double> { ["hen"] = 1 };
         if (w >= 2) { mix["fox"] = .35 + w * .05; mix["rat"] = .2 + w * .03; }
         if (w >= 4) mix["bigrat"] = .12 + w * .02; if (w >= 3) mix["turkey"] = .12 + w * .035; if (w >= 4) mix["crow"] = .25 + w * .03; if (w >= 5) mix["raccoon"] = .2 + w * .03;
-        if (w >= 6) mix["wolf"] = .2 + w * .03; if (w >= 7) mix["owl"] = .15 + w * .02; if (w >= 8) mix["ferret"] = .2 + w * .02; if (w >= 9) mix["robohen"] = .15 + w * .02; if (w >= 10) mix["eagle"] = .12 + w * .02;
+        if (w >= 6) { mix["wolf"] = .2 + w * .03; mix["kamibird"] = .1 + w * .015; } if (w >= 7) mix["owl"] = .15 + w * .02; if (w >= 8) mix["ferret"] = .2 + w * .02; if (w >= 9) mix["robohen"] = .15 + w * .02; if (w >= 10) mix["eagle"] = .12 + w * .02;
         return pickFrom(mix);
     }
     public static (double x, double y) edgePoint(double r)
@@ -150,6 +151,8 @@ public static partial class G
         };
         if (type == "hen") { var c = T.cols[(int)Math.Floor(rnd() * T.cols.Length)]; e.body = c[0]; e.wing = c[1]; }
         if (T.s > 0) e.s = T.s; if (T.hop) e.hop = true;
+        if (type == "kamibird") { e.kami = true; e.kamiT = 5.5; e.ang = Math.Atan2(P.y - y, P.x - x); Sfx.fuse(); } // стриж с бомбой: фитиль горит с самого вылета
+        else if (!T.boss && rnd() < Math.Min(.25, .07 + (S.diff - 1) * .012)) e.buff = new[] { "str", "spd", "rate" }[(int)(rnd() * 3)]; // бафф: чем сложнее, тем чаще
         if (DUN != null) e.room = DUN.active;
         enemies.Add(e); puff(x, y, "#e9dcc0", 8, T.boss ? 2 : 1.2); return e;
     }
@@ -274,11 +277,13 @@ public static partial class G
         }
     }
     static void addUlt(double v) { if (P == null || P.buff != null || !P.alive) return; P.ult = Math.Min(100, P.ult + v * P.ultRate); }
-    public static void hitEnemy(Enemy e, double d, double vx, double vy, bool fromP = true, double kbMul = 1, bool quiet = false)
+    /// <summary>Урон по врагу. by — боец отряда, чей это выстрел: у него свой шанс крита.</summary>
+    public static void hitEnemy(Enemy e, double d, double vx, double vy, bool fromP = true, double kbMul = 1, bool quiet = false, Fighter by = null)
     {
         if (e.dead || e.emerge > 0) return;
         bool crit = false;
         if (fromP && ((P.hid == "rooster" && hasP(10) && rnd() < .15) || (P.crit > 0 && rnd() < P.crit))) { d *= 2; crit = true; }
+        else if (!fromP && by != null && by.crit > 0 && rnd() < by.crit) { d *= 2; crit = true; }
         if (fromP && P.hid == "adren" && hasP(5) && P.hp < P.max * .5) d *= 1.3;
         if (fromP && P.hid == "quail" && hasP(5) && hypot(e.x - P.x, e.y - P.y) > 250) d *= 1.25;
         e.hp -= d; e.flash = .09; double l = hypot(vx, vy); if (l == 0) l = 1; double kb = (e.T.boss ? 8 : 90) * kbMul; e.kx += vx / l * kb; e.ky += vy / l * kb;
@@ -290,26 +295,20 @@ public static partial class G
         if (fromP) addUlt(d * .16);
         if (!quiet && rnd() < .4) feathers(e.x, e.y, featherCol(e), 1, .6);
         if (e.hp <= 0) { if (e.kami) { e.dead = true; kamiBoom(e, false); killEnemy(e, true); } else killEnemy(e); return; }
-        // камикадзе: мелкий шанс, что раненый враг пойдёт на таран
-        if (!quiet && !e.kami && !e.kamiRolled && e.hp < e.max * .3)
-        {
-            e.kamiRolled = true; var T0 = e.T;
-            if (!T0.boss && !T0.fly && !(e.emerge > 0) && S.t > S.kamiNext && !enemies.Any(f => f.kami && !f.dead) && rnd() < .05)
-            { S.kamiNext = S.t + 12; e.kami = true; e.kamiT = 4.5; e.st = "walk"; e.burst = 0; ftext(e.x, e.y - 60 * (e.s > 0 ? e.s : 1), T("КАМИКАДЗЕ!"), "#ff5a3c", 14); Sfx.fuse(); }
-        }
     }
     static readonly Dictionary<string, string> FCOL = new()
     {
         ["fox"] = "#e8742a", ["turkey"] = "#6b4428", ["gturkey"] = "#6b4428", ["ataman"] = "#e8742a", ["crow"] = "#2e2a33", ["raccoon"] = "#8b8f98", ["rat"] = "#a8a097", ["bigrat"] = "#5b4f47",
         ["wolf"] = "#7f8794", ["wolfboss"] = "#5d6470", ["owl"] = "#8a6a45", ["ferret"] = "#d8b48a", ["drferret"] = "#d8b48a", ["robohen"] = "#9aa3ad", ["steelturkey"] = "#9aa3ad",
-        ["eagle"] = "#6b4a2b", ["eagleboss"] = "#5a3a1e", ["emperor"] = "#2a2238", ["badger"] = "#8d8f94", ["mole"] = "#6b5a52",
+        ["eagle"] = "#6b4a2b", ["kamibird"] = "#2c3548", ["eagleboss"] = "#5a3a1e", ["emperor"] = "#2a2238", ["badger"] = "#8d8f94", ["mole"] = "#6b5a52",
     };
     static string featherCol(Enemy e) => e.type == "hen" ? (e.body ?? "#fff") : FCOL.TryGetValue(e.type, out var c) ? c : "#fff";
     static void kamiBoom(Enemy e, bool contact)
     {
-        blast(e.x, e.y, 78, eDmg(contact ? 24 : 18), false, false);
-        foreach (var f in enemies.ToList()) { if (f == e || f.dead) continue; var d = hypot(f.x - e.x, f.y - e.y); if (d < 78 + f.r * .5) hitEnemy(f, 40 * (1 - d / 110), f.x - e.x, f.y - e.y, true); }
-        ring(e.x, e.y, "#ff7a1a", 90, .4); puff(e.x, e.y, "#ff9a1f", 10, 1.6);
+        bool bird = e.type == "kamibird"; double R = bird ? 66 : 78; // стриж взрывается чуть меньше
+        blast(e.x, e.y, R, eDmg(bird ? (contact ? 20 : 12) : contact ? 24 : 18), false, false);
+        foreach (var f in enemies.ToList()) { if (f == e || f.dead) continue; var d = hypot(f.x - e.x, f.y - e.y); if (d < R + f.r * .5) hitEnemy(f, 40 * (1 - d / 110), f.x - e.x, f.y - e.y, true); }
+        ring(e.x, e.y, "#ff7a1a", R + 12, .4); puff(e.x, e.y, "#ff9a1f", 10, 1.6);
     }
     static void killEnemy(Enemy e, bool force = false)
     {
@@ -323,7 +322,8 @@ public static partial class G
             foreach (var f in enemies.ToList()) if (!f.dead && f != e && hypot(f.x - e.x, f.y - e.y) < 90) { f.burn = 2; f.burnDps = 10 * P.dmgMul; hitEnemy(f, 30 * P.dmgMul, f.x - e.x, f.y - e.y, true, 1, true); }
         }
         int mult = Math.Min(4, 1 + (int)Math.Floor((S.combo - 1) / 3.0));
-        long pts = (long)(Tt.score * mult); double rk = e.endless ? .4 : 1; S.score += pts; S.coins += (long)Math.Round(Tt.coin * rk, MidpointRounding.AwayFromZero); S.tokens += (long)Math.Round(Tt.tok * rk, MidpointRounding.AwayFromZero);
+        double bk = e.buff != null ? 1.5 : 1, rk = bk * (S.kind == "endless" ? 1.5 : 1); // за врага под баффом и в бесконечном бою — больше
+        long pts = (long)(Tt.score * mult * bk); S.score += pts; S.coins += (long)Math.Round(Tt.coin * rk, MidpointRounding.AwayFromZero); S.tokens += (long)Math.Round(Tt.tok * rk, MidpointRounding.AwayFromZero);
         ftext(e.x, e.y - 56, "+" + pts, mult > 1 ? "#ffc93a" : "#fff", 17);
         addUlt(5);
         if (P.hid == "adren" && hasP(10) && P.alive) P.hp = Math.Min(P.max, P.hp + 3);
@@ -346,14 +346,14 @@ public static partial class G
             if (r < cornCh) pickups.Add(new Pickup { x = e.x, y = e.y, kind = "corn", t = 12, ph = 0 });
             else if (r < cornCh + .05 && !sk) pickups.Add(new Pickup { x = e.x, y = e.y, kind = rnd() < .5 ? "shotgun" : "smg", t = 12, ph = 0 }); // стволов сюжета в подземелье нет
             else if (r < cornCh + .09) pickups.Add(new Pickup { x = e.x, y = e.y, kind = "nade", t = 12, ph = 0 });
-            else if (r < cornCh + .09 + (sk ? .08 : .04)) pickups.Add(new Pickup { x = e.x + rand(-8, 8), y = e.y, kind = "stam", t = 12, ph = 0 }); // стамина падает нечасто
+            else if (sk && r < cornCh + .17) pickups.Add(new Pickup { x = e.x + rand(-8, 8), y = e.y, kind = "stam", t = 12, ph = 0 }); // стамина — только в подземелье
         }
         if (sk) dropPiv(e.x, e.y, Tt.boss ? 30 : e.type == "rat" ? (rnd() < .5 ? 1 : 0) : 1 + (rnd() < .45 ? 1 : 0) + (Tt.hp >= 100 ? 1 : 0)); // пивчики
         if (S.kind == "story" && S.mode == "play")
         {
             var g = S.L.goal;
-            if (g.type == "kill" && (g.what == "any" || g.what == e.type)) { S.goalKills++; if (S.goalKills >= g.n) victory(); }
-            if (g.type == "boss" && e == S.boss) { S.boss = null; bossBarOn = false; victory(); }
+            if (g.type == "kill" && (g.what == "any" || g.what == e.type)) { S.goalKills++; if (S.goalKills >= g.n) storyGoal(); }
+            if (g.type == "boss" && e == S.boss) { S.boss = null; bossBarOn = false; storyGoal(); }
         }
     }
 }
