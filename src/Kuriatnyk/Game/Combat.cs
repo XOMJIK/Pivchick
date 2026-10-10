@@ -321,6 +321,7 @@ public static partial class G
         {
             var dr = Math.Round(d, MidpointRounding.AwayFromZero).ToString(System.Globalization.CultureInfo.InvariantCulture);
             ftext(e.x, e.y - 44 * (e.s > 0 ? e.s : 1), crit ? T("КРИТ ") + dr : dr, crit ? "#ffc93a" : "#fff", crit ? 16 : 13); Sfx.hit();
+            if (crit || rnd() < .5) sparks(e.x, e.y, 20 * (e.s > 0 ? e.s : 1), vx, vy);
         }
         if (fromP && !noUltCharge && !(quiet && kbMul == 0)) ultHit(hitW); // урон от горения, луж и вихря — не удар
         if (!quiet && rnd() < .4) feathers(e.x, e.y, featherCol(e), 1, .6);

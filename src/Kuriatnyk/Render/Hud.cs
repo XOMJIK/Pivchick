@@ -263,12 +263,22 @@ public static class Hud
             double w = pc ? 60 : sh ? 62 : 68, h = pc ? 70 : sh ? 72 : 80, x = VW - SafeR - (pc ? 20 : sh ? 22 : 18) - w, y = pc ? B - h : VH - SafeB - (sh ? 150 : 200) - h, cxn = x + w / 2;
             nadeX = x;
             c.save(); if (P.nades <= 0) c.globalAlpha = .45;
-            c.fillStyle = INK; c.save(); c.translate(0, 4); EggPath(c, cxn, y, w, h); c.fill(); c.restore();
-            EggPath(c, cxn, y, w, h); c.fillStyle = PAPER; c.fill();
-            c.save(); EggPath(c, cxn, y, w, h); c.clip(); double band = y + (pc || sh ? 30 : 34);
-            c.fillStyle = INK; c.fillRect(x + 6, band, w - 12, 11); c.fillStyle = BARN; c.fillRect(x + 6, band + 2, w - 12, 7); c.restore();
-            c.strokeStyle = INK; c.lineWidth = 3; EggPath(c, cxn, y + 1.5, w - 3, h - 3); c.stroke();
-            c.font = "900 12px Rubik"; c.textAlign = "center"; c.fillStyle = INK; c.fillText(T("Бум"), cxn, band + 26);
+            // яйцо-граната: блестящая скорлупа, красный пояс с заклёпками, металлический колпачок с кольцом и горящий фитиль
+            double ey = y + 8, eh = h - 8;
+            c.fillStyle = INK; c.save(); c.translate(0, 4); EggPath(c, cxn, ey, w, eh); c.fill(); c.restore();
+            var eg = c.createLinearGradient(x, ey, x + w, ey + eh); eg.addColorStop(0, "#ffffff"); eg.addColorStop(.55, "#fff1d0"); eg.addColorStop(1, "#e6cfa0");
+            EggPath(c, cxn, ey, w, eh); c.fillStyle = eg; c.fill();
+            c.save(); EggPath(c, cxn, ey, w, eh); c.clip(); double band = ey + eh * .5;
+            c.fillStyle = INK; c.fillRect(x, band - 7, w, 15); c.fillStyle = BARN; c.fillRect(x, band - 5, w, 11);
+            c.fillStyle = "#ffd25a"; for (int i = 0; i < 5; i++) { c.beginPath(); c.arc(x + w * (.14 + i * .18), band + .5, 1.8, 0, TAU); c.fill(); }
+            c.fillStyle = "rgba(255,255,255,.8)"; c.beginPath(); c.ellipse(cxn - w * .2, ey + eh * .28, w * .09, eh * .12, -.4, 0, TAU); c.fill();
+            c.restore();
+            c.strokeStyle = INK; c.lineWidth = 3; EggPath(c, cxn, ey + 1.5, w - 3, eh - 3); c.stroke();
+            // колпачок, кольцо чеки и фитиль
+            c.fillStyle = "#9aa3ad"; rr(c, cxn - 9, ey - 6, 18, 10, 3); c.fill(); c.lineWidth = 2.4; c.stroke();
+            c.strokeStyle = INK; c.lineWidth = 4; c.beginPath(); c.arc(cxn + 13, ey - 4, 6, 0, TAU); c.stroke(); c.strokeStyle = "#c9d0d8"; c.lineWidth = 2; c.stroke();
+            c.strokeStyle = "#c9973f"; c.lineWidth = 2.6; c.lineCap = "round"; c.beginPath(); c.moveTo(cxn - 2, ey - 6); c.quadraticCurveTo(cxn - 8, ey - 14, cxn - 4, ey - 18); c.stroke(); c.lineCap = "butt";
+            if (P.nades > 0) { double fl = .6 + .4 * Math.Sin(Clock * 22); c.fillStyle = "#ffd23a"; c.beginPath(); c.arc(cxn - 4, ey - 19, 3.4 * fl + 1, 0, TAU); c.fill(); c.fillStyle = "#ff7a1a"; c.beginPath(); c.arc(cxn - 4, ey - 19, 1.8 * fl, 0, TAU); c.fill(); }
             if (pc) KeyCap(c, x - 6, y + h - 22, keyHint("nade"));
             double bx = x + w + 8 - 28, by = y - 8; RRect(c, bx, by, 28, 28, 14, YOLK, 3);
             c.font = "900 14px Rubik"; c.fillStyle = INK; c.fillText(P.nades.ToString(), bx + 14, by + 19);
@@ -281,14 +291,23 @@ public static class Hud
             int p = (int)Math.Floor(P.ult); string st = P.buff != null ? "live" : p >= 100 ? "ready" : "charge";
             if (st == "ready") { double k = (Clock % 1.0); double gl = Math.Sin(k * Math.PI) * 9; c.save(); c.globalAlpha = .9 * (1 - k); c.fillStyle = YOLK; c.beginPath(); c.arc(ucx, ucy + 4, r + gl, 0, TAU); c.fill(); c.restore(); }
             c.fillStyle = INK; c.beginPath(); c.arc(ucx, ucy + 4, r, 0, TAU); c.fill();
-            c.fillStyle = "#6b5a48"; c.beginPath(); c.arc(ucx, ucy, r, 0, TAU); c.fill();
-            if (p > 0) { c.fillStyle = YOLK; c.beginPath(); c.moveTo(ucx, ucy); c.arc(ucx, ucy, r, -Math.PI / 2, -Math.PI / 2 + TAU * Math.Min(1, p / 100.0)); c.closePath(); c.fill(); }
+            c.fillStyle = "#3b2c20"; c.beginPath(); c.arc(ucx, ucy, r, 0, TAU); c.fill();
+            // кольцо заряда вокруг портрета того, чья ульта (свой герой или статуя)
+            if (p > 0) { c.strokeStyle = st == "ready" ? "#ffe066" : YOLK; c.lineWidth = 6; c.lineCap = "round"; c.beginPath(); c.arc(ucx, ucy, r - 4.5, -Math.PI / 2, -Math.PI / 2 + TAU * Math.Min(1, p / 100.0)); c.stroke(); c.lineCap = "butt"; }
+            double ir = r - 9; var uid = P.ultId ?? P.hid;
+            c.save(); c.beginPath(); c.arc(ucx, ucy, ir, 0, TAU); c.clip();
+            if (uid == SKU.SUMMON) { c.fillStyle = "#9cf27a"; c.fillRect(ucx - ir, ucy - ir, ir * 2, ir * 2); c.fillStyle = INK; c.fillRect(ucx - 3, ucy - ir * .55, 6, ir * 1.1); c.fillRect(ucx - ir * .55, ucy - 3, ir * 1.1, 6); }
+            else Avatars.Draw(c, uid, ucx - ir, ucy - ir, ir * 2);
+            if (st == "charge") { c.fillStyle = "rgba(43,29,20,.45)"; c.fillRect(ucx - ir, ucy - ir, ir * 2, ir * 2); }
+            c.restore();
+            c.strokeStyle = INK; c.lineWidth = 2.5; c.beginPath(); c.arc(ucx, ucy, ir, 0, TAU); c.stroke();
             c.strokeStyle = INK; c.lineWidth = 3; c.beginPath(); c.arc(ucx, ucy, r - 1.5, 0, TAU); c.stroke();
-            double ir = r - 6;
-            c.fillStyle = st == "ready" ? BARN : st == "live" ? YOLK : PAPER; c.beginPath(); c.arc(ucx, ucy, ir, 0, TAU); c.fill();
-            c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.arc(ucx, ucy, ir - 1, 0, TAU); c.stroke();
             var lbl = st == "live" ? Math.Ceiling(P.buffT) + T(" сек") : st == "ready" ? T("УЛЬТА") : p + "%";
-            c.font = "900 12.5px Rubik"; c.textAlign = "center"; c.fillStyle = st == "ready" ? "#fff" : INK; c.fillText(lbl, ucx, ucy + 4.5);
+            { // подпись плашкой под портретом
+                c.font = "900 11.5px Rubik"; double lw2 = c.measureText(lbl) + 12, ly = ucy + ir - 6;
+                RRect(c, ucx - lw2 / 2, ly, lw2, 17, 8, st == "ready" ? BARN : st == "live" ? YOLK : PAPER, 2);
+                c.textAlign = "center"; c.fillStyle = st == "ready" ? "#fff" : INK; c.fillText(lbl, ucx, ly + 12.5);
+            }
             if (pc) KeyCap(c, x - 4, y + d - 20, keyHint("ult"));
             btns["ult"] = (x, y, d, d);
             if (sk)

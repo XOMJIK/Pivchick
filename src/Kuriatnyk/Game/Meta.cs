@@ -46,7 +46,7 @@ public sealed class Reward
         if (eggs > 0) p.Add("+" + eggs + L.T(" золотых яиц"));
         if (sch > 0) p.Add(L.T("сверхбольшой сундук"));
         if (lch > 0) p.Add(L.T("легендарный сундук"));
-        if (avatar != null) p.Add(L.T("аватарка «") + (Avatars.Get(avatar)?.name ?? avatar) + "»");
+        if (avatar != null) p.Add(L.T("аватарка ") + L.Qo + (Avatars.Get(avatar)?.name ?? avatar) + L.Qc);
         if (pts > 0) p.Add("+" + pts + " PTS");
         return string.Join(" · ", p);
     }

@@ -9,8 +9,8 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>Kuriatnyk.Android</RootNamespace>
     <ApplicationId>com.nutsze.boevoykuryatnik</ApplicationId>
-    <ApplicationVersion>4</ApplicationVersion>
-    <ApplicationDisplayVersion>0.4</ApplicationDisplayVersion>
+    <ApplicationVersion>8</ApplicationVersion>
+    <ApplicationDisplayVersion>0.8</ApplicationDisplayVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
   </PropertyGroup>

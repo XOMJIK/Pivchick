@@ -277,7 +277,7 @@ if (args.Length > 1 && args[1] == "sk")
             if (R.type is "fight" or "boss")
             {
                 double t0 = simT;
-                while (!R.cleared && simT - t0 < 120 && G.S.mode == "play")
+                while (!R.cleared && simT - t0 < (R.type == "boss" ? 300 : 120) && G.S.mode == "play")
                 {   // крутимся в комнате, автонаводка стреляет сама; кончилась стамина — меняем оружие
                     var tgt = G.enemies.FirstOrDefault(e => !e.dead);
                     if (tgt != null && D.WEAP[G.P.w].special == "melee") WalkTo(tgt.x, tgt.y, .3);
@@ -333,7 +333,7 @@ if (args.Length > 1 && args[1] == "sk")
         if (opt != null) Visit(opt, () =>
         {
             WalkTo(opt.cx, opt.cy); double t0 = simT;
-            while (!opt.cleared && simT - t0 < 120) Tick();
+            while (!opt.cleared && simT - t0 < 300) Tick();
             Console.WriteLine($"  optional boss: cleared={opt.cleared} eggs={Store.SAVE.eggs}");
         });
         Console.WriteLine($"  piv earned on level: {G.S.piv - pivStart} (before shop/extras)");

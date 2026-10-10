@@ -333,6 +333,7 @@ public static partial class Overlays
             new Control[] { Cell(T("Скорость бега")), Cell(Num(a.spd, "0")), d(a.spd, b.spd, "0") },
             new Control[] { Cell(T("Защита")), Cell(Num(a.armor * 100, "0") + "%"), d(a.armor, b.armor, "0", true) },
             new Control[] { Cell(T("Шанс крита ×2")), Cell(Num(a.crit * 100, "0") + "%"), Cell("—") },
+            new Control[] { Cell(T("Ударов до ульты")), Cell(H.ultHits.ToString()), Cell("—") },
         };
         if (a.regen > 0) rows.Add(new Control[] { Cell(T("Лечение в секунду")), Cell(Num(a.regen, "0.#")), Cell("—") });
         if (a.range > 1) rows.Add(new Control[] { Cell(T("Дальность пуль")), Cell("+" + Num((a.range - 1) * 100, "0") + "%"), Cell("—") });
@@ -516,9 +517,9 @@ public static partial class Overlays
             var t = Txt(text, 13.5, FontWeight.Medium); t.VerticalAlignment = VerticalAlignment.Center; d.Children.Add(t); return d;
         }
         var how = Box(Col(8, li("◀", "#5fcf3f", "#2b1d14", T("Левый палец — бежать")), li("●", "#c0392b", "#ffffff", T("Правый палец — целиться и стрелять. Держи на месте — бьёт по ближнему")),
-            li("", "#fff4dc", "#2b1d14", T("«Бум» — яйцо-граната")), li("★", "#ffc93a", "#2b1d14", T("Ульта копится от урона по врагам")), li("◆", "#4cc3ff", "#2b1d14", T("В режиме Soul Knight голубая полоска — стамина: выстрелы тратят её, а пополняют только синие кристаллы с врагов и зелья")),
+            li("", "#fff4dc", "#2b1d14", T("Кнопка-яйцо — яйцо-граната")), li("★", "#ffc93a", "#2b1d14", T("Ульта копится от ударов по врагам: у каждого героя своё число ударов, у снайперов — больше всего")), li("◆", "#4cc3ff", "#2b1d14", T("В режиме Soul Knight голубая полоска — стамина: выстрелы тратят её, а пополняют только синие кристаллы с врагов и зелья")),
             li("!", "#ff4a3a", "#ffffff", T("Цветная аура у врага — бафф: красная — сила, зелёная — скорость, жёлтая — скорострельность"))), StrawB, 0, 16, new Thickness(12));
-        var desk = Txt(T("На компьютере: ") + G.keyHint("up") + G.keyHint("left") + G.keyHint("down") + G.keyHint("right") + T(" — бег, автонаводка стреляет сама (") + G.keyHint("auto") + T(" — вкл/выкл), зажатая мышь — ручная стрельба, ") + G.keyHint("nade") + T(" — граната, ") + G.keyHint("ult") + T(" — ульта, ") + G.keyHint("swap") + T(" — смена оружия, ") + G.keyHint("act") + T(" — взять или купить, ") + G.keyHint("full") + T(" — полный экран. Клавиши меняются в настройках."), 12, FontWeight.Medium, B("#b32b1d14"), TextAlignment.Center);
+        var desk = Txt(T("На компьютере: ") + G.keyHint("up") + G.keyHint("left") + G.keyHint("down") + G.keyHint("right") + T(" — бег, автонаводка стреляет сама (") + G.keyHint("auto") + T(" — вкл/выкл), зажатая мышь — ручная стрельба, ") + G.keyHint("nade") + T(" — граната, ") + G.keyHint("ult") + T(" — ульта, ") + G.keyHint("swap") + T(" — смена оружия, ") + G.keyHint("drop") + T(" — выбросить оружие, ") + G.keyHint("act") + T(" — взять или купить, ") + G.keyHint("full") + T(" — полный экран. Клавиши меняются в настройках."), 12, FontWeight.Medium, B("#b32b1d14"), TextAlignment.Center);
         var card = CardBox(380, Logo(T("Как играть"), LogoSize(mv)), how, desk, Best(T("Версия ") + GAME_VERSION), Btn(T("Понятно"), () => mv.Hide("helpOv")));
         mv.Show("helpOv", Ov(mv, card, true), 8);
     }

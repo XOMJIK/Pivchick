@@ -74,6 +74,7 @@ public static partial class G
                 c.beginPath(); c.arc(0, 0, R * .8, p.a - w + q * .3, p.a + w * (q * 2 - 1) + .3); c.stroke();
                 c.strokeStyle = "rgba(255,201,58,.8)"; c.lineWidth = 3; c.beginPath(); c.arc(0, 0, R * .95, p.a - w * .9, p.a + w * .9 * (q * 2 - 1)); c.stroke(); c.restore();
             }
+            else if (p.k == "spark") drawSpark(c, p);
             else if (p.k == "ring")
             {
                 double R = p.R > 0 ? p.R : 130, f = 1 - a * a * .6; c.globalAlpha = a; c.strokeStyle = p.col ?? "#fff6c8"; c.lineWidth = 6 * a + 1;
@@ -106,7 +107,7 @@ public static partial class G
         c.translate(-camX + sx, -camY + sy);
         // земля целиком: всё, что вне кадра, Skia и так отсекает, а с целой картинкой работают mip-уровни (кусок рисуется медленнее)
         c.drawImage(ground, 0, 0, WW, WH);
-        drawRiverDyn(c); drawDungeonDyn(c);
+        drawRiverDyn(c); drawDungeonDyn(c); drawCloudShadows(c);
         drawParts(c, true);
         if (quakes.Count > 0) drawQuakes(c);
         foreach (var h in holes) drawHole(c, h);
@@ -202,9 +203,11 @@ public static partial class G
         foreach (var b in bullets) drawBullet(c, b);
         if (fish.Count > 0) drawFishAir(c);
         drawParts(c, false);
+        drawAmbient(c, vx0, vy0, vx1, vy1);
         foreach (var t in texts)
         {
-            double a = 1 - t.t / t.max; c.globalAlpha = Math.Min(1, a * 2.5); c.font = textFont(t.size); c.textAlign = "center"; c.lineJoin = "round";
+            double a = 1 - t.t / t.max, pop = t.t < .1 ? 1 + (1 - t.t / .1) * .35 : 1; // цифры урона «выпрыгивают»
+            c.globalAlpha = Math.Min(1, a * 2.5); c.font = textFont(Math.Round(t.size * pop * 2) / 2); c.textAlign = "center"; c.lineJoin = "round";
             c.strokeStyle = INK; c.lineWidth = 4; c.strokeText(t.txt, t.x, t.y); c.fillStyle = t.col; c.fillText(t.txt, t.x, t.y); c.globalAlpha = 1;
         }
         foreach (var pl in players)
@@ -232,6 +235,7 @@ public static partial class G
             }
         }
         c.restore();
+        drawLighting(c);
         if (S.night)
         {
             double px = (P.x - camX) * SC, py = (P.y - 24 - camY) * SC, fl = P.buff == "adren" ? 1.25 : 1;
