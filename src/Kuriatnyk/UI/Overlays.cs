@@ -14,7 +14,7 @@ using static Kuriatnyk.UI.K;
 namespace Kuriatnyk.UI;
 
 /// <summary>Окна поверх игры (.ov и .card из style.css).</summary>
-public static class Overlays
+public static partial class Overlays
 {
     // ---------- строители ----------
     public static OutlineText Logo(string text, double size = 0)
@@ -56,10 +56,19 @@ public static class Overlays
     // ---------- пауза ----------
     public static Control Pause(MainView mv)
     {
-        var card = CardBox(380, Logo(T("Пауза"), LogoSize(mv)),
+        Control sk = null;
+        if (G.S.kind == "sk" && G.P != null)
+        { // Soul Knight: что взято в забеге и какая сейчас ульта
+            var list = Col(6);
+            list.Children.Add(Txt(T("Ульта: ") + SKU.Name(G.P.ultId ?? G.P.hid) + " — " + SKU.Desc(G.P.ultId ?? G.P.hid), 12, FontWeight.SemiBold));
+            foreach (var g in G.S.skPass.GroupBy(x => x)) { var p = SKP.Get(g.Key); if (p != null) list.Children.Add(PassCard(p, g.Count())); }
+            if (G.S.skPass.Count == 0) list.Children.Add(Txt(T("Пассивок пока нет — их дают в портале между уровнями."), 12, FontWeight.SemiBold, B("#b32b1d14")));
+            sk = Box(Col(6, Txt(T("Пассивки забега").ToUpper(L.Culture), 12, FontWeight.ExtraBold, BarnB), list), StrawB, 0, 14, new Thickness(10, 8));
+        }
+        var card = CardBox(sk != null ? 440 : 380, Logo(T("Пауза"), LogoSize(mv)),
             Col(10, Btn(T("Продолжить"), G.resumeGame), Btn(T("Заново"), () => { Audio.Init(); G.bankCoins(); G.startGame(G.S.kind, G.S.lvIdx); }, "alt"),
                 Btn(T("Настройки"), () => OpenSettings(mv), "alt"), Btn(T("В меню"), G.toMenu, "alt")),
-            Best(T("Версия ") + GAME_VERSION));
+            sk, Best(T("Версия ") + GAME_VERSION));
         return Ov(mv, card, false);
     }
 
@@ -75,6 +84,7 @@ public static class Overlays
         tiles.Children.Add(tile(L.Fmt(o.score), T("Очки"))); tiles.Children.Add(tile(o.waveText ?? o.wave.ToString(), o.waveLabel)); tiles.Children.Add(tile(o.kills.ToString(), T("Враги")));
         var earn = Rich(T("Заработано: <i class=\"coin\"></i>") + o.earnCoins + T(" зёрен · <i class=\"tok\"></i>") + o.earnTokens + T(" жетонов"), 13, FontWeight.SemiBold, B("#cc2b1d14"), TextAlignment.Center);
         earn.HorizontalAlignment = HorizontalAlignment.Center;
+        if (o.pts > 0 || o.xp > 0) { earn = Rich(T("Заработано: <i class=\"coin\"></i>") + o.earnCoins + T(" зёрен · <i class=\"tok\"></i>") + o.earnTokens + T(" жетонов") + " · <i class=\"pts\"></i>" + o.pts + " PTS · <i class=\"xp\"></i>" + o.xp, 13, FontWeight.SemiBold, B("#cc2b1d14"), TextAlignment.Center); earn.HorizontalAlignment = HorizontalAlignment.Center; }
         var rec = Txt(T("Новый рекорд!"), 15, FontWeight.ExtraBold, BarnB, TextAlignment.Center); rec.IsVisible = o.record;
         var again = Btn(T("Ещё раз"), () => { Audio.Init(); G.startGame(G.S.kind, G.S.lvIdx); });
         var menu = Btn(T("В меню"), G.toMenu, "alt");
@@ -369,6 +379,15 @@ public static class Overlays
         card.MaxWidth = 640;
         return Ov(mv, card, true);
     }
+    /// <summary>Карточка пассивки: значок, название, что даёт; n — сколько раз взята.</summary>
+    public static Control PassCard(SkPass p, int n = 0)
+    {
+        var ic = new SkiaView((c, w, h) => DrawPassIcon(c, p.icon, w, h)) { Width = 40, Height = 40, VerticalAlignment = VerticalAlignment.Top };
+        var col = Col(2, Txt(p.name + (n > 1 ? " ×" + n : ""), 14, FontWeight.Black), Txt(p.desc, 12, FontWeight.SemiBold, B("#cc2b1d14")));
+        if (p.once) col.Children.Add(Rar(T("Только один раз"), "#c0392b", 8.5));
+        var d = new DockPanel(); DockPanel.SetDock(ic, Dock.Left); ic.Margin = new Thickness(0, 0, 10, 0); d.Children.Add(ic); d.Children.Add(col);
+        return Box(d, p.once ? B("#fff1c9") : PaperB, 2.5, 14, new Thickness(10, 8), 3);
+    }
     /// <summary>Значки пассивок: рисованные, без шрифтовых символов.</summary>
     public static void DrawPassIcon(Ctx c, string icon, double w, double h)
     {
@@ -413,7 +432,10 @@ public static class Overlays
             var pv = Panels.HeroPv(id, 76, sh ? 46 : 56, sh ? .85 : 1); pv.HorizontalAlignment = HorizontalAlignment.Center;
             var pvb = Box(pv, PvBg(own ? "grass" : "dark"), 2, 9); pvb.ClipToBounds = true;
             var nm = Txt(H.name, 11.5, FontWeight.ExtraBold, InkB, TextAlignment.Center); nm.LineHeight = 13;
-            var p = new Press(Col(4, pvb, nm), on ? YolkB : own ? PaperB : B(Poor), 3, 14, new Thickness(5, 5, 5, 6), on ? 0 : 3);
+            // цвет редкости: рамка плитки, полоска под картинкой и значок
+            var rc = RAR[H.rar].c; var strip = new Border { Height = 5, CornerRadius = new CornerRadius(3), Background = B(rc) };
+            var rb = Rar(RAR[H.rar].name, rc, 8); rb.HorizontalAlignment = HorizontalAlignment.Center; rb.Padding = new Thickness(5, 1);
+            var p = new Press(Col(4, pvb, strip, nm, rb), on ? YolkB : own ? PaperB : B(Poor), 3, 14, new Thickness(5, 5, 5, 6), on ? 0 : 3, B(rc));
             if (on) p.BoxShadow = BoxShadows.Parse("0 0 0 3 #C0392B");
             if (!own) { p.Opacity = .55; p.Click += () => mv.Toast(T("Герой ещё не открыт — выпадает из сундуков")); }
             else p.Click += () => { skPick = id; mv.Show("skSel", SkSelect(mv), 8); };
@@ -556,7 +578,7 @@ public static class Overlays
         var t3 = Table(new[] { T("Карты героя"), T("Шанс пачки"), T("Карт в пачке") }, new[] { "common", "rare", "epic", "legendary" }.Select(rk => new Control[] { rb(RAR[rk]), Cell(pc(o.hcards[rk])), Cell(Math.Max(1, Math.Round(C.hcard[0] * RAR[rk].card, MidpointRounding.AwayFromZero)) + "–" + Math.Max(1, Math.Round(C.hcard[1] * RAR[rk].card, MidpointRounding.AwayFromZero))) }).ToList());
         var t4 = Table(new[] { T("Карты оружия"), T("Шанс пачки"), T("Карт в пачке") }, WRAR_ORDER.Select(rk => new Control[] { rb(WRAR[rk]), Cell(pc(o.wcards[rk])), Cell(Math.Max(1, Math.Round(C.wcard[0] * WRAR[rk].card, MidpointRounding.AwayFromZero)) + "–" + Math.Max(1, Math.Round(C.wcard[1] * WRAR[rk].card, MidpointRounding.AwayFromZero))) }).ToList());
         t4.Margin = new Thickness(0, 8, 0, 0);
-        var note = Txt(T("Шансы считаются от твоего прогресса: уже открытые герои и стволы на максимальном уровне не выпадают. Сначала проверяется самая высокая редкость героя. * Чем выше редкость, тем меньше карт в пачке."), 12, FontWeight.SemiBold, B("#bf2b1d14"));
+        var note = Txt(T("Шансы показаны для полного набора героев и стволов. Сначала проверяется самая высокая редкость героя; если героев этой редкости уже не осталось, ход переходит к следующей. Карты достаются только открытым героям и купленным стволам не на максимальном уровне. * Чем выше редкость, тем меньше карт в пачке."), 12, FontWeight.SemiBold, B("#bf2b1d14"));
         note.Margin = new Thickness(0, 10, 0, 4);
         var sub = C.sub; sub = sub.Length > 0 ? char.ToUpper(sub[0]) + sub[1..] : sub;
         var body = Col(0, pvb, h(T("Всегда внутри")), t1, h(T("Новый герой")), t2, h(T("Кому достанется пачка карт")), t3, t4, note);

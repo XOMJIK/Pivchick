@@ -65,7 +65,7 @@ public static partial class G
         P.bag = new List<string>(SKW.START); P.slot = 0; P.w = P.prim = P.bag[0]; P.bagMax = 2;
         P.stamMax = P.stam = SK_STAM_MAX; P.nades = 0; // гранат в подземелье нет
         enemies = new(); bullets = new(); parts = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); holes = new(); zones = new(); strikes = new(); puddles = new(); goo = new();
-        S.piv = 0; S.skPass = new();
+        S.piv = 0; S.skPass = new(); S.won = false;
         S.mode = "play"; S.kind = "sk"; S.skHero = heroId; S.lvIdx = 0; S.L = null; S.diff = 1; S.night = false; S.t = 0; S.score = 0; S.wave = 0; S.toSpawn = 0; S.spawnT = 0;
         S.between = 0; S.running = true; S.kills = 0; S.goalKills = 0; S.survT = 0; S.boss = null; S.bossT = 0; S.shake = 0;
         S.combo = 0; S.comboT = 0; S.deadT = 0; S.winT = 0; S.coins = 0; S.tokens = 0; S.banked = false; S.cleanup = false; S.goalDone = false;
@@ -76,7 +76,7 @@ public static partial class G
 
     static void resetField()
     {
-        enemies = new(); bullets = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); zones = new(); strikes = new(); puddles = new(); goo = new();
+        enemies = new(); bullets = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); zones = new(); strikes = new(); puddles = new(); goo = new(); quakes = new();
         S.boss = null; bossBarOn = false; RIVERS = new(); RIVER = null; actPick = null; actVend = actStatue = null; fish = new();
         allies = new(); // бойцы «Подкрепления» на следующий уровень не идут
     }
@@ -98,7 +98,7 @@ public static partial class G
 
     static void enterLevel(int lv)
     {
-        resetField(); S.skLv = lv; S.lvIdx = lv; S.diff = 1 + (lv - 1) * 1.3; WW = WH = SK_SIZE;
+        resetField(); S.skLv = lv; S.lvIdx = lv; S.diff = 1 + (lv - 1) * 1.3; WW = WH = SK_SIZE; Stats.Max("sk_depth", lv);
         buildLevel(lv); renderDungeon();
         var st = DUN.rooms.First(r => r.type == "start"); st.seen = true;
         P.x = st.cx; P.y = st.cy + 30; P._px = P.x; P._py = P.y; P.buff = null; P.inv = 1;
@@ -147,8 +147,8 @@ public static partial class G
         var D = new Dungeon();
         Room mk((int x, int y) g, string type)
         {
-            double w = type is "start" or "end" ? 300 : type is "boss" or "bossopt" ? 660 : type is "shop" or "chest" or "shrine" ? 340 : 600,
-                h = type is "start" or "end" ? 270 : type is "boss" or "bossopt" ? 600 : type is "shop" or "chest" or "shrine" ? 300 : 520;
+            double w = type is "start" or "end" ? 300 : type is "boss" or "bossopt" ? 660 : type == "shop" ? 460 : type is "chest" or "shrine" ? 340 : 600,
+                h = type is "start" or "end" ? 270 : type is "boss" or "bossopt" ? 600 : type == "shop" ? 320 : type is "chest" or "shrine" ? 300 : 520;
             var R = new Room { type = type, w = w, h = h };
             R.x = FENCE + cs * (g.x + .5) - w / 2; R.y = FENCE + cs * (g.y + .5) - h / 2; D.rooms.Add(R); return R;
         }
@@ -309,8 +309,10 @@ public static partial class G
         if (R.type is "boss" or "bossopt")
         {
             bool fac = skFactory(S.skLv); // во втором мире — роботы и сам доктор
-            var type = R.type == "boss" ? (fac ? "drferret" : "ataman") : fac ? "steelturkey" : "gturkey";
-            var e = makeEnemy(type, R.cx, R.y + 110); e.room = R; e.atkT = 2; e.hp = e.max = R.type == "boss" ? (fac ? 3200 : 1700) : fac ? 1900 : 950;
+            // необязательный босс в стороне — Индюк-генерал (на заводе Стальной Индюк) или Хомяк-Трясун
+            var type = R.type == "boss" ? (fac ? "drferret" : "ataman") : rnd() < .5 ? "hamster" : fac ? "steelturkey" : "gturkey";
+            double bhp = R.type == "boss" ? (fac ? 7600 : 4200) : type == "hamster" ? (fac ? 5200 : 2800) : fac ? 4800 : 2400; // боссы подземелья крепкие
+            var e = makeEnemy(type, R.cx, R.y + 110); e.room = R; e.atkT = 1.6; e.hp = e.max = Math.Round(bhp * MpHp);
             R.boss = e; S.boss = e; bossBarOn = true; R.waves = 0; Music.Play("boss"); S.shake += 8; Sfx.gobble();
             showBanner(ETYPE[type].name, R.type == "boss" ? T("Победи главаря — откроется портал") : T("Необязательный босс · награда — золотые яйца"));
         }
@@ -349,8 +351,8 @@ public static partial class G
     }
     static void clearRoom(Room R)
     {
-        R.cleared = true; DUN.active = null; Sfx.pick(); S.shake += 3;
-        int bonus = 6 + S.skLv * 3; S.coins += bonus;
+        R.cleared = true; DUN.active = null; Sfx.pick(); S.shake += 3; Stats.Add("sk_rooms");
+        int bonus = 2 + S.skLv; S.coins += bonus; // зёрен за комнату немного: в забеге главное — пивчики
         ftext(P.x, P.y - 62, T("Комната зачищена!") + " +" + bonus, "#9cf27a", 15);
         if (rnd() < .45) pickups.Add(new Pickup { x = R.cx, y = R.cy, kind = "corn", t = 60, ph = 0 });
         if (rnd() < .6) pickups.Add(new Pickup { x = R.cx + 30, y = R.cy + 10, kind = "stam", t = 60, ph = 0 }); // стамина сама не копится — кристалл за комнату
@@ -377,6 +379,7 @@ public static partial class G
     {
         Sfx.ult(); ring(P.x, P.y, "#b48cff", 120, .5); puff(P.x, P.y, "#d9c4ff", 12, 1.2);
         if (p.kind == "start") { enterLevel(1); return; }
+        Stats.Add("sk_levels");
         if (S.skLv >= SK_LEVELS) { skFinish(); return; }
         // между уровнями — выбор одной пассивки из трёх
         skOffer = rollPassives(3);
@@ -386,7 +389,7 @@ public static partial class G
     }
     static void skFinish()
     {
-        S.mode = "result"; sticks.move = sticks.aim = null; input.firing = false;
+        S.mode = "result"; sticks.move = sticks.aim = null; input.firing = false; S.won = true; Stats.Add("sk_runs");
         skCashPiv(); long sc = S.coins, st = S.tokens; bankCoins();
         bool first = !SAVE.eggMs.ContainsKey("skRun");
         long lc = 300, lt = 80; int le = first ? 15 : 0;
@@ -395,6 +398,7 @@ public static partial class G
         var w = new WinInfo { eyebrow = T("Режим Soul Knight") + " · " + skLvName(SK_LEVELS), lead = T("Оба мира пройдены! Лис-атаман и Доктор Хорёк повержены."), hasNext = false };
         w.rows.Add(new WinRow { icon = "coin", text = "+" + (lc + sc) + T(" зёрен"), sub = T("за забег и врагов") });
         w.rows.Add(new WinRow { icon = "tok", text = "+" + (lt + st) + T(" жетонов"), sub = T("на обычный сундук: ") + L.Fmt(SAVE.tokens) + "/100" });
+        AddMatchRow(w);
         if (first) { w.rows.Add(new WinRow { icon = "gegg", text = "+" + le + T(" золотых яиц"), sub = T("только за первое прохождение") }); w.rows.Add(new WinRow { icon = "btok", text = StripIcon(T("<i class=\"btok\"></i>+1 большой жетон")), sub = T("на большой сундук: ") + SAVE.btokens + "/10" }); w.rows.Add(new WinRow { icon = "lch", text = T("Легендарный сундук!"), sub = T("за первое прохождение обоих миров · открой в «Сундуках»") }); }
         Ui.ShowWin(w);
     }
@@ -418,7 +422,7 @@ public static partial class G
         if (S.mode != "play" || P == null || !P.alive || P.bag == null || i < 0 || i >= P.bag.Count || (i == P.slot && P.w == P.bag[i])) return;
         P.slot = i; P.w = P.prim = P.bag[i]; P.spin = 0;
         P.ammo = double.PositiveInfinity; P.cd = Math.Max(P.cd, .15); Sfx.click();
-        ftext(P.x, P.y - 54, WEAP[P.w].name, "#ffc93a", 13);
+        ftext(P.x, P.y - 54, WEAP[P.w].name, WEAP[P.w].skr != null ? Hud.Rc(WEAP[P.w].skr) : "#ffc93a", 13);
     }
     const double MELEE_R = 80, MELEE_ARC = 1.15;
     /// <summary>Вражеский снаряд, который вот-вот долетит до героя (в пределах взмаха и летит к нему): ближнее оружие машет само, чтобы его отбить.</summary>

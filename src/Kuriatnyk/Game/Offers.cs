@@ -12,10 +12,11 @@ public static class Offers
 {
     // зёрен за одну карту и сколько карт в пачке: чем реже герой или ствол, тем меньше карт и дороже каждая
     static readonly Dictionary<string, int> HERO_CARD = new() { ["common"] = 12, ["rare"] = 20, ["epic"] = 32, ["legendary"] = 50 };
-    static readonly Dictionary<string, int> WEAP_CARD = new() { ["common"] = 10, ["rare"] = 18, ["legendary"] = 40 };
-    public static string Today => DateTime.Now.ToString("yyyy-MM-dd");
-    /// <summary>Сколько осталось до новых карточек (до полуночи).</summary>
-    public static TimeSpan Left => DateTime.Today.AddDays(1) - DateTime.Now;
+    static readonly Dictionary<string, int> WEAP_CARD = new() { ["common"] = 10, ["rare"] = 18, ["epic"] = 28, ["legendary"] = 40 };
+    /// <summary>Магазин обновляется каждые 24 часа — в полночь по UTC, одинаково для всех часовых поясов.</summary>
+    public static string Today => DateTime.UtcNow.ToString("yyyy-MM-dd");
+    /// <summary>Сколько осталось до новых карточек (до полуночи UTC).</summary>
+    public static TimeSpan Left => DateTime.UtcNow.Date.AddDays(1) - DateTime.UtcNow;
 
     static bool Valid(Offer o) => o.kind == "hero" ? SAVE.heroes.TryGetValue(o.id, out var h) && h.lv < 10
         : SAVE.guns.Contains(o.id) && wLv(o.id) < 10 && hasClass(WEAP[o.id].cls);

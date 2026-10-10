@@ -22,7 +22,7 @@ public static partial class G
     }
     static Bullet pBullet(double x, double y, double a, double sp, double dmg, double r, double life, string kind, int pierce = 0, int bounce = 0, int shape = 0)
     {
-        var b = new Bullet { x = x, y = y, vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp, r = r, dmg = dmg, fromP = true, life = life, max = life, kind = kind, pierce = pierce, hits = pierce > 0 ? new() : null, bounce = bounce, shape = shape };
+        var b = new Bullet { x = x, y = y, vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp, r = r, dmg = dmg, fromP = true, life = life, max = life, kind = kind, pierce = pierce, hits = pierce > 0 ? new() : null, bounce = bounce, shape = shape, uw = P?.uw ?? 1 };
         bullets.Add(b); return b;
     }
     /// <summary>Сколько стамины стоит выстрел. Стамина есть только в Soul Knight: у каждого ствола своё число.</summary>
@@ -31,6 +31,15 @@ public static partial class G
         if (S.kind != "sk" || W.skr == null) return 0; // стамина есть только в Soul Knight
         double c = W.stam;
         return c * (P?.stamMul ?? 1);
+    }
+    /// <summary>Сколько «ударов» для ульты стоит одно попадание: дробь делит удар на дробинки,
+    /// а скорострельное оружие (быстрее 4 выстрелов в секунду) — на долю, чтобы ульта копилась от ударов, а не от темпа.</summary>
+    public static double hitWeight(Weap W)
+    {
+        double w = 1.0 / Math.Max(1, W.pellets > 1 ? W.pellets : W.ring > 0 ? W.ring : 1);
+        double rate = W.spinUp || W.special == "mini" ? .09 : W.rate;
+        if (rate < .25) w *= rate / .25;
+        return w;
     }
     static void noStamina(string msg)
     {
@@ -44,8 +53,14 @@ public static partial class G
         P.cd = rate / rm;
         double cost = shotCost(W, rate);
         if (cost > 0 && P.stam < cost) { noStamina(T("Нет стамины — смени оружие")); P.cd = .25; return; } // без стамины стреляет только оружие, которое её не тратит
-        if (W.coin) { if (S.piv < 1) { noStamina(T("Нет пивчиков")); P.cd = .3; return; } if (P.coinN++ % 3 == 0) S.piv--; } // пивчик — раз в 3 выстрела
+        P.coinDry = false;
+        if (W.coin)
+        { // Пивчикомёт тратит стамину, а пивчик — раз в 3 выстрела; кончились пивчики — стреляет дальше, но вдвое слабее
+            if (S.piv >= 1) { if (P.coinN++ % 3 == 0) S.piv--; }
+            else { P.coinDry = true; if (P.noStamT <= 0) noStamina(T("Пивчики кончились — урон вдвое меньше")); }
+        }
         P.stam = Math.Max(0, P.stam - cost);
+        P.uw = hitWeight(W);
         double ang = input.mouse ? P.ang : aimAssist(P.ang); P.ang = ang;
         double wm = P.w == P.prim ? wMul(P.w) : 1;
         if (W.special == "melee") meleeSwing(ang, W);
@@ -72,7 +87,9 @@ public static partial class G
                 double a = ang + (rnd() - .5) * W.spread, sp = W.spd * (W.pellets > 1 || kind == "flame" ? rand(.85, 1.12) : 1);
                 double r = kind == "flame" ? 7 : W.pellets > 1 ? 3.5 : (P.w is "sheriff" or "crossbow" or "cornrifle" ? 5 : 4.5);
                 double life = W.life * P.rangeMul * (W.pellets > 1 || kind == "flame" ? rand(.8, 1.1) : 1);
-                pBullet(P.x + Math.Cos(ang) * 22, P.y + Math.Sin(ang) * 22, a, sp, W.dmg * P.dmgMul * wm, r, life, kind, kind == "flame" ? 99 : W.pierce, W.bounce, W.bounce > 0 ? i % 4 : 0);
+                var pb = pBullet(P.x + Math.Cos(ang) * 22, P.y + Math.Sin(ang) * 22, a, sp, W.dmg * P.dmgMul * wm, r, life, kind, kind == "flame" ? 99 : W.pierce, W.bounce, W.bounce > 0 ? i % 4 : 0);
+                if (W.special == "rico") { pb.rico = 3; pb.hits = new(); }
+                if (W.special == "medkit" && (++P.kitN) % 6 == 0) pb.cloud = true; // каждая шестая капсула — лечебное облако
             }
         }
         if (P.hid == "guinea" && (++P.gN) % 8 == 0) for (int k = -2; k <= 2; k++) pBullet(P.x + Math.Cos(ang) * 22, P.y + Math.Sin(ang) * 22, ang + k * .16, 720, 18 * P.dmgMul, 4.5, .6 * P.rangeMul, "pfeather", 1);
@@ -99,7 +116,7 @@ public static partial class G
         for (int i = 0; i < enemies.Count; i++)
         {
             var e = enemies[i]; if (e.dead) continue; var t = clamp((e.x - x0) * ca + (e.y - y0) * sa, 0, Lb); double px = x0 + ca * t - e.x, py = y0 + sa * t - e.y;
-            if (px * px + py * py < (e.r + 9) * (e.r + 9)) { hitEnemy(e, dmg, ca, sa, fromP, 2 * width, width < 1, owner); puff(e.x, e.y, col ?? "#bff4ff", width < 1 ? 1 : 4, .8); if (owner != null) owner.ult = Math.Min(100, owner.ult + dmg * .08); }
+            if (px * px + py * py < (e.r + 9) * (e.r + 9)) { hitEnemy(e, dmg, ca, sa, fromP, 2 * width, width < 1, owner); puff(e.x, e.y, col ?? "#bff4ff", width < 1 ? 1 : 4, .8); if (owner != null) allyUltHit(owner, 1); }
         }
         parts.Add(new Part { k = "beam", x = x0, y = y0, x2 = x1, y2 = y1, t = 0, max = width < 1 ? .1 : .3, col = col, s = width });
         for (int i = 0; i < puffs; i++) { var t = rand(0, Lb); parts.Add(new Part { k = "puff", x = x0 + ca * t, y = y0 + sa * t, z = 19, vx = rand(-20, 20), vy = rand(-20, 20), vz = rand(-10, 20), t = 0, max = rand(.25, .5), r = rand(2, 4), col = col ?? "#bff4ff" }); }
@@ -131,6 +148,32 @@ public static partial class G
         double tt = .7;
         nades.Add(new Nade { x = P.x, y = P.y, z = 24, vx = Math.Cos(ang) * dist / tt, vy = Math.Sin(ang) * dist / tt, vz = 240, t = 1.05, rot = 0 });
     }
+    /// <summary>«Громобой»: молния от врага перескакивает ещё на n соседей.</summary>
+    static void miniChain(Enemy from, double dmg, int n, bool ally, Fighter owner)
+    {
+        var hit = new HashSet<Enemy> { from }; var cur = from;
+        for (int k = 0; k < n; k++)
+        {
+            Enemy nx = null; double nd = 170;
+            foreach (var f in enemies) { if (f.dead || hit.Contains(f)) continue; var d = hypot(f.x - cur.x, f.y - cur.y); if (d < nd) { nd = d; nx = f; } }
+            if (nx == null) break;
+            parts.Add(new Part { k = "bolt", x = cur.x, y = cur.y - 19, x2 = nx.x, y2 = nx.y - 19, t = 0, max = .2, seed = rnd() });
+            var old = hitW; hitW = .3; hitEnemy(nx, dmg, nx.x - cur.x, nx.y - cur.y, !ally, .4, true, owner); hitW = old;
+            hit.Add(nx); cur = nx;
+        }
+        Sfx.zap();
+    }
+    /// <summary>«Бабах»: маленький взрыв дробинки — задевает соседей того, в кого попала.</summary>
+    static void miniBoom(double x, double y, double R, double dmg, Enemy skip, bool ally, Fighter owner)
+    {
+        puff(x, y, "#ffb347", 3, .7); if (rnd() < .3) ring(x, y, "#ffc93a", R, .2);
+        var old = hitW; hitW = 0;
+        for (int i = 0; i < enemies.Count; i++) { var f = enemies[i]; if (f.dead || f == skip) continue; if (hypot(f.x - x, f.y - y) < R + f.r * .5) hitEnemy(f, dmg, f.x - x, f.y - y, !ally, .5, true, owner); }
+        hitW = old;
+        hitCratesArea(x, y, R, dmg * .5);
+    }
+    /// <summary>«Аптечкомёт»: лечебное облако на земле — лечит своих, но не поднимает выбитых.</summary>
+    static void healCloud(double x, double y) { zones.Add(new Zone { x = x, y = y, t = 3, r = 80, max = 3, mini = true }); ring(x, y, "#9cf27a", 80, .4); }
     static void healFx(Unit t) { t._hf--; if (t._hf > 0) return; t._hf = 8; parts.Add(new Part { k = "plus", x = t.x + rand(-10, 10), y = t.y, z = rand(34, 46), vz = 34, t = 0, max = .7 }); }
     static void healTeam(double cx, double cy, double v, double R = 240, bool inclP = true) // лечит игрока и всех живых бойцов отряда в радиусе
     {
@@ -139,7 +182,7 @@ public static partial class G
         foreach (var a in allies) if (a.down <= 0 && a.hp < a.max && hypot(a.x - cx, a.y - cy) < R) { a.hp = Math.Min(a.max, a.hp + v); healFx(a); }
     }
     static void healHit(double v) { if (P == null || !P.alive || v == 0) return; healTeam(P.x, P.y, v, 240, true); }
-    static void blast(double x, double y, double R, double dmg, bool fromP, bool selfDmg, double heal = 0)
+    static void blast(double x, double y, double R, double dmg, bool fromP, bool selfDmg, double heal = 0, bool noUlt = false)
     {
         S.shake += R > 100 ? 16 : 9; Sfx.boom(); Platform.Buzz(40);
         int n = R > 100 ? 16 : 9;
@@ -148,6 +191,8 @@ public static partial class G
         ring(x, y, fromP ? "#fff6c8" : "#ffb3a3", R, .35); splat(x, y, R / 45);
         hitCratesArea(x, y, R, fromP ? dmg : dmg * .5); // взрыв разносит ящики
         if (fromP)
+        {
+            var oldW = hitW; hitW = noUlt ? 0 : .5; // взрыв — полудар по каждому задетому, ульта от своей ульты не копится
             for (int i = 0; i < enemies.Count; i++)
             {
                 var e = enemies[i]; if (e.dead) continue; var d = hypot(e.x - x, e.y - y);
@@ -157,6 +202,8 @@ public static partial class G
                     if (!e.T.boss) { var dd = d == 0 ? 1 : d; e.kx += (e.x - x) / dd * 260; e.ky += (e.y - y) / dd * 260; }
                 }
             }
+            hitW = oldW;
+        }
         var dp = hypot(P.x - x, P.y - y);
         if (!fromP && dp < R + P.r * .5) hurtPlayer(dmg, "bomb");
         if (!fromP) foreach (var a in allies) if (a.down <= 0 && hypot(a.x - x, a.y - y) < R + a.r * .5) hurtAlly(a, dmg * .7);
@@ -177,7 +224,7 @@ public static partial class G
             double v = P.max * .5 * P.healMul, h = Math.Min(v, P.max - P.hp); P.hp = Math.Min(P.max, P.hp + v); healFx(P);
             ftext(P.x, P.y - 50, "+" + Math.Max(Math.Round(h, MidpointRounding.AwayFromZero), 0) + T(" здоровья"), "#7df05a", 14);
         }
-        else if (p.kind == "piv") { S.piv += p.n; if (rnd() < .5) Sfx.coin(); }
+        else if (p.kind == "piv") { S.piv += p.n; Stats.Add("piv", p.n); if (rnd() < .5) Sfx.coin(); }
         else { var W = WEAP[p.kind]; if (P.w == p.kind) P.ammo += W.ammo; else { P.w = p.kind; P.ammo = W.ammo; } ftext(P.x, P.y - 50, W.name, "#ffc93a", 15); }
     }
 
@@ -185,7 +232,12 @@ public static partial class G
     public static void useUlt()
     {
         if (S.mode != "play" || !P.alive || P.ult < 100 || P.buff != null) return;
-        P.ult = 0; Sfx.ult(); Platform.Buzz(50);
+        noUltCharge = true;
+        try { castUlt(); } finally { noUltCharge = false; }
+    }
+    static void castUlt()
+    {
+        P.ult = 0; Sfx.ult(); Platform.Buzz(50); Stats.Add("ults");
         var id = P.ultId ?? P.hid; // в Soul Knight ульту может заменить статуя
         ftext(P.x, P.y - 62, SKU.Name(id).ToUpper(L.Culture), "#ffc93a", 16);
         if (id == SKU.SUMMON) { summonAlly(); return; }
@@ -291,7 +343,7 @@ public static partial class G
         for (int i = 0; i < n; i++)
         {
             double a = rand(0, TAU), d = Math.Sqrt(rnd()) * STRIKE_R * .78, tt = .6 + i * .11;
-            bombs.Add(new Bomb { x = clamp(cx + Math.Cos(a) * d, FENCE + 10, WW - FENCE - 10), y = clamp(cy + Math.Sin(a) * d, FENCE + 10, WH - FENCE - 10), t = tt, max = tt, r = r, dmg = dmg, fromP = true, quiet = true });
+            bombs.Add(new Bomb { x = clamp(cx + Math.Cos(a) * d, FENCE + 10, WW - FENCE - 10), y = clamp(cy + Math.Sin(a) * d, FENCE + 10, WH - FENCE - 10), t = tt, max = tt, r = r, dmg = dmg, fromP = true, quiet = true, ult = true });
         }
     }
     static void nurseKit(Fighter src, double dt) // Гусыня Медсестра: аптечка самому раненому из своих
@@ -314,7 +366,13 @@ public static partial class G
         for (int i = zones.Count - 1; i >= 0; i--)
         {
             var z = zones[i]; z.t -= dt;
-            double heal = 25 * dt * (P.medMul > 0 ? P.medMul : 1);
+            double heal = (z.mini ? 10 : 25) * dt * (P.medMul > 0 ? P.medMul : 1);
+            if (z.mini)
+            {
+                if (P.alive && S.kind != "sk" && hypot(P.x - z.x, P.y - z.y) < z.r) P.hp = Math.Min(P.max, P.hp + heal); // в подземелье герой сам не лечится
+                foreach (var a in allies) if (a.down <= 0 && hypot(a.x - z.x, a.y - z.y) < z.r) a.hp = Math.Min(a.max, a.hp + heal);
+                if (z.t <= 0) zones.RemoveAt(i); continue;
+            }
             if (P.alive && hypot(P.x - z.x, P.y - z.y) < z.r) P.hp = Math.Min(P.max, P.hp + heal);
             foreach (var a in allies)
             {
@@ -342,7 +400,7 @@ public static partial class G
         if (W.special == "cat" && (++a.catN) % 6 == 0)
         {
             double sp = W.spd * .8, life = W.life * 1.3;
-            bullets.Add(new Bullet { x = a.x + Math.Cos(ang) * 20, y = a.y + Math.Sin(ang) * 20, vx = Math.Cos(ang) * sp, vy = Math.Sin(ang) * sp, r = 8, dmg = dmg * 3, fromP = true, life = life, max = life, kind = "yarn", pierce = 2, hits = new(), ally = true, owner = a, spin = 0 });
+            bullets.Add(new Bullet { x = a.x + Math.Cos(ang) * 20, y = a.y + Math.Sin(ang) * 20, vx = Math.Cos(ang) * sp, vy = Math.Sin(ang) * sp, r = 8, dmg = dmg * 3, fromP = true, life = life, max = life, kind = "yarn", pierce = 2, hits = new(), ally = true, owner = a, spin = 0, uw = 1 });
             return;
         }
         var kind = W.special == "flame" ? "flame" : W.special == "ice" ? "ice" : a.gun; bool multi = W.pellets > 1 || kind == "flame";
@@ -352,7 +410,8 @@ public static partial class G
             bullets.Add(new Bullet
             {
                 x = a.x + Math.Cos(ang) * 20, y = a.y + Math.Sin(ang) * 20, vx = Math.Cos(a2) * sp, vy = Math.Sin(a2) * sp, r = kind == "flame" ? 7 : W.pellets > 1 ? 3.5 : 4.2, dmg = dmg, fromP = true, life = life, max = life, kind = kind,
-                pierce = kind == "flame" ? 99 : W.pierce, hits = (kind == "flame" || W.pierce > 0) ? new() : null, ally = true, owner = a, bounce = W.bounce, shape = i % 4
+                pierce = kind == "flame" ? 99 : W.pierce, hits = (kind == "flame" || W.pierce > 0 || W.special == "rico") ? new() : null, ally = true, owner = a, bounce = W.bounce, shape = i % 4, uw = hitWeight(W),
+                rico = W.special == "rico" ? 2 : 0
             });
         }
         if (kind != "flame") parts.Add(new Part { k = "flash", x = a.x + Math.Cos(ang) * 26, y = a.y + Math.Sin(ang) * 26, z = 19, t = 0, max = .05, a = ang, s = .8 });

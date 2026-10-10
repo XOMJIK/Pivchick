@@ -38,7 +38,7 @@ public static class SKW
         new(){id="accordion",skr="epic",nameRu="Баян",rate=.5,dmg=22,pellets=3,spd=430,life=.55,spread=.5,pierce=99,size=14,stam=3,shape="note",sfx="pop",kick=1,descRu="Звуковые волны проходят сквозь всех"},
         new(){id="gauss",skr="legendary",nameRu="Гаусс-пушка",rate=1,dmg=140,spd=1700,life=.9,pierce=99,ghost=true,knock=4,stam=7,shape="slug",sfx="rail",kick=7,descRu="Магнитный снаряд пробивает врагов и даже укрытия"},
         new(){id="grinder",skr="legendary",nameRu="Мясорубка",rate=.05,dmg=13,spd=680,life=.6,spread=.16,spinUp=true,stam=.45,shape="meat",sfx="smg",kick=.8,descRu="Раскручивается и строчит фрикадельками"},
-        new(){id="coingun",skr="legendary",nameRu="Пивчикомёт",rate=.3,dmg=75,spd=760,life=.8,pierce=1,coin=true,shape="coin",sfx="shot",kick=2.5,descRu="Стреляет пивчиками: огромный урон, но каждые 3 выстрела стоят 1 пивчик"},
+        new(){id="coingun",skr="legendary",nameRu="Пивчикомёт",rate=.3,dmg=75,spd=760,life=.8,pierce=1,coin=true,stam=2,shape="coin",sfx="shot",kick=2.5,descRu="Стреляет пивчиками: огромный урон за стамину и 1 пивчик на 3 выстрела. Без пивчиков бьёт вдвое слабее"},
         // --- посохи ---
         new(){id="sfire",skr="rare",nameRu="Посох огня",rate=.6,dmg=35,spd=520,life=.9,boomR=60,boomDmg=30,burnT=2.5,stam=3,shape="fireorb",sfx="throw",kick=1,descRu="Огненный шар взрывается и поджигает"},
         new(){id="sice",skr="rare",nameRu="Посох льда",rate=.4,dmg=30,spd=700,life=.8,split=3,chill=1.6,stam=2,shape="shard",sfx="ice",kick=1,descRu="Ледышка раскалывается на три осколка"},
@@ -74,9 +74,11 @@ public static class SKW
     /// <summary>Цена ствола: основа по редкости плюс сила (корень, чтобы мощные не улетали в небо), с наценкой за уровень.</summary>
     public static int Price(Weap w, int lv = 1)
     {
-        double b = w.skr switch { "common" => 4, "rare" => 14, "epic" => 28, _ => 46 };
-        return Cost(b + Math.Sqrt(Power(w)) * 2.6, lv);
+        double b = w.skr switch { "common" => 6, "rare" => 20, "epic" => 40, _ => 64 };
+        return Cost((b + Math.Sqrt(Power(w)) * 2.6) * 1.4, lv);
     }
+    /// <summary>Легендарное оружие продаётся только за золотые яйца: в лесу 20, на заводе 30.</summary>
+    public static int EggPrice(int lv) => lv > 5 ? 30 : 20;
     static readonly HashSet<string> STAFFS = new() { "sfire", "sice", "sheal", "spoison", "sbolt", "sroot", "swind", "sstar" };
     /// <summary>Раздел справочника: melee — ближний бой, staff — посохи, gun — остальное.</summary>
     public static string Group(Weap w) => w.special == "melee" ? "melee" : STAFFS.Contains(w.id) ? "staff" : "gun";
@@ -89,20 +91,20 @@ public static class SKP
     public static readonly SkPass[] LIST =
     {
         new(){id="bag",nameRu="Рюкзак",descRu="+1 место для оружия",once=true,icon="bag"},
-        new(){id="hp",nameRu="Крепкие перья",descRu="+25 к максимуму здоровья и лечение на 25",icon="heart"},
-        new(){id="dmg",nameRu="Острый клюв",descRu="+15% урона",icon="beak"},
-        new(){id="rate",nameRu="Быстрые лапки",descRu="+12% темпа стрельбы",icon="rate"},
-        new(){id="spd",nameRu="Лёгкий пух",descRu="+10% скорости бега",icon="boot"},
-        new(){id="stam",nameRu="Выносливость",descRu="+30 к максимуму стамины",icon="stam"},
-        new(){id="sregen",nameRu="Бодрость",descRu="Кристаллы и зелья стамины дают вдвое больше",icon="stam"},
-        new(){id="thrift",nameRu="Экономия",descRu="Оружие тратит на 25% меньше стамины",icon="stam"},
-        new(){id="armor",nameRu="Скорлупа",descRu="−12% входящего урона",icon="shield"},
-        new(){id="vamp",nameRu="Аппетит",descRu="Каждое убийство лечит 2 здоровья",icon="heart"},
-        new(){id="magnet",nameRu="Магнит",descRu="Пивчики летят к тебе издалека, и их падает на 30% больше",icon="piv"},
-        new(){id="crit",nameRu="Меткость",descRu="12% шанс крита ×2",icon="beak"},
-        new(){id="melee",nameRu="Боевой задор",descRu="+40% урона ближним оружием",icon="sword"},
-        new(){id="herb",nameRu="Знахарь",descRu="Кукуруза и зелья здоровья лечат вдвое сильнее",once=true,icon="heart"},
-        new(){id="ult",nameRu="Боевой дух",descRu="Ульта копится на 30% быстрее",icon="star"},
+        new(){id="hp",nameRu="Крепкие перья",descRu="+20 к максимуму здоровья и лечение на 20",icon="heart"},
+        new(){id="dmg",nameRu="Острый клюв",descRu="+10% урона",icon="beak"},
+        new(){id="rate",nameRu="Быстрые лапки",descRu="+10% темпа стрельбы",icon="rate"},
+        new(){id="spd",nameRu="Лёгкий пух",descRu="+8% скорости бега",icon="boot"},
+        new(){id="stam",nameRu="Выносливость",descRu="+25 к максимуму стамины",icon="stam"},
+        new(){id="sregen",nameRu="Бодрость",descRu="Кристаллы и зелья стамины дают на 50% больше",icon="stam"},
+        new(){id="thrift",nameRu="Экономия",descRu="Оружие тратит на 20% меньше стамины",icon="stam"},
+        new(){id="armor",nameRu="Скорлупа",descRu="−10% входящего урона",icon="shield"},
+        new(){id="vamp",nameRu="Аппетит",descRu="Каждое убийство лечит 1 здоровье",icon="heart"},
+        new(){id="magnet",nameRu="Магнит",descRu="Пивчики летят к тебе издалека, и их падает на 20% больше",icon="piv"},
+        new(){id="crit",nameRu="Меткость",descRu="+8% шанс крита ×2",icon="beak"},
+        new(){id="melee",nameRu="Боевой задор",descRu="+25% урона ближним оружием",icon="sword"},
+        new(){id="herb",nameRu="Знахарь",descRu="Кукуруза и зелья здоровья лечат на 50% сильнее",once=true,icon="heart"},
+        new(){id="ult",nameRu="Боевой дух",descRu="Ульта копится на 10% быстрее",icon="star"},
         new(){id="luck",nameRu="Удача",descRu="В сундуках и у торговца чаще редкое оружие",icon="clover"},
     };
     public static SkPass Get(string id) => LIST.FirstOrDefault(p => p.id == id);

@@ -249,8 +249,9 @@ public static partial class G
         if (p.price > 0)
         { // ценник
             c.font = "900 13px Rubik"; var pt = p.price.ToString(); double tw = c.measureText(pt) + 26, ty = 14;
-            bool poor = S.piv < p.price;
-            c.fillStyle = INK; rr(c, -tw / 2, ty, tw, 20, 9); c.fill(); Hud.Piv(c, -tw / 2 + 11, ty + 10, 13);
+            bool poor = p.egg ? Store.SAVE.eggs < p.price : S.piv < p.price;
+            c.fillStyle = p.egg ? "#6b3a00" : INK; rr(c, -tw / 2, ty, tw, 20, 9); c.fill();
+            if (p.egg) { c.save(); c.translate(-tw / 2 + 5, ty + 3); UI.K.DrawIcon(c, "gegg", 11, 14); c.restore(); } else Hud.Piv(c, -tw / 2 + 11, ty + 10, 13);
             c.textAlign = "left"; c.fillStyle = poor ? "#ff8a6b" : "#ffd25a"; c.fillText(pt, -tw / 2 + 20, ty + 14.5);
         }
         if (p.kind == "skw" && (p == actPick || (actPick == null && near < 70)))

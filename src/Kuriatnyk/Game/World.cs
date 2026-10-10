@@ -215,25 +215,42 @@ public static partial class G
     static void makeRivers(MapDef M)
     {
         double Len(char a) => a == 'h' ? WW : WH;
-        River mk(RiverDef d)
-        {
-            var R = new River { axis = d.axis, @base = d.@base, amp = d.amp, freq = d.freq, phase = d.phase, hw = d.hw, end = d.end };
-            R.bridges = d.bridges.Select(t => new Bridge { u = t.u, hw = 32, rotten = t.rot != 0, R = R }).ToList();
-            return R;
-        }
+        River mk(RiverDef d) => new River { axis = d.axis, @base = d.@base, amp = d.amp, freq = d.freq, phase = d.phase, hw = d.hw, end = d.end, bridges = new() };
         var main = mk(M.river); main.lo = -40; main.hi = Len(main.axis) + 40; RIVERS = new() { main }; RIVER = main;
+        River br = null; double uj = 0;
         if (M.branch != null)
         {
-            var br = mk(M.branch); double n = Len(br.axis);
+            br = mk(M.branch); double n = Len(br.axis);
             int f(double u) { var p = xyR(br, u, rcR(br, u)); return sideR(main, p.x, p.y); }
             double a = 0, b = n; int fa = f(a);
             for (int i = 0; i < 40; i++) { var m = (a + b) / 2; if (f(m) == fa) a = m; else b = m; }
-            var uj = (a + b) / 2; br.parent = main;
+            uj = (a + b) / 2; br.parent = main;
             if (br.end == "hi") { br.lo = uj; br.hi = n + 40; } else { br.lo = -40; br.hi = uj; }
             double tip = br.end == "hi" ? n : 0; var tp = xyR(br, tip, rcR(br, tip)); br.pside = sideR(main, tp.x, tp.y);
             RIVERS.Add(br);
         }
+        // мосты каждый раз в новых местах и гнилые — наугад, но на каждой реке хотя бы один целый: переправа есть всегда
+        double edge = FENCE + 80;
+        placeBridges(main, M.river.bridges.Length, edge, Len(main.axis) - edge, 230, u => br != null && Math.Abs(u - br.@base) < br.amp * 1.35 + br.hw + 90);
+        if (br != null) placeBridges(br, M.branch.bridges.Length, Math.Max(br.lo, 0) + (br.end == "hi" ? 120 : edge), Math.Min(br.hi, Len(br.axis)) - (br.end == "hi" ? edge : 120), 220, u => Math.Abs(u - uj) < 120);
         foreach (var b in allBridges()) b.ends = bridgeEnds(b);
+    }
+    /// <summary>n мостов наугад на отрезке [lo, hi] вдоль реки, не ближе gap друг к другу; примерно 40% гнилые, но один целый — обязательно.</summary>
+    static void placeBridges(River R, int n, double lo, double hi, double gap, Func<double, bool> bad)
+    {
+        var us = new List<double>();
+        for (int g = 0; g < 2 && us.Count < n; g++, gap *= .7) // не влезли — ещё раз с меньшим промежутком
+            for (int tries = 0; tries < 400 && us.Count < n; tries++)
+            {
+                double u = lo + rnd() * (hi - lo);
+                if (bad(u) || us.Any(x => Math.Abs(x - u) < gap)) continue;
+                us.Add(u);
+            }
+        if (us.Count == 0) us.Add((lo + hi) / 2);
+        us.Sort();
+        var rot = us.Select(_ => rnd() < .4).ToList();
+        if (rot.All(x => x)) rot[(int)(rnd() * rot.Count)] = false;
+        R.bridges = us.Select((u, i) => new Bridge { u = u, hw = 32, rotten = rot[i], R = R }).ToList();
     }
 
     public static void buildWorld(string key = "yard")

@@ -456,6 +456,7 @@ public static partial class G
         else if (t is "ferret" or "drferret") drawFerret(c, e);
         else if (t == "badger") drawBadger(c, e);
         else if (t == "mole") drawMole(c, e);
+        else if (t == "hamster") drawHamster(c, e);
         else if (t == "kamibird") drawKamiBird(c, e);
         else if (t == "robohen") drawBird(c, EnemyBird(e, "zapper", true));
         else drawBird(c, EnemyBird(e, "eggun", false));

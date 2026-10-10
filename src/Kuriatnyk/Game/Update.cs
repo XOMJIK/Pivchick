@@ -20,6 +20,7 @@ public static partial class G
         if (S.mode == "play" || S.mode == "dying" || S.mode == "won")
         {
             if (S.mode == "play") { updatePlayer(dt); updateBuff(dt); updateAllies(dt); updateZones(dt); }
+            if (quakes.Count > 0 && S.mode is "play" or "dying") updateQuakes(dt);
             if (S.mode != "won") updateEnemies(dt);
             updateBullets(dt); updateNades(dt); updateBombs(dt);
             if (S.cleanup) { S.cleanup = false; enemies = enemies.Where(e => !e.dead).ToList(); bullets = bullets.Where(b => b.fromP).ToList(); bombs = bombs.Where(b => b.fromP).ToList(); }
@@ -306,6 +307,7 @@ public static partial class G
             }
             else if (T.boss)
             {
+                if (e.quakeT > 0) { e.quakeT -= dt; e.moving = false; e.face = dx >= 0 ? 1 : -1; if (e.quakeT <= 0) hamsterSlam(e); continue; } // хомяк в прыжке — висит над землёй, потом удар
                 double want = T.fly ? 220 : (e.type is "gturkey" or "steelturkey") ? 170 : 200;
                 if (d > want + 40) { vx = dx / d; vy = dy / d; } else if (d < want - 60) { vx = -dx / d * .6; vy = -dy / d * .6; }
                 vx += -dy / d * e.strafe * .5; vy += dx / d * e.strafe * .5; e.strafeT -= dt; if (e.strafeT <= 0) { e.strafe *= -1; e.strafeT = rand(2, 4); }
@@ -377,29 +379,38 @@ public static partial class G
     }
     static void bossAI(Enemy e, ET Tt, double dt, double d)
     {
-        double enr = e.hp < e.max * .5 ? .72 : 1; var bul = Tt.bul ?? "egg";
+        // ярость: меньше половины здоровья — атакует чаще и плотнее, меньше четверти — ещё злее
+        bool rage = e.hp < e.max * .5, fury = e.hp < e.max * .25; double enr = fury ? .5 : rage ? .66 : 1; var bul = Tt.bul ?? "egg";
+        double pace = S.kind == "sk" ? .85 : 1; // в подземелье боссы ещё и быстрее
         if (e.spin > 0)
         {
             e.spin -= dt; e.burstT -= dt;
-            if (e.burstT <= 0) { e.burstT = .07; e.spinA += .38; for (int k = 0; k < 2; k++) { var a = e.spinA + k * Math.PI; eBullet(e.x + Math.Cos(a) * 30, e.y + Math.Sin(a) * 30, a, Tt.bspd * .85, eDmg(Tt.dmg), bul); } }
+            if (e.burstT <= 0) { e.burstT = .065; e.spinA += .36; int arms = rage ? 3 : 2; for (int k = 0; k < arms; k++) { var a = e.spinA + k * TAU / arms; eBullet(e.x + Math.Cos(a) * 30, e.y + Math.Sin(a) * 30, a, Tt.bspd * .9, eDmg(Tt.dmg), bul); } }
             return;
         }
-        if (e.burst > 0) { e.burstT -= dt; if (e.burstT <= 0) { e.burstT = .3; e.burst--; enemyShoot(e, Tt, 3, .16, bul); } return; }
+        if (e.burst > 0) { e.burstT -= dt; if (e.burstT <= 0) { e.burstT = .24; e.burst--; enemyShoot(e, Tt, rage ? 5 : 3, .14, bul); } return; }
         e.atkT -= dt; if (e.atkT > 0) return;
-        e.pat = (e.pat + 1) % Tt.pats.Length; e.atkT = 2.3 * enr;
+        e.pat = (e.pat + 1) % Tt.pats.Length; e.atkT = 1.7 * enr * pace;
         var p = Tt.pats[e.pat];
-        if (p == "fan") { var bas = Math.Atan2(P.y - e.y, P.x - e.x); for (int i = 0; i < 9; i++) { var a = bas + (i - 4) * .13; eBullet(e.x + Math.Cos(a) * 34, e.y + Math.Sin(a) * 34, a, Tt.bspd, eDmg(Tt.dmg), bul); } Sfx.egg(); }
-        else if (p == "burst") { e.burst = 3; e.burstT = 0; }
+        if (p == "fan") { var bas = Math.Atan2(P.y - e.y, P.x - e.x); int fn = rage ? 15 : 11; for (int i = 0; i < fn; i++) { var a = bas + (i - (fn - 1) / 2.0) * .11; eBullet(e.x + Math.Cos(a) * 34, e.y + Math.Sin(a) * 34, a, Tt.bspd * 1.05, eDmg(Tt.dmg), bul); } Sfx.egg(); if (fury) { e.burst = 2; e.burstT = .3; } }
+        else if (p == "burst") { e.burst = rage ? 6 : 4; e.burstT = 0; }
+        else if (p == "quake") hamsterJump(e);
+        else if (p == "roll") { e.dashes = rage ? 3 : 2; startDash(e, .5, .6); Sfx.squeak(); }
         else if (p == "summon")
         {
-            int n = e.type == "emperor" ? 3 : 2;
+            int n = (e.type == "emperor" ? 4 : 3) + (fury ? 1 : 0);
             for (int i = 0; i < n; i++) { var k = Tt.summon[(int)Math.Floor(rnd() * Tt.summon.Length)]; makeEnemy(k, clamp(e.x + rand(-80, 80), FENCE + 30, WW - FENCE - 30), clamp(e.y + rand(-60, 60), FENCE + 30, WH - FENCE - 30)); }
             ftext(e.x, e.y - 90, Tt.taunt ?? T("В атаку!"), "#fff", 13); Sfx.gobble();
         }
-        else if (p == "dash") { e.dashes = 1; startDash(e, .75, .55); }
-        else if (p == "spiral") { e.spin = 1.5; e.burstT = 0; e.spinA = rand(0, TAU); }
-        else if (p == "ring") { var off = rand(0, TAU); for (int i = 0; i < 18; i++) { var a = off + i / 18.0 * TAU; eBullet(e.x + Math.Cos(a) * 30, e.y + Math.Sin(a) * 30, a, Tt.bspd * .9, eDmg(Tt.dmg), bul); } Sfx.boom(); }
-        else if (p == "rain") { bossRain(Tt); ftext(e.x, e.y - 90, T("Берегись неба!"), "#ffc93a", 13); }
+        else if (p == "dash") { e.dashes = rage ? 2 : 1; startDash(e, .6, .55); }
+        else if (p == "spiral") { e.spin = rage ? 2.4 : 1.9; e.burstT = 0; e.spinA = rand(0, TAU); }
+        else if (p == "ring")
+        { // кольцо пуль; в ярости — второе, со сдвигом
+            var off = rand(0, TAU); int rn = 24;
+            for (int w = 0; w < (rage ? 2 : 1); w++) for (int i = 0; i < rn; i++) { var a = off + (i + w * .5) / rn * TAU; eBullet(e.x + Math.Cos(a) * 30, e.y + Math.Sin(a) * 30, a, Tt.bspd * (.85 + w * .2), eDmg(Tt.dmg), bul); }
+            Sfx.boom();
+        }
+        else if (p == "rain") { bossRain(Tt); if (rage) Later(.7, () => { if (!e.dead && S.mode == "play") bossRain(Tt); }); ftext(e.x, e.y - 90, T("Берегись неба!"), "#ffc93a", 13); }
     }
     static void updateBullets(double dt)
     {
@@ -454,15 +465,15 @@ public static partial class G
                         double er = e.r;
                         if ((b.x - e.x) * (b.x - e.x) + (b.y - e.y) * (b.y - e.y) < (er + b.r) * (er + b.r))
                         {
-                            var k = b.kind;
+                            var k = b.kind; hitW = b.frag ? 0 : b.uw;
                             if (b.w != null)
                             {
-                                hitEnemy(e, b.dmg, b.vx, b.vy, true, b.w.knock * (k == "steam" ? .5 : 1), k is "steam" or "tornado");
+                                hitEnemy(e, b.dmg, b.vx, b.vy, true, b.w.knock * (k == "steam" ? .5 : 1), k is "steam" or "tornado"); hitW = 1;
                                 skHit(b, e);
                                 if (b.pierce > 0) { b.pierce--; b.hits?.Add(e); } else dead = true;
                                 break;
                             }
-                            hitEnemy(e, b.dmg, b.vx, b.vy, !b.ally, k == "flame" ? .06 : k == "ice" ? .4 : 1, k == "flame", b.owner);
+                            hitEnemy(e, b.dmg, b.vx, b.vy, !b.ally, k == "flame" ? .06 : k == "ice" ? .4 : 1, k == "flame", b.owner); hitW = 1;
                             if (k == "flame") { e.burn = 2.2; e.burnDps = 9 * P.dmgMul; }
                             else if (k == "ice")
                             {
@@ -470,6 +481,20 @@ public static partial class G
                                 if (e.iceN >= 4 && !e.T.boss) { e.iceN = 0; e.stun = Math.Max(e.stun, 1.2); e.frozen = 1.2; puff(e.x, e.y, "#cfefff", 6, 1); Sfx.ice(); }
                             }
                             if (k == "crossbow" && !e.T.boss) e.stun = Math.Max(e.stun, .5);
+                            if (k == "thunder" && rnd() < .2) miniChain(e, b.dmg * .6, 2, b.ally, b.owner);
+                            if (k == "boomgun") miniBoom(b.x, b.y, 38, b.dmg * .5, e, b.ally, b.owner);
+                            if (b.cloud) healCloud(e.x, e.y);
+                            if (k == "ricochet" && b.rico > 0)
+                            { // пуля отскакивает к ближайшему другому врагу
+                                Enemy nx = null; double nd = 300;
+                                foreach (var f in enemies) { if (f.dead || f == e || b.hits.Contains(f)) continue; var d = hypot(f.x - e.x, f.y - e.y); if (d < nd) { nd = d; nx = f; } }
+                                b.hits.Add(e);
+                                if (nx != null)
+                                {
+                                    double sp = hypot(b.vx, b.vy), an = Math.Atan2(nx.y - e.y, nx.x - e.x); b.vx = Math.Cos(an) * sp; b.vy = Math.Sin(an) * sp; b.x = e.x; b.y = e.y;
+                                    b.dmg *= .85; b.rico--; b.life = b.max; puff(e.x, e.y, "#ffffff", 2, .5); Sfx.pop(); break;
+                                }
+                            }
                             if (k == "popcorn" && !b.frag)
                                 for (int q = 0; q < 3; q++) { var an = rand(0, TAU); bullets.Add(new Bullet { x = e.x, y = e.y, vx = Math.Cos(an) * 420, vy = Math.Sin(an) * 420, r = 2.6, dmg = b.dmg * .3, fromP = true, life = .28, max = .28, kind = "popcorn", frag = true, pierce = 0, hits = new() { e }, ally = b.ally, owner = b.owner }); }
                             if (k == "fireball")
@@ -479,7 +504,7 @@ public static partial class G
                             }
                             WEAP.TryGetValue(k ?? "", out var Wk);
                             if (!b.ally && Wk != null && Wk.heal > 0) healHit(Wk.heal);
-                            if (b.owner != null) { b.owner.ult = Math.Min(100, b.owner.ult + b.dmg * .14); if (Wk != null && Wk.heal > 0) healTeam(b.owner.x, b.owner.y, Wk.heal, 240, true); }
+                            if (b.owner != null) { if (!b.frag) allyUltHit(b.owner, b.uw); if (Wk != null && Wk.heal > 0) healTeam(b.owner.x, b.owner.y, Wk.heal, 240, true); }
                             if (b.pierce > 0) { b.pierce--; b.hits?.Add(e); } else dead = true;
                             break;
                         }
@@ -528,7 +553,7 @@ public static partial class G
         {
             if (i >= bombs.Count) continue;
             var b = bombs[i]; b.t -= dt;
-            if (b.t <= 0) { bombs.RemoveAt(i); if (!b.fromP && S.mode != "play") continue; blast(b.x, b.y, b.r, b.dmg, b.fromP, false, b.heal); }
+            if (b.t <= 0) { bombs.RemoveAt(i); if (!b.fromP && S.mode != "play") continue; blast(b.x, b.y, b.r, b.dmg, b.fromP, false, b.heal, b.ult); }
         }
     }
     static void updateParts(double dt)

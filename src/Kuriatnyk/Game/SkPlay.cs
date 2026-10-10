@@ -12,7 +12,7 @@ public static partial class G
     /* ---------- выстрел ---------- */
     static void skFire(Weap W, double ang)
     {
-        double dmg = W.dmg * P.dmgMul, cx = Math.Cos(ang), sy = Math.Sin(ang);
+        double dmg = W.dmg * P.dmgMul * (W.coin && P.coinDry ? .5 : 1), cx = Math.Cos(ang), sy = Math.Sin(ang);
         if (W.special == "beam") { fireBeam(P.x, P.y, ang, dmg, true, null, "rgba(255,60,60,.6)", .45, 1); return; }
         if (W.special == "chain") { chainBolt(P.x, P.y, ang, dmg, W.chain); return; }
         if (W.special == "lob")
@@ -44,7 +44,7 @@ public static partial class G
         var b = new Bullet
         {
             x = x, y = y, vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp, r = W.size > 0 ? W.size : W.pellets > 3 ? 3.6 : 5, dmg = dmg, fromP = true,
-            life = life, max = life, kind = W.shape ?? W.id, pierce = W.pierce, hits = W.pierce > 0 ? new() : null, w = W, shape = i % 4, spin = rand(0, TAU)
+            life = life, max = life, kind = W.shape ?? W.id, pierce = W.pierce, hits = W.pierce > 0 ? new() : null, w = W, shape = i % 4, spin = rand(0, TAU), uw = P.uw
         };
         bullets.Add(b); return b;
     }
@@ -167,26 +167,27 @@ public static partial class G
 
     /* ---------- оружие на земле, торговец, сундук ---------- */
     /// <summary>Случайное оружие для сундука и торговца: чем глубже уровень и больше удачи, тем чаще редкое.</summary>
-    public static string rollSkWeapon(int lv, int luck, IEnumerable<string> except = null)
+    public static string rollSkWeapon(int lv, int luck, IEnumerable<string> except = null, string only = null)
     {
         var ex = new HashSet<string>(except ?? Array.Empty<string>()); foreach (var s in SKW.START) ex.Add(s);
-        var w = new Dictionary<string, double>
+        // легендарное оружие не выпадает — его продаёт торговец за золотые яйца
+        var w = only != null ? new Dictionary<string, double> { [only] = 1 } : new Dictionary<string, double>
         {
             ["common"] = Math.Max(4, 52 - 7 * (lv - 1) - 8 * luck), ["rare"] = 32 + 2 * (lv - 1),
-            ["epic"] = 11 + 3 * (lv - 1) + 5 * luck, ["legendary"] = 3 + 1.5 * (lv - 1) + 3 * luck,
+            ["epic"] = 11 + 3 * (lv - 1) + 5 * luck,
         };
         for (int tries = 0; tries < 20; tries++)
         {
             var r = pickFrom(w); var pool = SKW.LIST.Where(x => x.skr == r && !ex.Contains(x.id)).ToList();
             if (pool.Count > 0) return pool[(int)(rnd() * pool.Count)].id;
         }
-        var all = SKW.LIST.Where(x => !ex.Contains(x.id)).ToList();
+        var all = SKW.LIST.Where(x => !ex.Contains(x.id) && (only != null ? x.skr == only : x.skr != "legendary")).ToList();
         return all.Count > 0 ? all[(int)(rnd() * all.Count)].id : "axe";
     }
     static IEnumerable<string> skTaken() => (P?.bag ?? new List<string>()).Concat(pickups.Where(p => p.kind == "skw").Select(p => p.wid));
-    static Pickup dropWeapon(string id, double x, double y, int price = 0)
+    static Pickup dropWeapon(string id, double x, double y, int price = 0, bool egg = false)
     {
-        var p = new Pickup { x = x, y = y, kind = "skw", wid = id, t = 1e9, ph = rand(0, 6), price = price, vz = price > 0 ? 0 : 160 };
+        var p = new Pickup { x = x, y = y, kind = "skw", wid = id, t = 1e9, ph = rand(0, 6), price = price, egg = egg, vz = price > 0 ? 0 : 160 };
         pickups.Add(p); return p;
     }
     static void dropPiv(double x, double y, int n)
@@ -223,6 +224,8 @@ public static partial class G
     }
     /// <summary>Цена на кнопке действия (0 — бесплатно).</summary>
     public static int actPrice() => actStatue != null ? SKU.Price(actStatue.kind, S.skLv) : actVend != null ? vendPrice() : actPick?.price ?? 0;
+    /// <summary>Цена на кнопке действия — в золотых яйцах (легендарное оружие).</summary>
+    public static bool actEgg() => actStatue == null && actVend == null && actPick != null && actPick.egg;
     static int vendPrice() => SKW.Cost(SKW.VEND_PRICE, S.skLv);
     /// <summary>Автомат: один раз за уровень за пивчики выдаёт одно зелье наугад — здоровья или стамины.</summary>
     static void useVend(Obs o)
@@ -266,6 +269,11 @@ public static partial class G
         if (actStatue != null) { bowStatue(actStatue); actStatue = null; return; }
         if (actVend != null) { useVend(actVend); actVend = null; return; }
         var p = actPick; if (p == null) return;
+        if (p.price > 0 && p.egg)
+        { // легендарное — за золотые яйца из сохранения
+            if (SAVE.eggs < p.price) { ftext(P.x, P.y - 58, T("Не хватает золотых яиц"), "#ffb3a3", 13); Sfx.hurt(); return; }
+            SAVE.eggs -= p.price; persist(); p.price = 0; p.egg = false; Sfx.buy(); Sfx.win(); puff(p.x, p.y, "#ffd23a", 10, 1.2);
+        }
         if (p.price > 0)
         {
             if (S.piv < p.price) { ftext(P.x, P.y - 58, T("Не хватает пивчиков"), "#ffb3a3", 13); Sfx.hurt(); return; }
@@ -277,7 +285,7 @@ public static partial class G
         if (P.bag.Count < P.bagMax) { P.bag.Add(got); pickups.Remove(p); P.slot = P.bag.Count - 1; }
         else { var old = P.bag[P.slot]; P.bag[P.slot] = got; p.wid = old; p.vz = 140; p.z = 0; } // старое оружие остаётся на земле
         P.w = P.prim = got; P.spin = 0; P.cd = Math.Max(P.cd, .15); actPick = null;
-        ftext(P.x, P.y - 58, WEAP[got].name, RAR[WEAP[got].skr].c, 15); Sfx.pick();
+        ftext(P.x, P.y - 58, WEAP[got].name, Hud.Rc(WEAP[got].skr), 15); Sfx.pick();
     }
     /// <summary>Сундук в своей комнате: открывается, когда подходишь, внутри — случайное оружие и пивчики.</summary>
     static void openChest(Obs o)
@@ -285,19 +293,31 @@ public static partial class G
         o.open = true; Sfx.chest(); Sfx.win(); S.shake += 4; puff(o.x, o.y - 10, "#ffe066", 10, 1.2); ring(o.x, o.y, "#ffe066", 90, .5);
         var id = rollSkWeapon(S.skLv, P.luck + 1, skTaken()); dropWeapon(id, o.x, o.y + 46);
         dropPiv(o.x, o.y + 10, 3 + S.skLv);
-        ftext(o.x, o.y - 50, WEAP[id].name, RAR[WEAP[id].skr].c, 16);
+        ftext(o.x, o.y - 50, WEAP[id].name, Hud.Rc(WEAP[id].skr), 16);
     }
     static void stockShop(Room R)
     {
-        // два ствола (цена по силе ствола) и два зелья — стамины и здоровья; глубже — дороже
+        // два ствола за пивчики (цена по силе ствола), легендарный — только за золотые яйца, и два зелья — стамины и здоровья; глубже — дороже
         var taken = new List<string>(P?.bag ?? new List<string>());
         for (int i = 0; i < 2; i++)
         {
             var id = rollSkWeapon(S.skLv, P?.luck ?? 0, taken); taken.Add(id);
-            dropWeapon(id, R.cx - 120 + i * 80, R.cy + 44, SKW.Price(WEAP[id], S.skLv));
+            dropWeapon(id, R.cx - 170 + i * 85, R.cy + 44, SKW.Price(WEAP[id], S.skLv));
         }
-        pickups.Add(new Pickup { x = R.cx + 40, y = R.cy + 44, kind = "stamp", t = 1e9, ph = rand(0, 6), price = SKW.Cost(SKW.STAM_PRICE, S.skLv) });
-        pickups.Add(new Pickup { x = R.cx + 120, y = R.cy + 44, kind = "hpp", t = 1e9, ph = rand(0, 6), price = SKW.Cost(SKW.HEAL_PRICE, S.skLv) });
+        var leg = rollSkWeapon(S.skLv, 0, taken, "legendary");
+        dropWeapon(leg, R.cx, R.cy + 44, SKW.EggPrice(S.skLv), true);
+        pickups.Add(new Pickup { x = R.cx + 85, y = R.cy + 44, kind = "stamp", t = 1e9, ph = rand(0, 6), price = SKW.Cost(SKW.STAM_PRICE, S.skLv) });
+        pickups.Add(new Pickup { x = R.cx + 170, y = R.cy + 44, kind = "hpp", t = 1e9, ph = rand(0, 6), price = SKW.Cost(SKW.HEAL_PRICE, S.skLv) });
+    }
+    /// <summary>Выбросить оружие из рук на землю (G): с ним можно вернуться позже. Последнее оружие не выбрасывается.</summary>
+    public static void dropCurrent()
+    {
+        if (S.mode != "play" || P == null || !P.alive || P.bag == null) return;
+        if (P.bag.Count < 2) { ftext(P.x, P.y - 58, T("Нельзя остаться без оружия"), "#ffb3a3", 13); Sfx.hurt(); return; }
+        var id = P.bag[P.slot]; P.bag.RemoveAt(P.slot);
+        double a = P.ang; var p = dropWeapon(id, P.x + Math.Cos(a) * 30, P.y + Math.Sin(a) * 18 + 10); p.vz = 170;
+        P.slot = Math.Min(P.slot, P.bag.Count - 1); P.w = P.prim = P.bag[P.slot]; P.spin = 0; P.cd = Math.Max(P.cd, .2); actPick = null;
+        ftext(P.x, P.y - 58, T("Выброшено: ") + WEAP[id].name, Hud.Rc(WEAP[id].skr), 13); Sfx.throw_();
     }
 
     /// <summary>Подбор пивчиков: катятся, подпрыгивают и летят к герою.</summary>
@@ -330,20 +350,20 @@ public static partial class G
         switch (id)
         {
             case "bag": P.bagMax++; break;
-            case "hp": P.max += 25; P.hp = Math.Min(P.max, P.hp + 25); break;
-            case "dmg": P.dmgMul *= 1.15; break;
-            case "rate": P.rateMul *= 1.12; break;
-            case "spd": P.spd *= 1.1; break;
-            case "stam": P.stamMax += 30; P.stam += 30; break;
-            case "sregen": P.stamGain *= 2; break;
-            case "thrift": P.stamMul *= .75; break;
-            case "armor": P.armor = 1 - (1 - P.armor) * .88; break;
-            case "vamp": P.vamp += 2; break;
-            case "magnet": P.magnetFar = true; P.pivMul += .3; break;
-            case "crit": P.crit += .12; break;
-            case "melee": P.meleeMul *= 1.4; break;
-            case "herb": P.healMul *= 2; break;
-            case "ult": P.ultRate *= 1.3; break;
+            case "hp": P.max += 20; P.hp = Math.Min(P.max, P.hp + 20); break;
+            case "dmg": P.dmgMul *= 1.1; break;
+            case "rate": P.rateMul *= 1.1; break;
+            case "spd": P.spd *= 1.08; break;
+            case "stam": P.stamMax += 25; P.stam += 25; break;
+            case "sregen": P.stamGain *= 1.5; break;
+            case "thrift": P.stamMul *= .8; break;
+            case "armor": P.armor = 1 - (1 - P.armor) * .9; break;
+            case "vamp": P.vamp += 1; break;
+            case "magnet": P.magnetFar = true; P.pivMul += .2; break;
+            case "crit": P.crit += .08; break;
+            case "melee": P.meleeMul *= 1.25; break;
+            case "herb": P.healMul *= 1.5; break;
+            case "ult": P.ultRate *= 1.1; break;
             case "luck": P.luck++; break;
         }
         S.mode = "play"; skOffer = null; Music.Duck(1);

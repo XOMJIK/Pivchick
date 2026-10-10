@@ -45,6 +45,65 @@ if (args.Length > 1 && args[1] == "glyphs")
     return;
 }
 G.MenuAnchor = (W * .32, H * .62);
+// Soul Knight: каждое оружие — тратит ли стамину, наносит ли урон, не падает ли (герой стоит, вокруг враги-манекены)
+if (args.Length > 1 && args[1] == "skweapons")
+{
+    int bad = 0;
+    foreach (var w in SKW.LIST)
+    {
+        G.startSK("hen"); G.skEnterLevel(1); G.enemies.Clear(); G.bullets.Clear();
+        G.P.inv = 999; G.P.bag = new() { w.id }; G.P.slot = 0; G.P.w = G.P.prim = w.id; G.S.piv = 30; G.P.stam = G.P.stamMax;
+        var room = G.DUN.rooms.First(r => r.type == "start"); G.DUN.active = room;
+        var dummies = new System.Collections.Generic.List<Enemy>();
+        for (int i = 0; i < 4; i++) { var e = G.makeEnemy("fox", G.P.x + 70 + i * 22, G.P.y - 30 + i * 20); e.room = room; e.hp = e.max = 1e6; e.emerge = 0; dummies.Add(e); }
+        double stam0 = G.P.stam; long piv0 = G.S.piv; string err = null;
+        try
+        {
+            for (int f = 0; f < 60 * 3; f++)
+            {
+                foreach (var e in dummies) { e.stun = 1; e.x = Math.Clamp(e.x, room.x + 30, room.x + room.w - 30); }
+                G.P.ang = Math.Atan2(dummies[0].y - G.P.y, dummies[0].x - G.P.x); G.input.mouse = true; G.input.firing = true;
+                G.input.mx = (dummies[0].x - G.camX) * G.SC; G.input.my = (dummies[0].y - 19 - G.camY) * G.SC;
+                G.TickTimers(1 / 60.0); G.update(1 / 60.0);
+            }
+        }
+        catch (Exception ex) { err = ex.GetType().Name + ": " + ex.Message; }
+        G.input.firing = false; G.input.mouse = false;
+        double dealt = dummies.Sum(e => e.max - e.hp), spent = stam0 - G.P.stam;
+        bool okStam = w.stam > 0 ? spent > 0 : spent <= 0;
+        bool ok = err == null && dealt > 0 && okStam;
+        if (!ok) bad++;
+        Console.WriteLine($"{(ok ? "ok " : "BAD")} {w.id,-10} {w.skr,-9} stam/shot={w.stam,-5} spent={spent,6:0.0} dmg={dealt,7:0} piv {piv0}->{G.S.piv}{(err != null ? " ERR " + err : "")}");
+    }
+    Console.WriteLine($"weapons checked: {SKW.LIST.Length}, problems: {bad}");
+    return;
+}
+// босс Хомяк-Трясун: землетрясения, камни, трещины
+if (args.Length > 1 && args[1] == "hamster")
+{
+    G.startGame("endless"); Run(1); G.enemies.Clear();
+    var h = G.makeEnemy("hamster", G.P.x + 220, G.P.y - 60); h.atkT = .3; G.S.boss = h; G.bossBarOn = true;
+    double hp0 = G.P.hp; int shots = 0;
+    for (int f = 0; f < 60 * 14; f++)
+    {
+        G.P.inv = 0; if (G.P.hp < 40) G.P.hp = G.P.max;
+        G.TickTimers(1 / 60.0); G.update(1 / 60.0);
+        if (G.quakes.Count > 0 && shots == 0) { Shot("50-hamster-quake"); shots++; }
+        if (h.st == "dash" && shots == 1) { Shot("51-hamster-roll"); shots++; }
+    }
+    Shot("52-hamster-after");
+    { // крупно: хомяк стоит, в прыжке и шаром; аватарки
+        using var surf = SKSurface.Create(new SKImageInfo(900, 300)); var c = new Ctx(); c.Begin(surf.Canvas); c.fillStyle = "#7cc451"; c.fillRect(0, 0, 900, 300);
+        var e2 = new Enemy { type = "hamster", T = D.ETYPE["hamster"], x = 120, y = 230, r = 32, s = 2.2, face = 1 }; G.drawEnemyPublic(c, e2);
+        e2.x = 330; e2.st = "dash"; G.drawEnemyPublic(c, e2);
+        e2.x = 520; e2.st = "walk"; e2.quakeT = .4; e2.quakeA = .8; G.drawEnemyPublic(c, e2);
+        int ai = 0; foreach (var av in Avatars.LIST) { Avatars.Draw(c, av.id, 600 + (ai % 6) * 50, 20 + (ai / 6) * 52, 44); ai++; }
+        using var img = surf.Snapshot(); using var png = img.Encode(SKEncodedImageFormat.Png, 90);
+        File.WriteAllBytes(Path.Combine(outDir, "53-hamster-sheet.png"), png.ToArray());
+    }
+    Console.WriteLine($"hamster: hp {h.hp:0}/{h.max:0} quakes={G.quakes.Count} enemies={G.enemies.Count} bombs={G.bombs.Count}");
+    return;
+}
 G.toMenu(); Run(1); Shot("01-menu");
 
 G.startGame("endless"); Run(4); Shot("02-endless-4s");

@@ -108,6 +108,7 @@ public static partial class G
         c.drawImage(ground, 0, 0, WW, WH);
         drawRiverDyn(c); drawDungeonDyn(c);
         drawParts(c, true);
+        if (quakes.Count > 0) drawQuakes(c);
         foreach (var h in holes) drawHole(c, h);
         foreach (var z in zones)
         {
@@ -263,6 +264,12 @@ public static partial class G
         if (b.fromP && b.kind == "ice") { c.save(); c.translate(b.x, b.y - 19); c.rotate(Math.Atan2(b.vy, b.vx)); c.fillStyle = "#e6f8ff"; c.strokeStyle = "#3b8fd1"; c.lineWidth = 1.4; c.beginPath(); c.moveTo(9, 0); c.lineTo(-6, -3.2); c.lineTo(-3, 0); c.lineTo(-6, 3.2); c.closePath(); c.fill(); c.stroke(); c.restore(); return; }
         if (!b.fromP && b.kind == "bolt") { c.save(); c.translate(b.x, b.y - 19); c.rotate(Math.Atan2(b.vy, b.vx)); c.fillStyle = "rgba(255,60,40,.35)"; c.beginPath(); c.ellipse(0, 0, 13, 6, 0, 0, TAU); c.fill(); c.fillStyle = "#ff4d2e"; c.strokeStyle = INK; c.lineWidth = 1.4; c.beginPath(); c.ellipse(0, 0, 8, 3, 0, 0, TAU); c.fill(); c.stroke(); c.restore(); return; }
         if (!b.fromP && b.kind == "feather") { c.save(); c.translate(b.x, b.y - 19); c.rotate(Math.Atan2(b.vy, b.vx)); c.fillStyle = "#f4e9d2"; c.strokeStyle = INK; c.lineWidth = 1.3; c.beginPath(); c.ellipse(0, 0, 10, 2.8, 0, 0, TAU); c.fill(); c.stroke(); c.fillStyle = "#8a6a45"; c.fillRect(-10, -1, 5, 2); c.restore(); return; }
+        if (!b.fromP && b.kind == "seed")
+        { // семечка подсолнуха — полосатая
+            c.save(); c.translate(b.x, b.y - 19); c.rotate(Math.Atan2(b.vy, b.vx)); c.fillStyle = "#2b2b33"; c.strokeStyle = INK; c.lineWidth = 1.3; c.beginPath(); c.ellipse(0, 0, 7, 4, 0, 0, TAU); c.fill(); c.stroke();
+            c.strokeStyle = "#f4f1e8"; c.lineWidth = 1.2; seg(c, -5, -1.4, 5, -1.4); seg(c, -5, 1.4, 5, 1.4); c.restore();
+            c.fillStyle = "rgba(25,50,10,.2)"; c.beginPath(); c.ellipse(b.x, b.y, 4, 1.6, 0, 0, TAU); c.fill(); return;
+        }
         if (!b.fromP && (b.kind == "rock" || b.kind == "pellet" || b.kind == "dirt"))
         {
             c.fillStyle = b.kind == "rock" ? "#8d8a85" : b.kind == "dirt" ? "#8a5a2b" : "#c9c2b5"; c.strokeStyle = INK; c.lineWidth = 1.6; c.beginPath(); c.arc(b.x, b.y - 19, b.r, 0, TAU); c.fill(); c.stroke();
@@ -282,9 +289,9 @@ public static partial class G
         if (b.fromP)
         {
             var k = b.kind;
-            var col = k == "turbocat" ? "rgba(255,170,90,.65)" : k is "syringe" or "vitamin" ? "rgba(156,242,122,.65)" : k is "crossbow" or "cornrifle" ? "rgba(255,255,255,.75)" : k == "fire" ? "rgba(255,122,26,.65)" : k == "popcorn" ? "rgba(255,255,255,.6)" : k == "millet" ? "rgba(255,224,102,.6)" : k == "refl" ? "rgba(207,232,255,.7)" : "rgba(255,243,170,.55)";
+            var col = k == "thunder" ? "rgba(160,220,255,.75)" : k == "boomgun" ? "rgba(255,150,60,.7)" : k == "ricochet" ? "rgba(255,255,255,.8)" : k == "medkit" ? "rgba(156,242,122,.7)" : k == "turbocat" ? "rgba(255,170,90,.65)" : k is "syringe" or "vitamin" ? "rgba(156,242,122,.65)" : k is "crossbow" or "cornrifle" ? "rgba(255,255,255,.75)" : k == "fire" ? "rgba(255,122,26,.65)" : k == "popcorn" ? "rgba(255,255,255,.6)" : k == "millet" ? "rgba(255,224,102,.6)" : k == "refl" ? "rgba(207,232,255,.7)" : "rgba(255,243,170,.55)";
             c.strokeStyle = col; c.lineWidth = b.r * 1.2; c.lineCap = "round"; seg(c, b.x - b.vx * .025, b.y - 19 - b.vy * .025, b.x, b.y - 19);
-            c.fillStyle = k == "turbocat" ? "#ffb35c" : k == "syringe" ? "#e6f6ff" : k == "vitamin" ? ((long)Math.Floor(b.x) % 2 != 0 ? "#e8322a" : "#9cf27a") : k == "fire" ? "#ffd23a" : k == "popcorn" ? "#fffbe8" : k == "millet" ? "#ffe066" : k == "refl" ? "#cfe8ff" : "#fff8c8";
+            c.fillStyle = k == "thunder" ? "#e3f7ff" : k == "boomgun" ? "#ffb347" : k == "ricochet" ? "#ffffff" : k == "medkit" ? "#9cf27a" : k == "turbocat" ? "#ffb35c" : k == "syringe" ? "#e6f6ff" : k == "vitamin" ? ((long)Math.Floor(b.x) % 2 != 0 ? "#e8322a" : "#9cf27a") : k == "fire" ? "#ffd23a" : k == "popcorn" ? "#fffbe8" : k == "millet" ? "#ffe066" : k == "refl" ? "#cfe8ff" : "#fff8c8";
             c.strokeStyle = INK; c.lineWidth = 1.5; c.beginPath(); c.arc(b.x, b.y - 19, b.r * (k == "popcorn" ? 1.1 : .8), 0, TAU); c.fill(); c.stroke();
         }
         else if (b.kind == "fire")

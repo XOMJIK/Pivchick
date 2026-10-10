@@ -71,6 +71,23 @@ public static class K
                     c.beginPath(); c.ellipse(cx, h * .58, w / 2 - 1, h * .58 - 1, 0, Math.PI, Ctx.TAU); c.ellipse(cx, h * .58, w / 2 - 1, h * .42 - 1, 0, 0, Math.PI); c.closePath(); c.fill(); c.stroke();
                     break;
                 }
+            case "pts":
+                { // PTS — опыт аккаунта: синяя звезда
+                    c.fillStyle = "#4c7dff"; c.strokeStyle = G.INK; c.lineWidth = Math.Max(1.4, s * .1); c.beginPath();
+                    for (int i = 0; i < 10; i++) { double a = -Math.PI / 2 + i * Math.PI / 5, q = (i % 2 == 1 ? .22 : .5) * s; c.lineTo(cx + Math.Cos(a) * q, cy + Math.Sin(a) * q); }
+                    c.closePath(); c.fill(); c.stroke(); break;
+                }
+            case "xp":
+                { // опыт боевого пропуска: билетик со звездой
+                    c.fillStyle = "#ffc93a"; c.strokeStyle = G.INK; c.lineWidth = Math.Max(1.4, s * .1);
+                    G.rr(c, cx - s * .48, cy - s * .32, s * .96, s * .64, s * .1); c.fill(); c.stroke();
+                    c.fillStyle = "#c0392b"; c.beginPath(); for (int i = 0; i < 10; i++) { double a = -Math.PI / 2 + i * Math.PI / 5, q = (i % 2 == 1 ? .1 : .22) * s; c.lineTo(cx + Math.Cos(a) * q, cy + Math.Sin(a) * q); } c.closePath(); c.fill(); break;
+                }
+            case "ava":
+                {
+                    c.fillStyle = "#9ed46f"; c.strokeStyle = G.INK; c.lineWidth = Math.Max(1.4, s * .1); c.beginPath(); c.arc(cx, cy, s * .46, 0, Ctx.TAU); c.fill(); c.stroke();
+                    c.fillStyle = "#fffaf0"; c.beginPath(); c.ellipse(cx, cy + s * .02, s * .2, s * .26, 0, 0, Ctx.TAU); c.fill(); c.stroke(); break;
+                }
             case "lock":
                 {
                     c.fillStyle = "#6b5a48"; G.rr(c, w * .1, h * .45, w * .8, h * .5, 3); c.fill();

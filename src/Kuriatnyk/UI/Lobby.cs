@@ -138,7 +138,18 @@ public sealed class Lobby : Grid
         // --- главный экран режимов ---
         var soloSub = Txt(T("Сюжет и бесконечный бой"), 12, FontWeight.SemiBold, B("#e6ffffff"));
         var solo = bigRed(T("Одиночная игра"), soloSub, () => ShowSingle(true));
-        rootModes = Col(9, solo, locked("Многопользовательская игра", "Многопользовательская игра появится в одном из следующих обновлений"));
+        var mpSub = Txt(T("Локальная сеть, Radmin VPN · до 4 игроков"), 12, FontWeight.SemiBold, B("#b32b1d14"));
+        var mp = new Press(Col(3, Txt(T("Многопользовательская игра"), tsz, FontWeight.Black), mpSub), B("#d7f0ff"), 3, 16, pad, 4) { MinHeight = minH };
+        mp.Click += () => Overlays.OpenMultiplayer(mv);
+        rootModes = Col(9, solo, mp);
+        if (Platform.Quit != null)
+        { // выход из игры — заметной кнопкой под режимами (и значком в углу)
+            var ex = Svg.Exit(22); ex.Margin = new Thickness(0, 0, 10, 0);
+            var quitRow = Row(0, ex, Txt(T("Выйти из игры"), tsz, FontWeight.Black, InkB, wrap: false)); quitRow.HorizontalAlignment = HorizontalAlignment.Center;
+            var quit = new Press(quitRow, PaperB, 3, 16, sh ? new Thickness(14, 6) : new Thickness(16, 9), 4) { MinHeight = sh ? 40 : 46 };
+            quit.Click += () => Overlays.OpenQuit(mv);
+            ((StackPanel)rootModes).Children.Add(quit);
+        }
 
         // --- одиночная игра: заголовок с кнопкой «назад» и режимы ---
         var back = new Press(Txt("‹", 20, FontWeight.Black, InkB, TextAlignment.Center), PaperB, 3, 12, new Thickness(0, 0, 0, 3), 3) { Width = 40, Height = 40 };

@@ -71,6 +71,7 @@ public static partial class G
         new() { id = "ult", nameRu = "Ульта", def = new[] { "KeyR", "" } },
         new() { id = "swap", nameRu = "Сменить оружие", def = new[] { "KeyF", "" } },
         new() { id = "act", nameRu = "Взять или купить", def = new[] { "KeyE", "" } },
+        new() { id = "drop", nameRu = "Выбросить оружие", def = new[] { "KeyG", "" } },
         new() { id = "pause", nameRu = "Пауза", def = new[] { "KeyP", "" } },
         new() { id = "auto", nameRu = "Автонаводка вкл/выкл", def = new[] { "KeyT", "" } },
         new() { id = "full", nameRu = "Полный экран", def = new[] { "F11", "" } },
@@ -133,6 +134,7 @@ public static partial class G
             if (a == "ult") { useUlt(); handled = true; }
             if (a == "swap" && P?.bag != null) { swapWeapon(); handled = true; }
             if (a == "act") { interact(); handled = true; }
+            if (a == "drop" && P?.bag != null) { dropCurrent(); handled = true; }
             if (P?.bag != null && code is "D1" or "D2" or "D3") { selectSlot(code[1] - '1'); handled = true; } // в подземелье 1-3 — слоты рюкзака
         }
         return handled;

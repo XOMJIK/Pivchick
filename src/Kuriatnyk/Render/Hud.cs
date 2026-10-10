@@ -38,6 +38,7 @@ public static class Hud
             case "pause": Sfx.click(); pauseGame(); break;
             case "swap": swapWeapon(); break;
             case "act": interact(); break;
+            case "drop": dropCurrent(); break;
             case "slot0": selectSlot(0); break; case "slot1": selectSlot(1); break; case "slot2": selectSlot(2); break;
             case "mute": SET.muted = !SET.muted; saveSet(); Audio.ApplyVolume(); Sfx.click(); break;
         }
@@ -177,10 +178,9 @@ public static class Hud
         {
             var W = WEAP[P.w]; var name = W.name; var ammo = double.IsInfinity(P.ammo) ? "∞" : ((int)P.ammo).ToString();
             double cost = shotCost(W, W.rate); string cs = cost > 0 ? (cost < 1 ? cost.ToString("0.#", L.Culture) : Math.Round(cost, 1).ToString("0.#", L.Culture)) : null;
-            if (W.coin) cs = null;
             c.font = "800 15px Rubik"; double nw = c.measureText(name); c.font = "900 15px Rubik"; double aw = c.measureText(ammo);
             if (ammo == "∞") aw = 14;
-            c.font = "900 12px Rubik"; double cw = cs != null ? c.measureText(cs) + 22 : W.coin ? 26 : 0;
+            c.font = "900 12px Rubik"; double cw = (cs != null ? c.measureText(cs) + 22 : 0) + (W.coin ? 26 : 0);
             double w = nw + 10 + aw + 28 + cw, h = 31, x = VW / 2 - w / 2, y = B - h;
             bool bag = P.bag != null; double slotW = 46, slotsW = bag ? P.bagMax * (slotW + 5) : 0, swapW = bag && P.bag.Count > 1 ? 46 : 0;
             if (bag) x = VW / 2 - (slotsW + w + swapW) / 2 + slotsW;
@@ -194,7 +194,7 @@ public static class Hud
                 double dx = ax + aw + 12, dy = y + 15.5; c.fillStyle = "#4cc3ff"; c.beginPath(); c.moveTo(dx, dy - 7); c.quadraticCurveTo(dx + 6, dy, dx, dy + 6); c.quadraticCurveTo(dx - 6, dy, dx, dy - 7); c.fill();
                 c.font = "900 12px Rubik"; c.fillStyle = "#bfe9ff"; c.fillText(cs, dx + 7, y + 20);
             }
-            else if (W.coin) Piv(c, ax + aw + 20, y + 15.5, 14);
+            if (W.coin) { double px2 = ax + aw + 20 + (cs != null ? c.measureText(cs) + 22 : 0); Piv(c, px2, y + 15.5, 14); if (S.piv < 1) { c.strokeStyle = BARN; c.lineWidth = 2.4; seg(c, px2 - 7, y + 9, px2 + 7, y + 22); } }
             if (bag)
             { // Soul Knight: слоты рюкзака слева, кнопка смены справа
                 for (int i = 0; i < P.bagMax; i++)
@@ -208,6 +208,15 @@ public static class Hud
                         if (!COARSE) { c.font = "900 10px Rubik"; c.textAlign = "left"; c.fillStyle = INK; c.fillText((i + 1).ToString(), bx + 5, by + 12); }
                         btns["slot" + i] = (bx, by, slotW, h + 4);
                     }
+                }
+                if (P.bag.Count > 1)
+                { // выбросить оружие: стрелка вниз к земле — слева от слотов
+                    double dw = 38, dx2 = x - slotsW - 6 - dw, dy2 = y - 4;
+                    RRect(c, dx2, dy2, dw, h + 4, 12, PAPER, 3, 3);
+                    c.strokeStyle = INK; c.lineWidth = 2.6; c.lineCap = "round"; double mx3 = dx2 + dw / 2, my3 = dy2 + (h + 4) / 2;
+                    seg(c, mx3, my3 - 9, mx3, my3 + 3); seg(c, mx3 - 5, my3 - 2, mx3, my3 + 3); seg(c, mx3 + 5, my3 - 2, mx3, my3 + 3); seg(c, mx3 - 9, my3 + 8, mx3 + 9, my3 + 8); c.lineCap = "butt";
+                    if (!COARSE) KeyCap(c, dx2 - 8, y - 14, keyHint("drop"));
+                    btns["drop"] = (dx2, dy2, dw, h + 4);
                 }
                 if (swapW > 0)
                 {
@@ -224,13 +233,21 @@ public static class Hud
             var lbl = actLabel();
             if (lbl != null)
             {
-                int price = actPrice(); c.font = "900 15px Rubik"; double lw = c.measureText(lbl), pw = price > 0 ? c.measureText(price.ToString()) + 30 : 0;
+                int price = actPrice(); bool egg = actEgg(); c.font = "900 15px Rubik"; double lw = c.measureText(lbl), pw = price > 0 ? c.measureText(price.ToString()) + 30 : 0;
                 double bw = lw + pw + 30 + (COARSE ? 0 : 26), bh = 38, bx = VW / 2 - bw / 2, by = y - 16 - bh;
-                bool poor = price > 0 && S.piv < price;
+                bool poor = price > 0 && (egg ? SAVE.eggs < price : S.piv < price);
                 RRect(c, bx, by, bw, bh, 14, poor ? "#d9cdb4" : price > 0 ? "#3fa535" : YOLK, 3, 3);
                 double tx = bx + 15; if (!COARSE) { KeyCap(c, tx - 2, by + 8, keyHint("act")); tx += 26; }
-                c.textAlign = "left"; c.fillStyle = price > 0 && !poor ? "#fff" : INK; c.fillText(lbl, tx, by + 24.5);
-                if (price > 0) { Piv(c, tx + lw + 16, by + bh / 2, 16); c.fillText(price.ToString(), tx + lw + 27, by + 24.5); }
+                c.textAlign = "left"; c.fillStyle = price > 0 && !poor ? "#fff" : INK;
+                var wn = actPick?.kind == "skw" ? WEAP[actPick.wid].name : null;
+                if (wn != null && lbl.EndsWith(wn))
+                { // название оружия — цветом его редкости, с обводкой, чтобы читалось на любой кнопке
+                    var pre = lbl[..^wn.Length]; c.fillText(pre, tx, by + 24.5); double nx = tx + c.measureText(pre);
+                    c.lineJoin = "round"; c.strokeStyle = INK; c.lineWidth = 3.4; c.strokeText(wn, nx, by + 24.5); c.fillStyle = Rc(WEAP[actPick.wid].skr); c.fillText(wn, nx, by + 24.5);
+                    c.fillStyle = price > 0 && !poor ? "#fff" : INK;
+                }
+                else c.fillText(lbl, tx, by + 24.5);
+                if (price > 0) { if (egg) { c.save(); c.translate(tx + lw + 9, by + bh / 2 - 8); UI.K.DrawIcon(c, "gegg", 13, 16); c.restore(); } else Piv(c, tx + lw + 16, by + bh / 2, 16); c.fillText(price.ToString(), tx + lw + 27, by + 24.5); }
                 btns["act"] = (bx, by, bw, bh);
                 if (actPick?.kind == "skw") WeaponCompare(c, WEAP[actPick.wid], WEAP[P.w], by - 8);
                 else if (actStatue != null) UltInfo(c, actStatue.kind, by - 8);
@@ -270,7 +287,7 @@ public static class Hud
             double ir = r - 6;
             c.fillStyle = st == "ready" ? BARN : st == "live" ? YOLK : PAPER; c.beginPath(); c.arc(ucx, ucy, ir, 0, TAU); c.fill();
             c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.arc(ucx, ucy, ir - 1, 0, TAU); c.stroke();
-            var lbl = st == "live" ? Math.Ceiling(P.buffT) + T(" с") : st == "ready" ? T("УЛЬТА") : p + "%";
+            var lbl = st == "live" ? Math.Ceiling(P.buffT) + T(" сек") : st == "ready" ? T("УЛЬТА") : p + "%";
             c.font = "900 12.5px Rubik"; c.textAlign = "center"; c.fillStyle = st == "ready" ? "#fff" : INK; c.fillText(lbl, ucx, ucy + 4.5);
             if (pc) KeyCap(c, x - 4, y + d - 20, keyHint("ult"));
             btns["ult"] = (x, y, d, d);
@@ -397,8 +414,9 @@ public static class Hud
             ry += rh;
             c.textAlign = "left"; c.font = "700 12px Rubik"; c.fillStyle = "rgba(255,244,220,.75)"; c.fillText(label, x + pad, ry);
             c.textAlign = "right"; c.font = "900 13px Rubik"; c.fillStyle = PAPER; double vx = x + w - pad - 58;
-            c.fillText(now.ToString(fmt, L.Culture), vx, ry);
-            if (same || Math.Abs(now - was) < 1e-6) continue;
+            string ns = now.ToString(fmt, L.Culture), ws = was.ToString(fmt, L.Culture);
+            c.fillText(ns, vx, ry);
+            if (same || ns == ws) continue; // одинаковые на экране числа — без стрелки «лучше/хуже»
             bool better = hb ? now > was : now < was; double tx = vx + 10, ty = ry - 5;
             c.fillStyle = better ? "#5fcf3f" : "#ff6b5a"; c.beginPath();
             if (now > was) { c.moveTo(tx, ty + 4); c.lineTo(tx + 5, ty - 4); c.lineTo(tx + 10, ty + 4); } else { c.moveTo(tx, ty - 4); c.lineTo(tx + 5, ty + 4); c.lineTo(tx + 10, ty - 4); }

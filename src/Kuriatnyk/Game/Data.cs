@@ -19,6 +19,7 @@ public sealed class Hero
     public string id, cls, hat, nameRu, rar, sp, special, body, wing, tail, head, perkRu;
     public double[] chance;
     public double hp, spd, r, dmg, rate, armor, regen; public int nade;
+    public int ultHits; // сколько ударов по врагам нужно, чтобы зарядить ульту (у снайперов — дольше)
     public string[] ultRu, p5Ru, p10Ru;
     public string name => L.T(nameRu);
     public string perk => L.T(perkRu);
@@ -87,51 +88,51 @@ public static class D
 
     public static readonly Dictionary<string, Hero> HEROES = new[]
     {
-        new Hero{id="hen",cls="assault",hat="bandana",nameRu="Пеструшка",rar="common",chance=null,sp="hen",hp=100,spd=205,r=15,dmg=1,rate=1,armor=0,regen=0,nade=1,body="#fbfbf4",wing="#e6e3d6",
+        new Hero{id="hen",ultHits=40,cls="assault",hat="bandana",nameRu="Пеструшка",rar="common",chance=null,sp="hen",hp=100,spd=205,r=15,dmg=1,rate=1,armor=0,regen=0,nade=1,body="#fbfbf4",wing="#e6e3d6",
             perkRu="Сбалансированная, берёт в бой лишнее яйцо",
             ultRu=new[]{"Яичный дождь","Одна зона там, где врагов гуще всего: в неё падают 8 яиц-бомб"},
             p5Ru=new[]{"Запасливая","Каждая новая волна даёт +1 яйцо-гранату, а в Soul Knight — +15 стамины"},
             p10Ru=new[]{"Наседка","Кукуруза лечит вдвое сильнее и падает в полтора раза чаще"}},
-        new Hero{id="chick",cls="sniper",hat="propeller",nameRu="Цыпа Шустрик",rar="common",chance=new[]{12.0,30},sp="chick",hp=75,spd=248,r=12,dmg=1,rate=1.25,armor=0,regen=0,nade=0,body="#ffd84a",wing="#f0b628",
+        new Hero{id="chick",ultHits=26,cls="sniper",hat="propeller",nameRu="Цыпа Шустрик",rar="common",chance=new[]{12.0,30},sp="chick",hp=75,spd=248,r=12,dmg=1,rate=1.25,armor=0,regen=0,nade=0,body="#ffd84a",wing="#f0b628",
             perkRu="Мелкий и быстрый, +25% темпа стрельбы",
             ultRu=new[]{"Турбо-пух","4 секунды двойной скорости и двойного темпа стрельбы"},
             p5Ru=new[]{"Увёртливый","15% шанс, что яйцо пролетит мимо"},
             p10Ru=new[]{"Пух-реактор","Ульта копится на 40% быстрее"}},
-        new Hero{id="rooster",cls="tank",hat="cowboy",nameRu="Петя Шпора",rar="rare",chance=new[]{6.0,16},sp="rooster",hp=130,spd=192,r=16,dmg=1.15,rate=1,armor=0,regen=0,nade=0,body="#d9622b",wing="#9e3f1b",tail="#1f4a35",
+        new Hero{id="rooster",ultHits=26,cls="tank",hat="cowboy",nameRu="Петя Шпора",rar="rare",chance=new[]{6.0,16},sp="rooster",hp=130,spd=192,r=16,dmg=1.15,rate=1,armor=0,regen=0,nade=0,body="#d9622b",wing="#9e3f1b",tail="#1f4a35",
             perkRu="Крепкий задира, +15% урона",
-            ultRu=new[]{"Боевой клич","«КУКАРЕКУ!» оглушает всех рядом на 2,5 с, бьёт на 45, и 4 с Петя получает вдвое меньше урона"},
+            ultRu=new[]{"Боевой клич","«КУКАРЕКУ!» оглушает всех рядом на 2,5 секунды, бьёт на 45, и 4 секунды Петя получает вдвое меньше урона"},
             p5Ru=new[]{"Шпоры","Кто кусает Петю, сам получает 20 урона"},
             p10Ru=new[]{"Задира","15% шанс критического удара ×2"}},
-        new Hero{id="duck",cls="medic",hat="sailor",nameRu="Утка Кря",rar="rare",chance=new[]{6.0,16},sp="duck",hp=110,spd=200,r=15,dmg=1,rate=1,armor=0,regen=3,nade=0,body="#b9a68a",wing="#8a7558",head="#2f7d4a",
+        new Hero{id="duck",ultHits=45,cls="medic",hat="sailor",nameRu="Утка Кря",rar="rare",chance=new[]{6.0,16},sp="duck",hp=110,spd=200,r=15,dmg=1,rate=1,armor=0,regen=3,nade=0,body="#b9a68a",wing="#8a7558",head="#2f7d4a",
             perkRu="Плавает: переходит реки вплавь (в воде медленнее) и лечится сама, если 4 секунды не получала урон",
             ultRu=new[]{"Кря-волна","Лечит половину здоровья себе и бойцам рядом, сбивает яйца, отталкивает врагов и оставляет лужу, в которой враги вязнут"},
             p5Ru=new[]{"Утиный нырок","В воде утка ныряет: пули и яйца пролетают над ней"},
             p10Ru=new[]{"Второе дыхание","Один раз за бой встаёт с 50% здоровья"}},
-        new Hero{id="goose",cls="tank",hat="visor",nameRu="Гусь Бронебой",rar="epic",chance=new[]{2.0,7},sp="goose",special="armor",hp=160,spd=178,r=17,dmg=1.05,rate=1,armor=.25,regen=0,nade=0,body="#a9aba3",wing="#7b7d76",head="#45474b",
+        new Hero{id="goose",ultHits=28,cls="tank",hat="visor",nameRu="Гусь Бронебой",rar="epic",chance=new[]{2.0,7},sp="goose",special="armor",hp=160,spd=178,r=17,dmg=1.05,rate=1,armor=.25,regen=0,nade=0,body="#a9aba3",wing="#7b7d76",head="#45474b",
             perkRu="Толстые перья: на 25% меньше урона",
             ultRu=new[]{"Гусиная крепость","5 секунд неуязвимости, вражеские яйца отлетают обратно, а в конце — ударная волна на 70"},
             p5Ru=new[]{"Шипение","Враги рядом с гусём двигаются на 30% медленнее"},
             p10Ru=new[]{"Бронеперья","Ещё −15% получаемого урона"}},
-        new Hero{id="quail",cls="sniper",hat="ninja",nameRu="Перепёлка Тень",rar="rare",chance=new[]{1.0,1},sp="chick",special="quail",hp=80,spd=235,r=12,dmg=1.15,rate=1,armor=0,regen=0,nade=0,body="#a7835a",wing="#7a5a3a",head="#a7835a",
+        new Hero{id="quail",ultHits=28,cls="sniper",hat="ninja",nameRu="Перепёлка Тень",rar="rare",chance=new[]{1.0,1},sp="chick",special="quail",hp=80,spd=235,r=12,dmg=1.15,rate=1,armor=0,regen=0,nade=0,body="#a7835a",wing="#7a5a3a",head="#a7835a",
             perkRu="Тихая и меткая: +15% урона",
-            ultRu=new[]{"Теневой выстрел","Три пробивающих луча в самых крепких врагов, а потом 3 с невидимости: враги теряют Перепёлку из виду"},
+            ultRu=new[]{"Теневой выстрел","Три пробивающих луча в самых крепких врагов, а потом 3 секунды невидимости: враги теряют Перепёлку из виду"},
             p5Ru=new[]{"Зоркий глаз","+25% урона по целям дальше 250"},
             p10Ru=new[]{"Охотница","Убийство издалека заряжает ульту на 10%"}},
-        new Hero{id="guinea",cls="assault",hat="goggles",nameRu="Цесарка Буря",rar="epic",chance=new[]{1.0,1},sp="hen",special="guinea",hp=115,spd=212,r=15,dmg=1.05,rate=1.05,armor=0,regen=0,nade=0,body="#4a4f5c",wing="#383c47",head="#86bcdc",
+        new Hero{id="guinea",ultHits=42,cls="assault",hat="goggles",nameRu="Цесарка Буря",rar="epic",chance=new[]{1.0,1},sp="hen",special="guinea",hp=115,spd=212,r=15,dmg=1.05,rate=1.05,armor=0,regen=0,nade=0,body="#4a4f5c",wing="#383c47",head="#86bcdc",
             perkRu="Пёстрая и шустрая: каждый 8-й выстрел — веер из 5 острых перьев",
-            ultRu=new[]{"Перьевой ураган","4 с вихрь затягивает врагов к Цесарке, бьёт их и сбивает пули, а в конце раскидывает взрывом"},
+            ultRu=new[]{"Перьевой ураган","4 секунды вихрь затягивает врагов к Цесарке, бьёт их и сбивает пули, а в конце раскидывает взрывом"},
             p5Ru=new[]{"Пёстрые перья","10% шанс увернуться от любого урона"},
             p10Ru=new[]{"Неугомонная","+15% темпа стрельбы"}},
-        new Hero{id="nurse",cls="medic",hat="none",nameRu="Гусыня Медсестра",rar="rare",chance=new[]{1.0,1},sp="goose",special="nurse",hp=135,spd=190,r=16,dmg=1,rate=1,armor=.1,regen=0,nade=0,body="#fbfbf7",wing="#dcdcd4",
-            perkRu="Аптечки: каждые 15 с бросает аптечку (+25 здоровья) самому раненому из своих",
+        new Hero{id="nurse",ultHits=45,cls="medic",hat="none",nameRu="Гусыня Медсестра",rar="rare",chance=new[]{1.0,1},sp="goose",special="nurse",hp=135,spd=190,r=16,dmg=1,rate=1,armor=.1,regen=0,nade=0,body="#fbfbf7",wing="#dcdcd4",
+            perkRu="Аптечки: каждые 15 секунд бросает аптечку (+25 здоровья) самому раненому из своих",
             ultRu=new[]{"Полевой госпиталь","6 секунд зона лечения: лечит всех своих и сразу поднимает выбитых бойцов"},
-            p5Ru=new[]{"Перевязка","Выбитые бойцы отряда возвращаются через 9 с вместо 18"},
+            p5Ru=new[]{"Перевязка","Выбитые бойцы отряда возвращаются через 9 секунд вместо 18"},
             p10Ru=new[]{"Милосердие","Лечение класса «Медик» вдвое сильнее"}},
-        new Hero{id="adren",cls="assault",hat="crown",nameRu="Боевой Петушок Adrenaline",rar="legendary",chance=new[]{.5,3},sp="rooster",special="adren",hp=140,spd=218,r=16,dmg=1.2,rate=1.15,armor=0,regen=0,nade=1,body="#2a2a32",wing="#c0392b",tail="#ff7a1a",
+        new Hero{id="adren",ultHits=50,cls="assault",hat="crown",nameRu="Боевой Петушок Adrenaline",rar="legendary",chance=new[]{.5,3},sp="rooster",special="adren",hp=140,spd=218,r=16,dmg=1.2,rate=1.15,armor=0,regen=0,nade=1,body="#2a2a32",wing="#c0392b",tail="#ff7a1a",
             perkRu="Легенда двора: каждый 5-й выстрел — огненный снаряд, который взрывается и поджигает врагов",
-            ultRu=new[]{"Адреналин","6 с ярости: огненные кольца пуль, +40% скорости, а каждый убитый враг взрывается огнём"},
+            ultRu=new[]{"Адреналин","6 секунд ярости: огненные кольца пуль, +40% скорости, а каждый убитый враг взрывается огнём"},
             p5Ru=new[]{"Кровь кипит","+30% урона, когда здоровья меньше половины"},
-            p10Ru=new[]{"Неудержимый","Убийства лечат 3 здоровья, ярость длится на 2 с дольше"}},
+            p10Ru=new[]{"Неудержимый","Убийства лечат 3 здоровья, ярость длится на 2 секунды дольше"}},
     }.ToDictionary(h => h.id);
     public static readonly string[] HERO_IDS = HEROES.Keys.ToArray();
 
@@ -174,6 +175,11 @@ public static class D
         new Weap{id="rail",cls="sniper",rar="legendary",nameRu="Рельсотрон",eggs=120,rate=1.05,dmg=130,spd=0,spread=0,pellets=1,life=0,sfx="rail",kick=7,special="rail",descRu="Луч прошивает всех врагов и даже укрытия на линии",metaRu="Урон 130 всем на линии · раз в секунду"},
         new Weap{id="turbocat",cls="assault",rar="legendary",nameRu="Пулемёт Турбокота",price=2400,rate=.07,dmg=12,spd=760,spread=.11,pellets=1,life=.62,sfx="smg",kick=.9,special="cat",descRu="Мурчит очередями, а каждый 6-й выстрел — турбо-клубок",metaRu="Урон 12 · 14 выстр/с · каждый 6-й — клубок ×3, пробивает двоих"},
         new Weap{id="figure",cls="tank",rar="rare",nameRu="Дробовик Фигурки",price=1100,rate=.72,dmg=13,spd=560,spread=.46,pellets=6,life=.5,sfx="shotgun",kick=4.5,special="fig",bounce=1,descRu="Стреляет звёздочками, сердечками и кубиками — они отскакивают от укрытий",metaRu="Урон 13×6 · дробинки-фигурки рикошетят один раз"},
+        // эпическое оружие классов: у каждого своя особенность сильнее, чем у редкого
+        new Weap{id="thunder",cls="assault",rar="epic",nameRu="Громобой",price=1600,rate=.09,dmg=12,spd=740,spread=.1,pellets=1,life=.62,sfx="smg",kick=.9,special="thunder",descRu="Очереди с искрой: каждое пятое попадание бьёт молнией ещё двоих врагов рядом",metaRu="Урон 12 · 11 выстр/с · молния на 2 врагов"},
+        new Weap{id="boomgun",cls="tank",rar="epic",nameRu="Обрез «Бабах»",price=1500,rate=.72,dmg=12,spd=560,spread=.44,pellets=6,life=.45,sfx="shotgun",kick=5,special="boomshot",descRu="Дробинки взрываются при попадании и задевают соседей",metaRu="Урон 12×6 · каждая дробинка взрывается"},
+        new Weap{id="ricochet",cls="sniper",rar="epic",nameRu="Винтовка «Рикошет»",price=1500,rate=.72,dmg=70,spd=1100,spread=.01,pellets=1,life=1,sfx="shot",kick=3,special="rico",descRu="Пуля отскакивает от врага к следующему — до трёх раз",metaRu="Урон 70 · 3 рикошета (−15% за каждый)"},
+        new Weap{id="medkit",cls="medic",rar="epic",nameRu="Аптечкомёт",price=1400,rate=.3,dmg=20,spd=700,spread=.04,pellets=1,life=.75,sfx="pop",kick=1,heal=1.5,special="medkit",descRu="Капсулы лечат своих, а каждая шестая оставляет на земле лечебное облако",metaRu="Урон 20 · +1,5 здоровья за попадание · облако каждые 6 выстрелов"},
         new Weap{id="shotgun",nameRu="Дробовик",rate=.68,dmg=15,spd=560,spread=.36,pellets=6,life=.42,ammo=14,sfx="shotgun",kick=6},
         new Weap{id="smg",nameRu="Тарахтелка",rate=.085,dmg=13,spd=720,spread=.13,pellets=1,life=.62,ammo=80,sfx="smg",kick=1.2},
     }.ToDictionary(w => w.id);
@@ -186,7 +192,7 @@ public static class D
         ["medic"] = new() { nameRu = "Медик", c = "#4fae36", descRu = "Лечится на 1,2 в секунду, лечит всех своих рядом и вдвое быстрее поднимает выбитых бойцов", start = "syringe" },
     };
     public static readonly string[] CLASS_ORDER = { "assault", "tank", "sniper", "medic" };
-    public static readonly string[] PRIMARY = { "pistol", "millet", "popcorn", "minigun", "turbocat", "granny", "sawed", "figure", "freeze", "flame", "cornrifle", "sheriff", "crossbow", "rail", "syringe", "vitamin", "mortar" };
+    public static readonly string[] PRIMARY = { "pistol", "millet", "popcorn", "thunder", "minigun", "turbocat", "granny", "sawed", "figure", "freeze", "boomgun", "flame", "cornrifle", "sheriff", "crossbow", "ricochet", "rail", "syringe", "vitamin", "medkit", "mortar" };
     public static string clsOf(string heroId) => HEROES[heroId].cls;
 
     // редкость оружия и прокачка картами: +6% урона за уровень, максимум 10
@@ -194,9 +200,10 @@ public static class D
     {
         ["common"] = new() { nameRu = "Обычное", c = "#8f9ba6", w = 1, card = 1, need = 1, cost = 1 },
         ["rare"] = new() { nameRu = "Редкое", c = "#2f95d0", w = .7, card = .65, need = .7, cost = 1.3 },
+        ["epic"] = new() { nameRu = "Эпическое", c = "#8b4fd8", w = .55, card = .5, need = .55, cost = 1.5 },
         ["legendary"] = new() { nameRu = "Легендарное", c = "#f08c00", w = .4, card = .35, need = .4, cost = 1.8 },
     };
-    public static readonly string[] WRAR_ORDER = { "common", "rare", "legendary" };
+    public static readonly string[] WRAR_ORDER = { "common", "rare", "epic", "legendary" };
     public static readonly int[] WNEED = { 0, 3, 5, 8, 12, 16, 22, 30, 40, 52 };
     public static readonly int[] WCOST = { 0, 30, 50, 80, 120, 170, 230, 300, 390, 500 };
     public static int wNeed(string id, int l) => (int)Math.Ceiling(WNEED[l] * WRAR[WEAP[id].rar].need);
@@ -221,14 +228,15 @@ public static class D
         new ET{id="mole",nameRu="Крот",hp=50,r=13,spd=105,score=140,coin=4,tok=1,cd=new[]{2.2,3.2},dmg=9,bspd=300,bul="dirt",melee=10,keep=160,range=420},
         new ET{id="kamibird",nameRu="Стриж-камикадзе",hp=24,r=11,spd=290,score=150,coin=4,tok=1,fly=true,s=1.3},
         new ET{id="eagle",nameRu="Орёл",hp=80,r=16,spd=170,score=220,coin=7,tok=2,fly=true,dash=580,melee=20,s=1.35,cd=new[]{2.6,3.6}},
-        new ET{id="gturkey",nameRu="Индюк-генерал",hop=true,hp=1100,r=34,spd=62,score=3000,coin=60,tok=25,boss=true,melee=25,bspd=240,dmg=9,s=1.6,pats=new[]{"fan","burst","summon","dash"},summon=new[]{"hen","turkey"},dash=400,bul="egg",tauntRu="Ко мне, солдаты!"},
-        new ET{id="ataman",nameRu="Лис-атаман",hp=2300,r=30,spd=120,score=6000,coin=120,tok=40,boss=true,melee=28,bspd=270,dmg=10,s=1.75,pats=new[]{"spiral","dash","summon","ring"},summon=new[]{"fox","raccoon"},dash=520,bul="fire",tauntRu="Банда, за мной!"},
-        new ET{id="badger",nameRu="Барсук-Бульдозер",hp=3000,r=30,spd=80,score=7000,coin=150,tok=45,boss=true,melee=30,bspd=250,dmg=11,s=1.7,pats=new[]{"dash","fan","summon","dash","ring"},summon=new[]{"wolf","raccoon"},dash=480,bul="rock",tauntRu="Разойдись — снесу!"},
-        new ET{id="wolfboss",nameRu="Вожак Серый Хвост",hp=4200,r=30,spd=140,score=9000,coin=180,tok=50,boss=true,melee=32,bspd=280,dmg=12,s=1.8,pats=new[]{"dash","summon","ring","dash","spiral"},summon=new[]{"wolf"},dash=600,bul="fire",tauntRu="Ау-у-у! Стая, ко мне!"},
-        new ET{id="steelturkey",nameRu="Стальной Индюк",hop=true,hp=5500,r=34,spd=62,score=11000,coin=210,tok=55,boss=true,melee=34,bspd=300,dmg=13,s=1.7,pats=new[]{"rain","fan","summon","burst","ring"},summon=new[]{"robohen","ferret"},dash=380,bul="bolt",tauntRu="ПРОТОКОЛ «ОЩИПАТЬ» ЗАПУЩЕН"},
-        new ET{id="drferret",nameRu="Доктор Хорёк",hp=7000,r=30,spd=115,score=14000,coin=250,tok=60,boss=true,melee=34,bspd=300,dmg=14,s=1.9,pats=new[]{"spiral","rain","summon","ring","dash"},summon=new[]{"ferret","robohen"},dash=520,bul="bolt",tauntRu="Мои творения, в атаку!"},
-        new ET{id="eagleboss",nameRu="Орёл Буревестник",hp=8000,r=28,spd=165,score=17000,coin=290,tok=65,boss=true,fly=true,melee=36,bspd=320,dmg=15,s=2,pats=new[]{"dash","fan","summon","dash","rain"},summon=new[]{"crow","eagle"},dash=640,bul="feather",tauntRu="С неба не уйдёшь!"},
-        new ET{id="emperor",nameRu="Император Ворон",hp=10000,r=30,spd=130,score=25000,coin=400,tok=80,boss=true,fly=true,melee=38,bspd=300,dmg=16,s=2.3,pats=new[]{"spiral","rain","summon","ring","dash","fan"},summon=new[]{"crow","owl","eagle"},dash=560,bul="fire",tauntRu="Склонитесь перед Императором!"},
+        new ET{id="gturkey",nameRu="Индюк-генерал",hop=true,hp=1540,r=34,spd=62,score=3000,coin=60,tok=25,boss=true,melee=25,bspd=240,dmg=9,s=1.6,pats=new[]{"fan","burst","summon","dash"},summon=new[]{"hen","turkey"},dash=400,bul="egg",tauntRu="Ко мне, солдаты!"},
+        new ET{id="ataman",nameRu="Лис-атаман",hp=3220,r=30,spd=120,score=6000,coin=120,tok=40,boss=true,melee=28,bspd=270,dmg=10,s=1.75,pats=new[]{"spiral","dash","summon","ring"},summon=new[]{"fox","raccoon"},dash=520,bul="fire",tauntRu="Банда, за мной!"},
+        new ET{id="badger",nameRu="Барсук-Бульдозер",hp=4200,r=30,spd=80,score=7000,coin=150,tok=45,boss=true,melee=30,bspd=250,dmg=11,s=1.7,pats=new[]{"dash","fan","summon","dash","ring"},summon=new[]{"wolf","raccoon"},dash=480,bul="rock",tauntRu="Разойдись — снесу!"},
+        new ET{id="wolfboss",nameRu="Вожак Серый Хвост",hp=5880,r=30,spd=140,score=9000,coin=180,tok=50,boss=true,melee=32,bspd=280,dmg=12,s=1.8,pats=new[]{"dash","summon","ring","dash","spiral"},summon=new[]{"wolf"},dash=600,bul="fire",tauntRu="Ау-у-у! Стая, ко мне!"},
+        new ET{id="hamster",nameRu="Хомяк-Трясун",hp=4200,r=32,spd=105,score=10000,coin=190,tok=50,boss=true,melee=32,bspd=300,dmg=12,s=1.8,pats=new[]{"quake","burst","roll","summon","quake","fan"},summon=new[]{"rat","bigrat","mole"},dash=640,bul="seed",tauntRu="Мои запасы не трогать!"},
+        new ET{id="steelturkey",nameRu="Стальной Индюк",hop=true,hp=7699,r=34,spd=62,score=11000,coin=210,tok=55,boss=true,melee=34,bspd=300,dmg=13,s=1.7,pats=new[]{"rain","fan","summon","burst","ring"},summon=new[]{"robohen","ferret"},dash=380,bul="bolt",tauntRu="ПРОТОКОЛ «ОЩИПАТЬ» ЗАПУЩЕН"},
+        new ET{id="drferret",nameRu="Доктор Хорёк",hp=9800,r=30,spd=115,score=14000,coin=250,tok=60,boss=true,melee=34,bspd=300,dmg=14,s=1.9,pats=new[]{"spiral","rain","summon","ring","dash"},summon=new[]{"ferret","robohen"},dash=520,bul="bolt",tauntRu="Мои творения, в атаку!"},
+        new ET{id="eagleboss",nameRu="Орёл Буревестник",hp=11200,r=28,spd=165,score=17000,coin=290,tok=65,boss=true,fly=true,melee=36,bspd=320,dmg=15,s=2,pats=new[]{"dash","fan","summon","dash","rain"},summon=new[]{"crow","eagle"},dash=640,bul="feather",tauntRu="С неба не уйдёшь!"},
+        new ET{id="emperor",nameRu="Император Ворон",hp=14000,r=30,spd=130,score=25000,coin=400,tok=80,boss=true,fly=true,melee=38,bspd=300,dmg=16,s=2.3,pats=new[]{"spiral","rain","summon","ring","dash","fan"},summon=new[]{"crow","owl","eagle"},dash=560,bul="fire",tauntRu="Склонитесь перед Императором!"},
     }.ToDictionary(e => e.id);
 
     public static readonly Dictionary<string, string> KILLN = new()
@@ -529,13 +537,13 @@ public static class D
     public static readonly Chest[] CHESTS =
     {
         new(){nameRu="Обычный сундук",subRu="корзинка несушки",coins=new[]{25.0,50},hpacks=2,wpacks=1,hcard=new[]{3.0,6},wcard=new[]{3.0,6},egg=new[]{.08,1,3},
-            hb=M(("common",1),("rare",1),("epic",.8),("legendary",.6)),wb=M(("common",1),("rare",.6),("legendary",.25))},
+            hb=M(("common",1),("rare",1),("epic",.8),("legendary",.6)),wb=M(("common",1),("rare",.6),("epic",.4),("legendary",.25))},
         new(){nameRu="Большой сундук",subRu="золотое яйцо",coins=new[]{150.0,250},hpacks=4,wpacks=2,hcard=new[]{8.0,14},wcard=new[]{8.0,14},egg=new[]{.3,2,5},
-            hb=M(("common",1),("rare",1),("epic",1),("legendary",1)),wb=M(("common",1),("rare",.8),("legendary",.45))},
+            hb=M(("common",1),("rare",1),("epic",1),("legendary",1)),wb=M(("common",1),("rare",.8),("epic",.6),("legendary",.45))},
         new(){nameRu="Сверхбольшой сундук",subRu="аметистовое яйцо",coins=new[]{500.0,800},hpacks=6,wpacks=4,hcard=new[]{14.0,22},wcard=new[]{15.0,25},egg=new[]{1.0,5,12},
-            hb=M(("common",.8),("rare",1),("epic",1.2),("legendary",1.5)),wb=M(("common",1),("rare",1),("legendary",.8))},
+            hb=M(("common",.8),("rare",1),("epic",1.2),("legendary",1.5)),wb=M(("common",1),("rare",1),("epic",.9),("legendary",.8))},
         new(){nameRu="Легендарный сундук",subRu="огненное яйцо",coins=new[]{1500.0,2500},hpacks=10,wpacks=6,hcard=new[]{22.0,34},wcard=new[]{24.0,36},egg=new[]{1.0,15,30},
-            hb=M(("common",.6),("rare",1),("epic",1.4),("legendary",2)),wb=M(("common",.8),("rare",1),("legendary",1.2))},
+            hb=M(("common",.6),("rare",1),("epic",1.4),("legendary",2)),wb=M(("common",.8),("rare",1),("epic",1.1),("legendary",1.2))},
     };
     public const int EGG_PRICE = 80, SUPER_PRICE = 200, LEG_PRICE = 450;
 

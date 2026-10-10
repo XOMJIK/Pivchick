@@ -175,6 +175,30 @@ public static partial class G
             c.fillStyle = "#6db343"; c.strokeStyle = INK; c.lineWidth = 1.2; c.beginPath(); c.ellipse(24.5, -9.5, 4, 2.2, -.6, 0, TAU); c.fill(); c.stroke();
             c.lineCap = "butt";
         }
+        else if (type == "thunder")
+        { // штурмовая винтовка с катушкой и искрой
+            box(-4, -4, 12, 8, 2, "#3d3f4a"); box(6, -4.5, 20, 8, 2, "#4a4f63"); box(25, -2.5, 6, 5, 1, "#2a2b33"); box(10, 2, 4.5, 9, 1, "#2a2b33");
+            c.fillStyle = "#c9733a"; foreach (var x in new[] { 11, 15, 19 }) { rr(c, x, -6.5, 2.6, 11, 1); c.fill(); c.stroke(); }
+            c.save(); c.globalAlpha = .6 + Math.Sin(S.t * 14) * .35; c.strokeStyle = "#bfe9ff"; c.lineWidth = 1.6; c.beginPath(); c.moveTo(29, -6); c.lineTo(33, -2); c.lineTo(30, 0); c.lineTo(35, 5); c.stroke(); c.restore();
+        }
+        else if (type == "boomgun")
+        { // обрез с раструбом и красными гильзами
+            box(-6, -3, 11, 7.5, 2, "#7a4a24"); box(4, -5, 15, 4.5, 1.5, "#3d3f4a"); box(4, -.6, 15, 4.5, 1.5, "#3d3f4a");
+            c.fillStyle = "#e8742a"; c.beginPath(); c.moveTo(18, -6); c.lineTo(27, -9); c.lineTo(27, 9); c.lineTo(18, 5); c.closePath(); c.fill(); c.stroke();
+            foreach (var y in new[] { -9.5, -5.0 }) { c.fillStyle = "#c0392b"; rr(c, -2, y + 13, 5, 3, 1); c.fill(); c.stroke(); }
+        }
+        else if (type == "ricochet")
+        { // длинная винтовка с прицелом и рикошет-стрелкой
+            box(-7, -3, 12, 7, 2, "#5a3a1e"); box(4, -2.6, 31, 4.6, 1.5, "#4a4d58"); box(10, -8, 12, 4.2, 2, "#2a2b33");
+            circ(c, 22.5, -6, 2, "#7fd4ff");
+            c.strokeStyle = "#ffc93a"; c.lineWidth = 1.5; c.beginPath(); c.moveTo(28, 6); c.lineTo(32, 10); c.lineTo(36, 6); c.stroke();
+        }
+        else if (type == "medkit")
+        { // пушка-аптечка: белый корпус с красным крестом и капсулой
+            box(-2, -6, 20, 12, 3, "#fffaf0"); box(17, -3, 9, 6, 1.5, "#9cf27a"); box(4, 4, 5, 8, 1.5, "#d9cdb4");
+            c.fillStyle = "#e8322a"; c.fillRect(5, -3.6, 6, 2.2); c.fillRect(6.9, -5.4, 2.2, 6);
+            c.fillStyle = "#5fcf3f"; c.beginPath(); c.ellipse(27, 0, 3.6, 2.4, 0, 0, TAU); c.fill(); c.stroke();
+        }
         else if (type == "blunder")
         {
             box(-6, -3, 12, 7, 2, "#7a4a24");
@@ -183,6 +207,8 @@ public static partial class G
     }
 
     sealed class Spec { public double s, hx, hy, hr, ex, ey, gy; }
+    /// <summary>Где у птицы голова (для аватарок): смещение от ног с учётом масштаба вида.</summary>
+    public static (double x, double y) headOf(string sp) { var q = SPEC.TryGetValue(sp ?? "hen", out var v) ? v : SPEC["hen"]; return (q.hx * q.s, q.hy * q.s); }
     static readonly Dictionary<string, Spec> SPEC = new()
     {
         ["hen"] = new() { s = 1, hx = 9, hy = -33, hr = 8.5, ex = 11.5, ey = -33.5, gy = -19 },

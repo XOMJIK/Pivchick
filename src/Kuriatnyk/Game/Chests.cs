@@ -67,7 +67,7 @@ public static class Chests
     {
         var c = chestCost(tier, pay == "eggs" ? "eggs" : null, n); if (c.have < c.need) return null;
         if (c.cur == "eggs") SAVE.eggs -= (int)c.need; else if (c.cur == "lch") SAVE.lchests -= (int)c.need; else if (c.cur == "sch") SAVE.schests -= (int)c.need; else if (c.cur == "btok") SAVE.btokens -= (int)c.need; else SAVE.tokens -= c.need;
-        var res = new Result { tier = tier, n = n };
+        var res = new Result { tier = tier, n = n }; Stats.AddLocal("chests", n);
         for (int i = 0; i < n; i++)
         {
             var r = rollChest(tier); res.coins += r.coins; res.eggs += r.eggs; res.heroes.AddRange(r.heroes);
@@ -78,22 +78,22 @@ public static class Chests
         return res;
     }
 
-    /* «Свойства» сундука: что внутри и с каким шансом — считается от текущего прогресса */
+    /* «Свойства» сундука: что внутри и с каким шансом. Шансы показываются всегда — для полного набора героев и стволов,
+       даже если героев какой-то редкости уже не осталось или карт такой редкости у игрока пока нет; left — сколько ещё закрыто */
     public sealed class OddsInfo { public Dictionary<string, (double p, int left)> hero = new(); public double anyHero; public Dictionary<string, double> hcards = new(), wcards = new(); }
     public static OddsInfo Odds(int tier)
     {
         var C = CHESTS[tier]; var o = new OddsInfo(); double miss = 1;
         int Left(string rk) => HERO_IDS.Count(id => !SAVE.heroes.ContainsKey(id) && HEROES[id].chance != null && HEROES[id].rar == rk);
-        foreach (var rk in RAR_ORDER) { int left = Left(rk); double p = left > 0 ? RAR[rk].chance[tier] / 100 : 0; o.hero[rk] = (miss * p, left); miss *= 1 - p; }
-        bool lockedAny = HERO_IDS.Any(id => !SAVE.heroes.ContainsKey(id) && HEROES[id].chance != null);
-        o.anyHero = lockedAny ? 1 - miss : 0;
+        foreach (var rk in RAR_ORDER) { int left = Left(rk); double p = RAR[rk].chance[tier] / 100; o.hero[rk] = (miss * p, left); miss *= 1 - p; }
+        o.anyHero = 1 - miss;
         Dictionary<string, double> share(List<string> ids, Func<string, double> wf, string[] keys, Func<string, string> key)
         {
             double t = ids.Sum(wf); var r = keys.ToDictionary(k => k, _ => 0.0);
             foreach (var id in ids) r[key(id)] += t > 0 ? wf(id) / t : 0;
             return r;
         }
-        var hp = SAVE.heroes.Keys.Where(id => SAVE.heroes[id].lv < 10).ToList(); var wp = PRIMARY.Where(id => SAVE.guns.Contains(id) && wLv(id) < 10 && hasClass(WEAP[id].cls)).ToList();
+        var hp = HERO_IDS.ToList(); var wp = PRIMARY.ToList();
         o.hcards = share(hp, id => RAR[HEROES[id].rar].w * C.hb[HEROES[id].rar], new[] { "common", "rare", "epic", "legendary" }, id => HEROES[id].rar);
         o.wcards = share(wp, id => WRAR[WEAP[id].rar].w * C.wb[WEAP[id].rar], WRAR_ORDER, id => WEAP[id].rar);
         return o;

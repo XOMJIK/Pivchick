@@ -50,6 +50,13 @@ public static class Panels
         return b;
     }
     public static TextBlock H4(string t, double size = 15) => Txt(t, size, FontWeight.ExtraBold);
+    /// <summary>Маленькая круглая кнопка «?» — свойства героя или сундука, чтобы не закрывать картинку.</summary>
+    public static Press QBtn(Action click)
+    {
+        var q = Txt("?", 17, FontWeight.Black, InkB, TextAlignment.Center); q.VerticalAlignment = VerticalAlignment.Center; q.HorizontalAlignment = HorizontalAlignment.Center;
+        var p = new Press(q, PaperB, 2.5, 999, new Thickness(0, 0, 0, 1), 2) { Width = 32, Height = 32, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(8) };
+        ToolTip.SetTip(p, T("Свойства")); p.Click += click; return p;
+    }
     public static TextBlock P(string t) { var x = Txt(t, 12.5, FontWeight.Medium, B("#d92b1d14")); return x; }
     // «выстр/с» не рвём на две строки: после косой черты между буквами ставим неразрывный WORD JOINER
     public static TextBlock Meta(string html, bool bold = false) => Rich(System.Text.RegularExpressions.Regex.Replace(html, @"(?<=\p{L})/(?=\p{L})", "/⁠"), 12, bold ? FontWeight.ExtraBold : FontWeight.Bold, B("#bf2b1d14"));
@@ -247,7 +254,7 @@ public sealed class WeaponsPanel : BoardPanel
     /// <summary>Справочник оружия Soul Knight: его не покупают здесь — оно падает в подземелье.</summary>
     void SkCatalog()
     {
-        body.Children.Add(Note(T("Это оружие есть только в режиме Soul Knight: оно падает из сундуков в подземелье и продаётся у торговца за пивчики. С собой можно нести 2 ствола (пассивка «Рюкзак» даёт третье место). Цена зависит от силы ствола и растёт с каждым уровнем подземелья. Стамины в забеге 100, сама она не восстанавливается — только синие кристаллы с врагов и зелья; рогатка, водный пистолет и почти всё ближнее оружие её не тратят.")));
+        body.Children.Add(Note(T("Это оружие есть только в режиме Soul Knight: оно падает из сундуков в подземелье и продаётся у торговца за пивчики. Легендарное оружие не выпадает — торговец продаёт его только за золотые яйца. С собой можно нести 2 ствола (пассивка «Рюкзак» даёт третье место), лишнее можно выбросить. Цена зависит от силы ствола и растёт с каждым уровнем подземелья. Стамины в забеге 100, сама она не восстанавливается — только синие кристаллы с врагов и зелья; рогатка, водный пистолет и почти всё ближнее оружие её не тратят.")));
         var groups = new[] { ("melee", T("Ближний бой")), ("gun", T("Стрелковое")), ("staff", T("Посохи")) };
         for (int gi = 0; gi < groups.Length; gi++)
         {
@@ -261,11 +268,11 @@ public sealed class WeaponsPanel : BoardPanel
                 string dps = W.special == "melee" ? T("Урон ") + W.dmg + " · " + (1 / W.rate).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + T(" удар/с")
                     : W.special == "chain" ? T("Урон ") + W.dmg + T(" · цепь на ") + W.chain
                     : T("Урон ") + W.dmg + (W.pellets > 1 ? "×" + W.pellets : W.ring > 0 ? "×" + W.ring : "") + " · " + (1 / W.rate).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + T(" выстр/с");
-                string cost = W.coin ? T("1 пивчик за 3 выстрела") : W.stam > 0 ? T("Стамина ") + W.stam.ToString("0.##", L.Culture) + T(" за выстрел") : T("Без стамины");
+                string cost = W.coin ? T("Стамина ") + W.stam.ToString("0.##", L.Culture) + T(" за выстрел") + " · " + T("1 пивчик за 3 выстрела") : W.stam > 0 ? T("Стамина ") + W.stam.ToString("0.##", L.Culture) + T(" за выстрел") : T("Без стамины");
                 var top = new List<Control>
                 {
                     Panels.Pv(Panels.Preview(140, 80, (c, w, h) => { c.translate(w / 2 - 34, h / 2 + 2); c.scale(1.9, 1.9); G.drawGun(c, W.id); }), "grass", null, null, null, R.c),
-                    Badges(Rar(R.name, R.c), Rar(T("В лавке: ") + SKW.Price(W), "#6b4428")),
+                    Badges(Rar(R.name, R.c), W.skr == "legendary" ? Rar(T("В лавке: ") + SKW.EggPrice(1) + "–" + SKW.EggPrice(6) + T(" золотых яиц"), "#b8860b") : Rar(T("В лавке: ") + SKW.Price(W), "#6b4428")),
                     Panels.H4(W.name), Panels.P(W.desc), Panels.Meta(dps), Panels.Meta(T("Урон в секунду") + ": " + Math.Round(SKW.Power(W))), Panels.Meta(cost, true)
                 };
                 if (SKW.START.Contains(W.id)) top.Add(Panels.Meta(T("С ним начинается забег")));
@@ -273,6 +280,12 @@ public sealed class WeaponsPanel : BoardPanel
             }
             body.Children.Add(g);
         }
+        // пассивки забега: что даёт каждая (выбираются в портале между уровнями)
+        var ps = Sect(T("Пассивки забега") + " · " + SKP.LIST.Length); ps.Margin = new Thickness(0, 18, 0, 10); body.Children.Add(ps);
+        body.Children.Add(Note(T("Между уровнями портал предлагает три пассивки на выбор — они действуют до конца забега и складываются, если взять одну и ту же ещё раз (кроме отмеченных «один раз»).")));
+        var pg = new AutoGrid { Min = 200, Gap = 10 };
+        foreach (var p in SKP.LIST) pg.Children.Add(Overlays.PassCard(p));
+        body.Children.Add(pg);
     }
 }
 
@@ -290,7 +303,7 @@ public sealed class ShopPanel : BoardPanel
     void Cards()
     {
         var left = Offers.Left; var offers = Offers.Get();
-        body.Children.Add(Note(T("Каждый день — две случайные пачки карт для твоих героев и стволов. Карты сразу идут в прокачку. Новые карточки через ") + (int)left.TotalHours + T(" ч ") + left.Minutes + T(" мин.")));
+        body.Children.Add(Note(T("Каждый день — две случайные пачки карт для твоих героев и стволов. Карты сразу идут в прокачку. Новые карточки через ") + (int)left.TotalHours + T(" ч ") + left.Minutes + T(" мин.") + T(" Обновление — в 00:00 по UTC.")));
         var more = new Press(Txt(T("Оружие — во вкладке «Оружие»"), 13, FontWeight.ExtraBold, InkB, wrap: false), PaperB, 2, 10, new Thickness(12, 7), 2) { HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 12) };
         more.Click += () => mv.OpenPanel("weapons"); body.Children.Add(more);
         if (offers.Count == 0) { body.Children.Add(Note(T("Все герои и стволы на максимальном уровне — карточек сегодня нет."))); return; }
@@ -419,9 +432,7 @@ public sealed class HeroesPanel : BoardPanel
             var H = HEROES[id]; SAVE.heroes.TryGetValue(id, out var own); bool eq = SAVE.hero == id; var R = RAR[H.rar];
             // карточка компактная: характеристики, улучшения и способности — в окне по кнопке «Свойства»
             var st = G.heroStats(id, own?.lv ?? 1);
-            var props = new Press(Row(6, InfoDot(), Txt(T("Свойства"), 12.5, FontWeight.ExtraBold, InkB, wrap: false)), PaperB, 2, 999, new Thickness(6, 6, 11, 6), 2)
-            { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(8) };
-            props.Click += () => Overlays.OpenHeroInfo(mv, id);
+            var props = Panels.QBtn(() => Overlays.OpenHeroInfo(mv, id));
             var top = new List<Control>
             {
                 Panels.Pv(Panels.HeroPv(id, 200, 120, 1.85), own != null ? "grass" : "dark", own != null ? T("Ур. ") + own.lv : null, null, props),
@@ -519,11 +530,7 @@ public sealed class ChestPanel : BoardPanel
     Control ChestCard(int tier)
     {
         var C = CHESTS[tier];
-        var iTxt = Txt("i", 12, FontWeight.Black, YolkB, TextAlignment.Center); iTxt.VerticalAlignment = VerticalAlignment.Center; iTxt.FontStyle = FontStyle.Italic;
-        var ib = Box(iTxt, InkB, 0, 9); ib.Width = 18; ib.Height = 18;
-        var props = new Press(Row(6, ib, Txt(T("Свойства"), 12.5, FontWeight.ExtraBold, InkB, wrap: false)), PaperB, 2, 999, new Thickness(6, 6, 11, 6), 2)
-        { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(8) };
-        props.Click += () => Overlays.OpenChestInfo(mv, tier);
+        var props = Panels.QBtn(() => Overlays.OpenChestInfo(mv, tier));
         var pv = Panels.Pv(Panels.Preview(220, 150, (c, w, h) => { c.translate(w / 2, h - 12); c.scale(.9, .9); G.drawChest(c, tier, 0, 0); }), Overlays.ChestBg(tier), null, null, props);
         var eggTxt = C.egg[0] >= 1 ? C.egg[1] + "–" + C.egg[2] + T(" золотых яиц") : T("шанс золотых яиц");
         var top = new List<Control> { pv, Panels.H4(C.name),
@@ -582,7 +589,7 @@ public sealed class ChestPanel : BoardPanel
         var g = new AutoGrid { Min = 230, Gap = 12 };
         for (int t = 0; t < CHESTS.Length; t++) g.Children.Add(ChestCard(t));
         body.Children.Add(g);
-        var n = Note(T("У каждого сундука свои шансы — нажми «Свойства» на картинке сундука. Герои выпадают только из сундуков. Карты героев падают только для открытых героев, карты оружия — только для купленных стволов тех классов, для которых у тебя есть боец."));
+        var n = Note(T("У каждого сундука свои шансы — нажми «?» на картинке сундука. Герои выпадают только из сундуков. Карты героев падают только для открытых героев, карты оружия — только для купленных стволов тех классов, для которых у тебя есть боец."));
         n.Margin = new Thickness(0, 12, 0, 12); body.Children.Add(n);
         body.Children.Add(Sect(T("Золотые яйца")));
         body.Children.Add(Note(T("Редкая валюта: у тебя <b>") + SAVE.eggs + T("</b>. Большой сундук стоит ") + EGG_PRICE + T(", сверхбольшой — ") + SUPER_PRICE + T(", легендарный — ") + LEG_PRICE + T(". Где взять: первое прохождение уровней сюжета (3–15 за уровень), волны 5, 10, 15, 20, 25, 30, 40 и 50 в бесконечном бою (один раз), Soul Knight, 5-й и 10-й уровень героя, сундуки. Ещё за яйца продаются Нимб, Платиновый окрас и Рельсотрон.")));

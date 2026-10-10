@@ -30,7 +30,8 @@ public sealed class Player : Fighter
     public double swing, swingA, swingR; // взмах ближним оружием
     // стамина (только Soul Knight): тратится на выстрелы и сама не восстанавливается — только кристаллы с врагов и зелья
     public double stam, stamMax, stamGain = 1, stamMul = 1, noStamT; // stamGain — во сколько раз больше дают кристаллы и зелья
-    public int coinN; // Пивчикомёт: пивчик списывается раз в 3 выстрела
+    public int coinN, kitN; public bool coinDry; // Пивчикомёт: пивчик списывается раз в 3 выстрела; coinDry — пивчиков нет, выстрел вдвое слабее
+    public double uw = 1; // сколько «ударов» для ульты стоит попадание текущего выстрела (см. hitWeight)
     // Soul Knight: оружие в рюкзаке (до bagMax) и бонусы пассивок забега
     public List<string> bag; public int slot, bagMax = 2;
     public double vamp, meleeMul = 1, pivMul = 1, healMul = 1; public int luck; public bool magnetFar; // healMul — во сколько раз сильнее лечат кукуруза и зелья
@@ -47,7 +48,7 @@ public sealed class Enemy : Unit
 {
     public string type, st = "walk", body, wing; public ET T;
     public double cd, ang, phase, flash, strafe, strafeT, bite, kx, ky, stun, burn, chill, burnDps, burnTick, tellT, dashT, dx, dy, dashLen,
-        atkT = 2.5, spin, spinA, burstT, emerge, kamiT, iceT, frozen, tgT, navT, s, honey, bubble;
+        atkT = 2.5, spin, spinA, burstT, emerge, kamiT, iceT, frozen, tgT, navT, s, honey, bubble, quakeT, quakeA; // quakeT — хомяк в прыжке перед ударом о землю
     public double? navBest;
     public int face = 1, pat = -1, burst, dashes, iceN, navAlt;
     public bool moving, dead, hop, kami, endless, hitThis;
@@ -61,6 +62,9 @@ public sealed class Bullet
     public double x, y, vx, vy, r, dmg, life, max, spin; public bool fromP, ally, frag; public string kind;
     public int pierce, bounce, shape; public List<Enemy> hits; public Ally owner;
     public Weap w; public bool back; public double tick; // снаряд оружия Soul Knight: свойства берутся из w
+    public double uw = 1; // доля «удара» для ульты при попадании
+    public int rico; // «Рикошет»: сколько ещё раз пуля отскочит к следующему врагу
+    public bool cloud; // капсула «Аптечкомёта», которая оставит лечебное облако
 }
 
 public sealed class Part
@@ -71,11 +75,11 @@ public sealed class Part
 public sealed class FText { public double x, y, size, t, max, vx; public string txt, col; }
 /// <summary>Предмет на земле. kind: corn, nade, stam, piv (пивчики, n — сколько), skw (оружие wid), а также временные стволы.
 /// price &gt; 0 — товар у торговца, берётся кнопкой действия.</summary>
-public sealed class Pickup { public double x, y, t, ph, vx, vy, z, vz; public string kind, wid; public int n, price; }
+public sealed class Pickup { public double x, y, t, ph, vx, vy, z, vz; public string kind, wid; public int n, price; public bool egg; } // egg — цена в золотых яйцах (легендарное оружие у торговца)
 public sealed class Nade { public double x, y, z, vx, vy, vz, t, rot; }
-public sealed class Bomb { public double x, y, t, max, r, dmg, heal, sx, sy; public bool fromP, lob, quiet; public string kind; }
+public sealed class Bomb { public double x, y, t, max, r, dmg, heal, sx, sy; public bool fromP, lob, quiet, ult; public string kind; } // ult — яйцо из ульты: ульту не копит
 public sealed class Hole { public double x, y, t, ct, life, spawnT; public string state; public int made, max; }
-public sealed class Zone { public double x, y, t, r, max; }
+public sealed class Zone { public double x, y, t, r, max; public bool mini; } // mini — лечебное облако «Аптечкомёта»: лечит слабее и не поднимает выбитых
 /// <summary>Лужи и облака от оружия Soul Knight: poop — вонючая лужа, poison — ядовитое облако, roots — корни.</summary>
 public sealed class Goo { public double x, y, t, max, r, dps, tick; public string kind; public HashSet<Enemy> held; }
 
@@ -89,6 +93,7 @@ public sealed class GState
     public bool goalDone; // сюжет: цель выполнена раньше трёх минут — держимся до конца уровня
     public int skLv; public string skHero; // Soul Knight: уровень 0-N (0 — лагерь) и выбранный герой
     public long piv; public List<string> skPass = new(); // пивчики забега и взятые пассивки
+    public bool won; public long lastPts, lastXp; // бой выигран; сколько PTS и опыта пропуска дал последний бой
 }
 
 public static partial class G

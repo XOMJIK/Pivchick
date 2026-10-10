@@ -31,7 +31,7 @@ public static partial class G
     }
     static void breakCrate(Obs o)
     {
-        OBS.Remove(o); Sfx.crack(); S.shake += 3;
+        OBS.Remove(o); Sfx.crack(); S.shake += 3; Stats.Add("crates");
         for (int i = 0; i < 10; i++) { double a = rand(0, TAU), sp = rand(60, 200); parts.Add(new Part { k = "shell", x = o.x, y = o.y, z = 12, vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp * .6, vz = rand(120, 260), rot = rand(0, TAU), vr = rand(-10, 10), t = 0, max = rand(.7, 1.1), dirt = true }); }
         puff(o.x, o.y, "#c9a06a", 8, 1.1);
         if (S.kind == "sk")

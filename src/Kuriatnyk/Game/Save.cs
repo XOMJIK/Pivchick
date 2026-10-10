@@ -42,6 +42,32 @@ public sealed class SaveData
     public string menuBg { get; set; } = "yard";
     public string shopDay { get; set; } // день, на который разложены карточки в магазине
     public List<Offer> offers { get; set; } = new();
+    // --- профиль: имя, аватарка, уровень аккаунта (PTS), статистика, достижения, задания, боевой пропуск ---
+    public string name { get; set; }
+    public string avatar { get; set; } = "egg";
+    public List<string> avatars { get; set; } = new() { "egg" };
+    public long pts { get; set; }
+    public int accLv { get; set; } = 1; // уровень, за который награда уже выдана
+    public Dictionary<string, long> stats { get; set; } = new();
+    public Dictionary<string, int> ach { get; set; } = new(); // открытые достижения: 1 — награда ждёт, 2 — забрана
+    public QuestState quests { get; set; } = new();
+    public PassRec pass { get; set; } = new();
+    public long created { get; set; } // когда создан аккаунт (unix, сек)
+}
+
+/// <summary>Задание: id из каталога, сколько нужно, прогресс; done — выполнено, claimed — награда забрана.</summary>
+public sealed class QuestRec { public string id { get; set; } public long goal { get; set; } public long prog { get; set; } public bool claimed { get; set; } }
+/// <summary>Три ежедневных задания (новые в 00:00 UTC) и одно недельное (новое в понедельник в 00:00 UTC).</summary>
+public sealed class QuestState
+{
+    public string day { get; set; } public List<QuestRec> daily { get; set; } = new();
+    public string week { get; set; } public QuestRec weekly { get; set; }
+}
+/// <summary>Боевой пропуск сезона (сезон — календарный месяц по UTC): опыт, премиум и забранные награды.</summary>
+public sealed class PassRec
+{
+    public string season { get; set; } public long xp { get; set; } public bool premium { get; set; }
+    public List<int> free { get; set; } = new(); public List<int> prem { get; set; } = new();
 }
 
 public sealed class Settings
@@ -57,6 +83,10 @@ public sealed class Settings
     public string lastWin { get; set; } = "windowed"; // куда вернуться из полного экрана по F11
     /// <summary>Свои клавиши: действие → две клавиши (основная и запасная, "" — нет).</summary>
     public Dictionary<string, List<string>> keys { get; set; } = new();
+    /// <summary>Аккаунт (профиль) на этом устройстве: main — save.json, остальные — save-&lt;id&gt;.json.</summary>
+    public string profile { get; set; } = "main";
+    /// <summary>Многопользовательская игра: последний адрес, к которому подключались.</summary>
+    public string lastIp { get; set; } = "";
 }
 
 /// <summary>Предложение в магазине: пачка карт героя (hero) или оружия (weap) за зёрна.</summary>
@@ -79,7 +109,8 @@ public static class Store
             return d;
         }
     }
-    static string SavePath => Path.Combine(Dir, "save.json");
+    static string SavePath => PathOf(SET?.profile);
+    static string PathOf(string profile) => Path.Combine(Dir, string.IsNullOrEmpty(profile) || profile == "main" ? "save.json" : "save-" + profile + ".json");
     static string SetPath => Path.Combine(Dir, "settings.json");
 
     public static SaveData SAVE;
@@ -95,8 +126,60 @@ public static class Store
         SET.keys ??= new();
         foreach (var k in SET.keys.Keys.ToList()) if (SET.keys[k] == null || !G.ACTIONS.Any(a => a.id == k)) SET.keys.Remove(k);
         L.Lang = SET.lang;
+        if (string.IsNullOrEmpty(SET.profile) || (SET.profile != "main" && !File.Exists(SavePath))) SET.profile = "main"; // аккаунт удалили — на основной
+        SET.lastIp ??= "";
         SAVE = Validate(Read(SavePath, SaveJson.Default.SaveData) ?? new SaveData());
         persist();
+    }
+
+    /* ---------- аккаунты на этом устройстве (пока без сервера — просто разные сохранения) ---------- */
+    public sealed class ProfileInfo { public string id, name, avatar; public int lv; public long pts; }
+    public static List<ProfileInfo> Profiles()
+    {
+        var list = new List<ProfileInfo>();
+        try
+        {
+            foreach (var f in Directory.GetFiles(Dir, "save*.json"))
+            {
+                var fn = Path.GetFileNameWithoutExtension(f); var id = fn == "save" ? "main" : fn.StartsWith("save-") ? fn[5..] : null; if (id == null) continue;
+                var d = id == SET.profile ? SAVE : Read(f, SaveJson.Default.SaveData); if (d == null) continue;
+                list.Add(new ProfileInfo { id = id, name = string.IsNullOrWhiteSpace(d.name) ? DefaultName(id) : d.name, avatar = d.avatar ?? "egg", pts = d.pts, lv = Account.LevelOf(d.pts) });
+            }
+        }
+        catch { }
+        if (!list.Any(p => p.id == SET.profile)) list.Insert(0, new ProfileInfo { id = SET.profile, name = SAVE.name, avatar = SAVE.avatar, pts = SAVE.pts, lv = Account.LevelOf(SAVE.pts) });
+        return list.OrderBy(p => p.id == "main" ? "" : p.id).ToList();
+    }
+    static string DefaultName(string id) => L.T("Игрок") + (id == "main" ? "" : " " + id);
+    /// <summary>Перейти на другой аккаунт: текущий сохраняется, загружается выбранный.</summary>
+    public static void SwitchProfile(string id)
+    {
+        if (string.IsNullOrEmpty(id) || id == SET.profile) return;
+        persist(); SET.profile = id; saveSet();
+        SAVE = Validate(Read(SavePath, SaveJson.Default.SaveData) ?? new SaveData());
+        persist();
+    }
+    /// <summary>Новый аккаунт с именем: свой прогресс с нуля. Возвращает id.</summary>
+    public static string CreateProfile(string name)
+    {
+        int n = 2; while (File.Exists(PathOf("p" + n))) n++;
+        var id = "p" + n; var d = Validate(new SaveData()); d.name = CleanName(name) ?? d.name;
+        Write(PathOf(id), d, SaveJson.Default.SaveData);
+        return id;
+    }
+    public static bool DeleteProfile(string id)
+    {
+        if (id == "main" || id == SET.profile) return false;
+        try { File.Delete(PathOf(id)); return true; } catch { return false; }
+    }
+    /// <summary>Имя игрока: 2–16 символов, без переводов строк и лишних пробелов.</summary>
+    public static string CleanName(string s)
+    {
+        if (s == null) return null;
+        s = new string(s.Where(ch => !char.IsControl(ch)).ToArray()).Trim();
+        while (s.Contains("  ")) s = s.Replace("  ", " ");
+        if (s.Length > 16) s = s[..16].Trim();
+        return s.Length >= 2 ? s : null;
     }
 
     static string DefaultLang()
@@ -152,7 +235,17 @@ public static class Store
         o.best ??= new();
         o.schests = Math.Max(0, o.schests); o.lchests = Math.Max(0, o.lchests); o.menuBg ??= "yard";
         o.offers ??= new(); o.offers = o.offers.Where(f => f != null && (f.kind == "hero" ? D.HEROES.ContainsKey(f.id ?? "") : D.WEAP.TryGetValue(f.id ?? "", out var fw) && fw.rar != null)).ToList();
-        o.v = 2; return o;
+        // профиль
+        o.name = CleanName(o.name) ?? L.T("Игрок") + " " + (1000 + new Random().Next(9000));
+        o.avatars ??= new(); if (!o.avatars.Contains("egg")) o.avatars.Insert(0, "egg");
+        o.avatars = o.avatars.Where(a => a != null && Avatars.Has(a)).Distinct().ToList();
+        if (o.avatar == null || !o.avatars.Contains(o.avatar)) o.avatar = "egg";
+        o.pts = Math.Max(0, o.pts); o.accLv = Math.Clamp(o.accLv, 1, Account.MAX_LV);
+        o.stats ??= new(); o.ach ??= new(); o.quests ??= new(); o.quests.daily ??= new(); o.quests.daily.RemoveAll(q => q == null || Quests.Find(q.id) == null);
+        if (o.quests.weekly != null && Quests.Find(o.quests.weekly.id) == null) o.quests.weekly = null;
+        o.pass ??= new(); o.pass.free ??= new(); o.pass.prem ??= new();
+        if (o.created == 0) o.created = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        o.v = 3; return o;
     }
 
     public static LvRec wRec(string id) { if (!SAVE.wlv.TryGetValue(id, out var r)) SAVE.wlv[id] = r = new LvRec(); return r; }
