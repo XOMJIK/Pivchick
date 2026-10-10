@@ -36,7 +36,7 @@ public static partial class G
     /// а скорострельное оружие (быстрее 4 выстрелов в секунду) — на долю, чтобы ульта копилась от ударов, а не от темпа.</summary>
     public static double hitWeight(Weap W)
     {
-        double w = 1.0 / Math.Max(1, W.pellets > 1 ? W.pellets : W.ring > 0 ? W.ring : 1);
+        double w = 1.0 / Math.Sqrt(Math.Max(1, W.pellets > 1 ? W.pellets : W.ring > 0 ? W.ring : 1)); // дробь: часть дробинок мимо — поэтому корень, а не доля
         double rate = W.spinUp || W.special == "mini" ? .09 : W.rate;
         if (rate < .25) w *= rate / .25;
         return w;
