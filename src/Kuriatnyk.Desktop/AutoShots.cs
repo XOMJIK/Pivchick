@@ -26,7 +26,8 @@ static class AutoShots
         {
             (2.0, "a-lobby", null),
             (0.6, "a2-single", () => System.Linq.Enumerable.First(System.Linq.Enumerable.OfType<Lobby>(Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(mv))).ShowSingle(true)),
-            (0.6, "b-shop", () => mv.OpenPanel("shop")),
+            (0.6, "a3-quit", () => Overlays.OpenQuit(mv)),
+            (0.6, "b-shop", () => { mv.Hide("quitOv"); mv.OpenPanel("shop"); }),
             (0.6, "c-heroes", () => mv.OpenPanel("heroes")),
             (0.6, "c2-heroinfo", () => Overlays.OpenHeroInfo(mv, "rooster")),
             (0.6, "c3-heroabil", () => { mv.Hide("heroInfo"); Overlays.SetHeroTab("abil"); Overlays.OpenHeroInfo(mv, Store.SAVE.hero); }),
@@ -55,6 +56,8 @@ static class AutoShots
             (1.0, "n-end", () => { Log(dir, w, "F11 again (back to borderless)"); DisplayMode.Set(mv, "windowed"); }),
             (0.5, "n-end2", () => Log(dir, w, "windowed")),
         };
+        // KUR_AUTOSHOT_NOWIN=1 — без шагов с полным экраном и рамками окна
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("KUR_AUTOSHOT_NOWIN"))) steps.RemoveAll(s => s.name.StartsWith("n-"));
         int i = 0;
         void Next()
         {

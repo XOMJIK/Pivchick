@@ -40,16 +40,31 @@ public static partial class G
     public static void showBanner(string big, string small) { banBig = big ?? ""; banSmall = small ?? ""; banT = clock; }
     public static void clearBanner() { banBig = ""; banSmall = ""; banT = -99; }
 
+    /// <summary>Уровень сюжета длится не меньше трёх минут; босс выходит через 1:15 после начала.</summary>
+    public const double STORY_MIN = 180, BOSS_AT = 75;
+    /// <summary>Секунды в виде «3:05».</summary>
+    public static string mmss(double sec) { int t = (int)Math.Ceiling(Math.Max(0, sec)); return t / 60 + ":" + (t % 60).ToString("00"); }
+
     public static string goalLabel(bool lng)
     {
         if (S.kind == "endless") return T("Волна ") + Math.Max(1, S.wave);
         if (S.kind == "sk") return skGoal();
         var g = S.L.goal;
+        if (S.goalDone && !lng) return T("Держись ") + mmss(STORY_MIN - S.t); // цель выполнена — дотянуть до трёх минут
         if (g.type == "waves") return T("Волна ") + Math.Max(1, S.wave) + "/" + g.n;
         if (g.type == "kill") { var w = killN(g.what) ?? ETYPE[g.what].name; return lng ? T("Победи: ") + w.ToLower(L.Culture) + " ×" + g.n : w + " " + S.goalKills + "/" + g.n; }
-        if (g.type == "survive") { int t = (int)Math.Ceiling(S.survT); return (lng ? T("Продержись ") : T("Держись ")) + t / 60 + ":" + (t % 60).ToString("00"); }
-        if (g.type == "boss") return lng ? T("Победи босса") : T("Босс: ") + ETYPE[g.boss].name;
+        if (g.type == "survive") return (lng ? T("Продержись ") : T("Держись ")) + mmss(S.survT);
+        if (g.type == "boss") return lng ? T("Победи босса") : S.boss == null && S.bossT > 0 ? T("Босс через ") + mmss(S.bossT) : T("Босс: ") + ETYPE[g.boss].name;
         return "";
+    }
+    /// <summary>Цель уровня сюжета выполнена. Если трёх минут ещё нет — держимся до конца, враги продолжают идти.</summary>
+    public static void storyGoal()
+    {
+        if (S.mode != "play") return;
+        if (S.t >= STORY_MIN) { victory(); return; }
+        if (S.goalDone) return;
+        S.goalDone = true; Sfx.wave();
+        showBanner(T("Цель выполнена!"), T("Продержись до конца уровня: ещё ") + mmss(STORY_MIN - S.t));
     }
 
     public static void toMenu()
@@ -74,6 +89,7 @@ public static partial class G
     static void gameOver()
     {
         S.mode = "over";
+        if (S.kind == "endless" && S.wave > 1) { S.coins += S.wave * 15; S.tokens += S.wave * 2; } // бонус за достигнутую волну
         bankCoins();
         bool rec = false;
         if (S.kind == "endless") { rec = S.score > SAVE.best.score; if (rec) { SAVE.best = new Best { score = S.score, wave = S.wave }; persist(); } }
@@ -109,7 +125,7 @@ public static partial class G
         var w = new WinInfo
         {
             eyebrow = T("Глава ") + (Lv.ch + 1) + T(" · уровень ") + (Lv.i + 1) + T(" из 20"),
-            lead = Lv.i == 19 && first ? CHAPTERS[Lv.ch].outro : (L.En ? "“" : "«") + Lv.name + T("» пройден."),
+            lead = Lv.i == 19 && first ? CHAPTERS[Lv.ch].outro : L.Qo + Lv.name + T("» пройден."),
             hasNext = i < STORY.Count - 1,
             nextLabel = Lv.i == 19 ? T("Глава ") + (Lv.ch + 2) : T("Уровень ") + (Lv.i + 2)
         };
@@ -118,7 +134,7 @@ public static partial class G
         if (le > 0) w.rows.Add(new WinRow { icon = "gegg", text = "+" + le + T(" золотых яиц"), sub = T("только за первое прохождение") });
         if (sup) w.rows.Add(new WinRow { icon = "sch", text = StripIcon(T("<i class=\"sch\"></i>Сверхбольшой сундук!")), sub = T("за финального босса главы · открой в «Сундуках»") });
         if (big) w.rows.Add(new WinRow { icon = "btok", text = StripIcon(T("<i class=\"btok\"></i>+1 большой жетон")), sub = T("на большой сундук: ") + SAVE.btokens + "/10" });
-        else w.rows.Add(new WinRow { icon = "btok", text = StripIcon(T("<i class=\"btok\"></i>Большой жетон — за первое прохождение")), sub = T("или каждые 10 волн в бесконечном бою") });
+        else w.rows.Add(new WinRow { icon = "btok", text = StripIcon(T("<i class=\"btok\"></i>Большой жетон — за первое прохождение")), sub = T("или каждые 5 волн в бесконечном бою") });
         if (Lv.i == 19 && first) storyCh = -1;
         Ui.ShowWin(w);
     }

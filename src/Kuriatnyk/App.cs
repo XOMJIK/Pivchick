@@ -22,7 +22,9 @@ public sealed class App : Application
         Store.Load();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desk)
         {
-            var w = new Window
+            Window w = null;
+            Platform.Quit = () => w?.Close(); // при закрытии окна зёрна забега сохраняются (Closing ниже)
+            w = new Window
             {
                 Title = L.T("Боевой Курятник"), Width = 1180, Height = 720, MinWidth = 360, MinHeight = 360,
                 Content = new MainView(), Background = K.B(K.Grass), WindowStartupLocation = WindowStartupLocation.CenterScreen

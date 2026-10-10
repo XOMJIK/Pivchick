@@ -54,6 +54,7 @@ public static partial class G
         else
         {
             updateHoles(dt);
+            if (S.kind == "story" && S.goalDone && S.t >= STORY_MIN) { victory(); return; } // цель выполнена и три минуты прошли
             if (isWaves())
             {
                 if (S.bossT > 0) { S.bossT -= dt; if (S.bossT <= 0) spawnEndlessBoss(); }
@@ -64,25 +65,27 @@ public static partial class G
                     if (S.spawnT <= 0 && S.toSpawn > 0 && enemies.Count(e => e.type != "mole") < Math.Min(6 + S.diff, 16)) { spawnEnemy(pickType()); S.toSpawn--; S.spawnT = Math.Max(.35, 1.3 - S.diff * .08); }
                     if (S.toSpawn == 0 && enemies.Count == 0 && S.wave > 0 && !(S.bossT > 0))
                     {
-                        if (S.kind == "story" && S.wave >= S.L.goal.n) { victory(); return; }
+                        if (S.kind == "story" && S.wave >= S.L.goal.n) { storyGoal(); if (S.mode != "play") return; } // раньше трёх минут — следующая волна
                         S.between = 3; var h = Math.Min(10, P.max - P.hp); P.hp += h;
-                        int bonus = 5 + S.wave * 3; S.coins += bonus; S.tokens += 3;
-                        if (S.kind == "endless" && S.wave % 10 == 0) { SAVE.btokens++; persist(); Later(.9, () => Ui.Toast(T("+1 большой жетон за 10 волн"))); }
-                        showBanner(T("Двор чист!"), "+" + bonus + T(" зёрен · +3 жетона") + (h > 0 ? " · +" + Math.Round(h, MidpointRounding.AwayFromZero) + T(" здоровья") : "")); Sfx.pick();
+                        bool en = S.kind == "endless"; int bonus = en ? 10 + S.wave * 5 : 5 + S.wave * 3; S.coins += bonus; S.tokens += en ? 5 : 3;
+                        if (en && S.wave % 5 == 0) { SAVE.btokens++; persist(); Later(.9, () => Ui.Toast(T("+1 большой жетон за 5 волн"))); }
+                        showBanner(T("Двор чист!"), "+" + bonus + (en ? T(" зёрен · +5 жетонов") : T(" зёрен · +3 жетона")) + (h > 0 ? " · +" + Math.Round(h, MidpointRounding.AwayFromZero) + T(" здоровья") : "")); Sfx.pick();
                     }
                 }
             }
             else
             {
                 var g = S.L.goal;
-                if (S.between > 0) { S.between -= dt; if (S.between <= 0) { S.running = true; showBanner(S.L.name, goalLabel(true)); Sfx.wave(); if (g.type == "boss") spawnBoss(g.boss); } }
+                if (S.between > 0) { S.between -= dt; if (S.between <= 0) { S.running = true; showBanner(S.L.name, goalLabel(true)); Sfx.wave(); if (g.type == "boss") S.bossT = BOSS_AT; } }
                 else if (S.running)
                 {
+                    if (S.bossT > 0) { S.bossT -= dt; if (S.bossT <= 0) spawnBoss(g.boss); } // сначала армия, потом босс
                     S.spawnT -= dt;
-                    double cap = g.type == "boss" ? Math.Min(3 + Math.Floor(S.diff / 2), 7) : Math.Min(Math.Round(5 + S.diff, MidpointRounding.AwayFromZero), 15);
+                    bool bossOn = g.type == "boss" && S.boss != null;
+                    double cap = bossOn ? Math.Min(3 + Math.Floor(S.diff / 2), 7) : Math.Min(Math.Round(5 + S.diff, MidpointRounding.AwayFromZero), 15);
                     int alive = enemies.Count(e => !e.T.boss && e.type != "mole");
-                    if (S.spawnT <= 0 && alive < cap) { spawnEnemy(pickType()); S.spawnT = Math.Max(.45, (g.type == "boss" ? 2.6 : 1.5) - S.diff * .08); }
-                    if (g.type == "survive") { S.survT -= dt; if (S.survT <= 0) { S.survT = 0; victory(); return; } }
+                    if (S.spawnT <= 0 && alive < cap) { spawnEnemy(pickType()); S.spawnT = Math.Max(.45, (bossOn ? 2.6 : 1.5) - S.diff * .08); }
+                    if (g.type == "survive") { S.survT -= dt; if (S.survT <= 0) { S.survT = 0; storyGoal(); return; } }
                 }
             }
         }
@@ -157,7 +160,7 @@ public static partial class G
         if (P.moving && rnd() < dt * 8) puff(P.x - mx * 8, P.y, "#e9dcc0", 1, .5);
     }
 
-    static void bite(Enemy e, double dmg, double cd) { if (e.bite > 0) return; e.bite = cd; hitTarget(curTg, eDmg(dmg), e); }
+    static void bite(Enemy e, double dmg, double cd) { if (e.bite > 0) return; e.bite = cd; hitTarget(curTg, eDmgE(e, dmg), e); }
     static void startDash(Enemy e, double tell, double dur) { var tg = curTg ?? P; e.st = "tell"; e.tellT = tell; double dx = tg.x - e.x, dy = tg.y - e.y, d = hypot(dx, dy); if (d == 0) d = 1; e.dx = dx / d; e.dy = dy / d; e.dashLen = dur; e.hitThis = false; }
     static void startAim(Enemy e, double t) { var tg = curTg ?? P; e.st = "aim"; e.tellT = t; double dx = tg.x - e.x, dy = tg.y - e.y, d = hypot(dx, dy); if (d == 0) d = 1; e.dx = dx / d; e.dy = dy / d; }
 
@@ -171,6 +174,7 @@ public static partial class G
             if (e.dead) continue;
             e._px = e.x; e._py = e.y;
             var T = e.T;
+            double rk = e.buff == "rate" ? 1.7 : 1; // бафф скорострельности: перезарядка идёт быстрее
             Unit tg = P;
             if (alive && allies.Count > 0)
             {
@@ -191,7 +195,7 @@ public static partial class G
             curTg = tg;
             if (e.iceT > 0) e.iceT -= dt; if (e.frozen > 0) e.frozen -= dt;
             double dx = tg.x - e.x, dy = tg.y - e.y, d = hypot(dx, dy); if (d == 0) d = 1;
-            if (e.bite > 0) e.bite -= dt;
+            if (e.bite > 0) e.bite -= dt * rk;
             if (e.flash > 0) e.flash -= dt;
             if (e.burn > 0)
             {
@@ -213,12 +217,18 @@ public static partial class G
             bool see = alive && (T.fly || los(e.x, e.y, tg.x, tg.y));
             if (!alive) { vx = -dx / d * .4; vy = -dy / d * .4; }
             else if (e.kami)
-            {
-                vx = dx / d; vy = dy / d; spdMul *= 2.2; noSep = true; e.kamiT -= dt; // камикадзе несётся заметно быстрее обычного
-                if (rnd() < dt * 25) parts.Add(new Part { k = "puff", x = e.x + rand(-4, 4), y = e.y, z = rand(30, 44) * (e.s > 0 ? e.s : 1), vx = rand(-20, 20), vy = 0, vz = 60, t = 0, max = .25, r = 2, col = rnd() < .5 ? "#ffd23a" : "#ff7a1a" });
+            { // стриж-камикадзе: летит быстро, но поворачивает плавно — в последний момент можно отскочить в сторону
+                e.kamiT -= dt;
+                double want = Math.Atan2(dy, dx), df = ((want - e.ang + Math.PI * 3) % TAU) - Math.PI, turn = (d < 120 ? 1.7 : 2.8) * dt;
+                e.ang += Math.Abs(df) < turn ? df : Math.Sign(df) * turn;
+                double sp = T.spd * (1 + (S.diff - 1) * .015) * spdMul;
+                e.x += (Math.Cos(e.ang) * sp + e.kx) * dt; e.y += (Math.Sin(e.ang) * sp + e.ky) * dt; e.kx *= Math.Pow(.002, dt); e.ky *= Math.Pow(.002, dt);
+                e.phase += dt * 26; e.moving = true; e.face = Math.Cos(e.ang) >= 0 ? 1 : -1;
+                if (rnd() < dt * 25) parts.Add(new Part { k = "puff", x = e.x - Math.Cos(e.ang) * 12, y = e.y, z = rand(34, 44) * (e.s > 0 ? e.s : 1), vx = rand(-20, 20), vy = 0, vz = 40, t = 0, max = .25, r = 2, col = rnd() < .5 ? "#ffd23a" : "#ff7a1a" });
                 double fq = e.kamiT < 1.2 ? 8 : 4;
-                if (Math.Floor(e.kamiT * fq) != Math.Floor((e.kamiT + dt) * fq)) Sfx.beep();
+                if (Math.Floor(e.kamiT * fq) != Math.Floor((e.kamiT + dt) * fq) && onScreen(e, 0)) Sfx.beep();
                 if (d < e.r + tg.r + 8 || e.kamiT <= 0) { e.dead = true; kamiBoom(e, true); killEnemy(e, true); continue; }
+                collideWorld(e, true); continue;
             }
             else if (e.st == "tell") { e.tellT -= dt * (e.chill > 0 ? .6 : 1); spdMul = 0; if (e.tellT <= 0) { e.st = "dash"; e.dashT = e.dashLen; } }
             else if (e.st == "aim")
@@ -227,24 +237,24 @@ public static partial class G
                 if (e.tellT > .18) { e.dx = dx / d; e.dy = dy / d; }
                 if (e.tellT <= 0)
                 {
-                    e.st = "walk"; var a = Math.Atan2(e.dy, e.dx); eBullet(e.x + e.dx * 20, e.y + e.dy * 20, a, T.bspd, eDmg(T.dmg), T.bul); e.ang = a; e.cd = rand(T.cd[0], T.cd[1]);
+                    e.st = "walk"; var a = Math.Atan2(e.dy, e.dx); eBullet(e.x + e.dx * 20, e.y + e.dy * 20, a, T.bspd, eDmgE(e, T.dmg), T.bul); e.ang = a; e.cd = rand(T.cd[0], T.cd[1]);
                     if (e.type == "owl") Sfx.hoot(); else Sfx.zap();
                 }
             }
             else if (e.st == "dash")
             {
-                noSep = true; double sp = (T.dash > 0 ? T.dash : 520) * (e.chill > 0 ? .6 : 1);
+                noSep = true; double sp = (T.dash > 0 ? T.dash : 520) * (e.chill > 0 ? .6 : 1) * (e.buff == "spd" ? 1.2 : 1);
                 e.x += e.dx * sp * dt; e.y += e.dy * sp * dt; e.dashT -= dt; e.phase += dt * 24; e.moving = true;
                 if (!T.fly && rnd() < dt * 30) puff(e.x, e.y, "#e9dcc0", 1, .7);
-                if (!e.hitThis && d < e.r + tg.r + 6) { e.hitThis = true; hitTarget(tg, eDmg(T.melee > 0 ? T.melee : 15), e); }
+                if (!e.hitThis && d < e.r + tg.r + 6) { e.hitThis = true; hitTarget(tg, eDmgE(e, T.melee > 0 ? T.melee : 15), e); }
                 if (e.dashT <= 0) { e.st = "walk"; e.cd = T.cd != null ? rand(T.cd[0], T.cd[1]) : rand(2, 3); if (T.boss && e.dashes > 0) { e.dashes--; startDash(e, .45, .55); } }
                 collideWorld(e, T.fly); e.face = e.dx >= 0 ? 1 : -1; continue;
             }
             else if (e.type is "fox" or "rat" or "wolf" or "bigrat")
             {
                 vx = dx / d; vy = dy / d; var z = Math.Sin(S.t * 5 + e.phase) * (e.type is "rat" or "bigrat" ? .25 : .45); vx += -dy / d * z; vy += dx / d * z;
-                if (e.type == "wolf") { e.cd -= dt; if (d < 170 && d > 50 && e.cd <= 0 && see) startDash(e, .32, .3); }
-                if (e.type == "bigrat") { e.cd -= dt; if (d < 160 && d > 40 && e.cd <= 0 && see) { startDash(e, .22, .22); Sfx.squeak(); } } // крыса прыгает и кусает
+                if (e.type == "wolf") { e.cd -= dt * rk; if (d < 170 && d > 50 && e.cd <= 0 && see) startDash(e, .32, .3); }
+                if (e.type == "bigrat") { e.cd -= dt * rk; if (d < 160 && d > 40 && e.cd <= 0 && see) { startDash(e, .22, .22); Sfx.squeak(); } } // крыса прыгает и кусает
                 if (d < e.r + tg.r + 5) bite(e, T.melee, e.type == "rat" ? .6 : e.type == "bigrat" ? .5 : .75);
             }
             else if (e.type is "hen" or "ferret" or "robohen" or "owl" or "mole")
@@ -254,8 +264,8 @@ public static partial class G
                 if (!see || d > keep + 50) { vx = dx / d; vy = dy / d; } else if (d < keep - 60) { vx = -dx / d; vy = -dy / d; }
                 vx += -dy / d * e.strafe * .75; vy += dx / d * e.strafe * .75;
                 e.strafeT -= dt; if (e.strafeT <= 0) { e.strafe *= -1; e.strafeT = rand(1, 2.8); }
-                if (e.burst > 0) { e.burstT -= dt; if (e.burstT <= 0) { e.burstT = .12; e.burst--; enemyShoot(e, T, 1, 0, T.bul); } }
-                e.cd -= dt;
+                if (e.burst > 0) { e.burstT -= dt * rk; if (e.burstT <= 0) { e.burstT = .12; e.burst--; enemyShoot(e, T, 1, 0, T.bul); } }
+                e.cd -= dt * rk;
                 if (e.cd <= 0)
                 {
                     if (see && d < T.range && onScreen(e))
@@ -271,24 +281,24 @@ public static partial class G
             {
                 if (d > 110 || !see) { vx = dx / d; vy = dy / d; } // не видит цель из-за укрытия — обходит, а не стоит
                 if (d < e.r + tg.r + 5) bite(e, T.melee, .9);
-                e.cd -= dt; if (e.cd <= 0) { if (see && d < T.range && onScreen(e)) { enemyShoot(e, T, 3); e.cd = rand(T.cd[0], T.cd[1]); } else e.cd = .4; }
+                e.cd -= dt * rk; if (e.cd <= 0) { if (see && d < T.range && onScreen(e)) { enemyShoot(e, T, 3); e.cd = rand(T.cd[0], T.cd[1]); } else e.cd = .4; }
             }
             else if (e.type is "crow" or "eagle")
             {
                 double want = e.type == "eagle" ? 210 : 175; vx = dx / d * (d - want) / 55 + (-dy / d) * e.strafe; vy = dy / d * (d - want) / 55 + (dx / d) * e.strafe;
                 e.strafeT -= dt; if (e.strafeT <= 0) { e.strafe *= -1; e.strafeT = rand(2, 4); }
-                e.cd -= dt;
+                e.cd -= dt * rk;
                 if (e.cd <= 0)
                 {
                     if (!onScreen(e, 0)) e.cd = .4;
-                    else if (e.type == "crow") { dropBombs(T, 1.1, 58, eDmg(T.dmg)); Sfx.caw(); e.cd = rand(T.cd[0], T.cd[1]) * Math.Max(.6, 1 - (S.diff - 1) * .03); }
+                    else if (e.type == "crow") { dropBombs(T, 1.1, 58, eDmgE(e, T.dmg)); Sfx.caw(); e.cd = rand(T.cd[0], T.cd[1]) * Math.Max(.6, 1 - (S.diff - 1) * .03); }
                     else { startDash(e, .55, .5); Sfx.caw(); }
                 }
                 noSep = true;
             }
             else if (e.type == "raccoon")
             {
-                vx = dx / d; vy = dy / d; e.cd -= dt;
+                vx = dx / d; vy = dy / d; e.cd -= dt * rk;
                 if (d < 240 && e.cd <= 0 && see) startDash(e, .6, .42);
                 if (d < e.r + tg.r + 5) bite(e, 10, .8);
             }
@@ -322,7 +332,7 @@ public static partial class G
             if (!T.fly) foreach (var o in OBS) { double ox = e.x - o.x, oy = e.y - o.y, od = hypot(ox, oy); if (od < o.r + e.r + 26) { vx += ox / od * .9; vy += oy / od * .9; } }
             curTg = null;
             if (!noSep) foreach (var f in enemies) { if (f == e || f.dead || f.T.fly) continue; double fx = e.x - f.x, fy = e.y - f.y, fd = hypot(fx, fy); if (fd == 0) fd = 1; if (fd < e.r + f.r + 6) { vx += fx / fd * .8; vy += fy / fd * .8; } }
-            double l = hypot(vx, vy); double spd = T.spd * (1 + (S.diff - 1) * .025) * spdMul;
+            double l = hypot(vx, vy); double spd = T.spd * (1 + (S.diff - 1) * .025) * spdMul * (e.buff == "spd" ? 1.4 : 1); // бафф скорости
             if (l > .05 && spd > 0)
             {
                 double m = Math.Min(1, l); vx = vx / l * spd * (T.fly ? Math.Max(.5, m) : 1); vy = vy / l * spd * (T.fly ? Math.Max(.5, m) : 1); e.moving = true;
@@ -450,7 +460,7 @@ public static partial class G
                                 if (b.pierce > 0) { b.pierce--; b.hits?.Add(e); } else dead = true;
                                 break;
                             }
-                            hitEnemy(e, b.dmg, b.vx, b.vy, !b.ally, k == "flame" ? .06 : k == "ice" ? .4 : 1, k == "flame");
+                            hitEnemy(e, b.dmg, b.vx, b.vy, !b.ally, k == "flame" ? .06 : k == "ice" ? .4 : 1, k == "flame", b.owner);
                             if (k == "flame") { e.burn = 2.2; e.burnDps = 9 * P.dmgMul; }
                             else if (k == "ice")
                             {

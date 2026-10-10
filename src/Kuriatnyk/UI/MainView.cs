@@ -129,6 +129,7 @@ public sealed partial class MainView : UserControl, IGameUi
         if (Shown("skSel")) Overlays.OpenSkSelect(this);
         if (Shown("heroInfo")) Overlays.OpenHeroInfo(this, Overlays.hiId);
         if (Shown("keysOv")) Overlays.OpenKeys(this);
+        if (Shown("quitOv")) Overlays.OpenQuit(this);
         if (Shown("skPick") && G.skOffer != null) ShowSkPick(G.skOffer);
         if (Shown("pause")) Show("pause", Overlays.Pause(this));
         if (Shown("setOv")) Show("setOv", Overlays.Settings(this), 8);
@@ -189,7 +190,7 @@ public sealed partial class MainView : UserControl, IGameUi
         if (act == "auto") ToggleAuto();
         if (code == "Escape")
         {
-            foreach (var id in new[] { "keysOv", "heroInfo", "bgOv", "chestInfoOv", "setOv", "infoOv", "helpOv", "brief", "skSel" })
+            foreach (var id in new[] { "quitOv", "keysOv", "heroInfo", "bgOv", "chestInfoOv", "setOv", "infoOv", "helpOv", "brief", "skSel" })
                 if (Shown(id)) { Hide(id); e.Handled = true; return; }
             if (AnyPanel) { ClosePanels(); RefreshMenu(); e.Handled = true; return; }
             if (G.S.mode == "menu" && lobby != null && lobby.Back()) { e.Handled = true; return; }

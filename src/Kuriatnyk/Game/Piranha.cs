@@ -10,20 +10,20 @@ public sealed class Fish
     public River R; public double u, dir, spd, ph, cd, t, sx, sy, tx, ty; public string st = "swim"; // swim, rise, jump, back
 }
 
-// Злые пираньи во всех реках: кусают героя, отряд и врагов, которые стоят у воды, плывут или идут по мосту.
+// Злые пираньи во всех реках: кусают героя и отряд, когда те стоят у воды, плывут или идут по мосту. Врагов не трогают.
 public static partial class G
 {
     public static List<Fish> fish = new();
     const double FISH_RISE = .38, FISH_JUMP = .42, FISH_NEAR = 34;
 
-    /// <summary>Расселить пираний по рекам: примерно одна на 220 пикселей русла, в речке комнаты — три.</summary>
+    /// <summary>Расселить пираний по рекам: примерно одна на 420 пикселей русла, в речке комнаты — одна-две.</summary>
     static void spawnFish()
     {
         fish = new();
         foreach (var R in RIVERS)
         {
             double lo = Math.Max(R.lo, 0) + 20, hi = Math.Min(R.hi, R.axis == 'h' ? WW : WH) - 20; if (hi <= lo) continue;
-            int n = R.room != null ? 3 : Math.Max(2, (int)((hi - lo) / 220));
+            int n = R.room != null ? 1 + (rnd() < .5 ? 1 : 0) : Math.Max(1, (int)((hi - lo) / 420));
             for (int i = 0; i < n; i++) fish.Add(new Fish { R = R, u = lo + (hi - lo) * (i + rnd()) / n, dir = rnd() < .5 ? -1 : 1, spd = rand(40, 75), ph = rand(0, TAU), cd = rand(1, 3) });
         }
     }
@@ -49,12 +49,11 @@ public static partial class G
                 f.u += f.dir * f.spd * dt; if (f.u < lo) { f.u = lo; f.dir = 1; } if (f.u > hi) { f.u = hi; f.dir = -1; }
                 f.cd -= dt;
                 if (!hunt || f.cd > 0) continue;
-                // ближайшая цель у воды: герой, бойцы отряда, враги (кроме летающих)
+                // ближайшая цель у воды: герой или боец отряда
                 Unit best = null; double bd = 1e9; var (fx, fy) = fishPos(f);
                 void consider(Unit e) { if (!fishCan(f, e)) return; var d = hypot(e.x - fx, e.y - fy); if (d < bd) { bd = d; best = e; } }
                 if (P.alive && P.inv <= 0) consider(P);
                 foreach (var a in allies) if (a.down <= 0) consider(a);
-                foreach (var e in enemies) if (!e.dead && !e.T.fly && e.emerge <= 0) consider(e);
                 if (best == null) { f.cd = .25; continue; }
                 f.st = "rise"; f.t = 0; f.tx = best.x; f.ty = best.y; f.sx = fx; f.sy = fy;
                 puff(fx, fy, "#bfe6ff", 3, .8); ring(fx, fy, "#e6f6ff", 26, .3);
@@ -89,18 +88,12 @@ public static partial class G
     {
         if (P.alive) yield return P;
         foreach (var a in allies) if (a.down <= 0) yield return a;
-        foreach (var e in enemies) if (!e.dead && !e.T.fly) yield return e;
     }
     static void fishBite(Fish f)
     {
         bool any = false;
         if (P.alive && hypot(P.x - f.tx, P.y - f.ty) < P.r + 14) { hurtPlayer(eDmg(13), "fish"); any = true; }
         foreach (var a in allies) if (a.down <= 0 && hypot(a.x - f.tx, a.y - f.ty) < a.r + 14) { hurtAlly(a, 14); any = true; }
-        for (int i = 0; i < enemies.Count; i++)
-        {
-            var e = enemies[i]; if (e.dead || e.T.fly || hypot(e.x - f.tx, e.y - f.ty) > e.r + 14) continue;
-            hitEnemy(e, e.T.boss ? 40 : 34, e.x - f.sx, e.y - f.sy, false, 1.2); any = true;
-        }
         if (any) { Sfx.hurt(); feathers(f.tx, f.ty, "#ffffff", 3, .6); ftext(f.tx, f.ty - 46, T("Ам!"), "#ff5a3c", 14); }
         else puff(f.tx, f.ty, "#e9dcc0", 3, .6);
     }

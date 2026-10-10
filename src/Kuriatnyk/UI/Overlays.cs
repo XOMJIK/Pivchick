@@ -116,9 +116,9 @@ public static class Overlays
     public static string goalText(Level Lv)
     {
         var g = Lv.goal;
-        if (g.type == "waves") return L.En ? "Clear " + g.n + " waves" : "Пройди " + g.n + " волн" + (g.n < 5 ? "ы" : "");
+        if (g.type == "waves") return L.F("Пройди {0} волн", g.n);
         if (g.type == "kill") return T("Победи: ") + (g.what == "any" ? T("любых врагов") : (killN(g.what) ?? ETYPE[g.what].name).ToLower(L.Culture)) + " ×" + g.n;
-        if (g.type == "survive") return T("Продержись ") + g.t + T(" секунд");
+        if (g.type == "survive") return T("Продержись ") + G.mmss(g.t);
         return T("Победи босса: ") + ETYPE[g.boss].name;
     }
     public static void OpenBrief(MainView mv, int i)
@@ -126,7 +126,8 @@ public static class Overlays
         briefIdx = i; var Lv = STORY[i];
         var foes = string.Join(", ", Lv.mix.Keys.Concat(Lv.goal.boss != null ? new[] { Lv.goal.boss } : Array.Empty<string>()).Distinct().Select(k => ETYPE[k].name.ToLower(L.Culture)));
         var html = T("<span>Цель: ") + goalText(Lv) + T("</span><small>Карта: ") + G.MAPS[G.MAP_OF_CH[Lv.ch]].name + T(" · река с мостами, гнилые рушатся после второго прохода</small><small>Враги: ")
-            + foes + (Lv.night ? T(". Ночь — обзор меньше") : "") + T("</small><small>Награда: ") + Lv.coins + T(" зёрен, ") + Lv.tokens + T(" жетонов</small>");
+            + foes + (Lv.night ? T(". Ночь — обзор меньше") : "") + T("</small><small>Награда: ") + Lv.coins + T(" зёрен, ") + Lv.tokens + T(" жетонов</small>")
+            + "<small>" + (Lv.goal.type == "boss" ? T("Босс выйдет через 1:15. ") : "") + T("Уровень длится не меньше 3 минут: выполнишь цель раньше — держись до конца") + "</small>";
         var goal = Rich(html, 14, FontWeight.Bold); goal.LineHeight = 19;
         var goalBox = Box(goal, StrawB, 0, 14, new Thickness(12, 10));
         var hero = Best(T("Боец: ") + HEROES[SAVE.hero].name + " (" + CLASSES[clsOf(SAVE.hero)].name.ToLower(L.Culture) + T(") · ур. ") + heroLv(SAVE.hero) + " · " + WEAP[gunOf(SAVE.hero)].name);
@@ -139,6 +140,16 @@ public static class Overlays
         mv.Show("brief", Ov(mv, card, true), 8);
     }
     static string StripTags(string s) => G.StripIcon(s);
+
+    // ---------- выход из игры ----------
+    public static void OpenQuit(MainView mv)
+    {
+        Audio.Init(); Sfx.click();
+        var yes = Btn(T("Выйти"), () => { mv.Hide("quitOv"); Platform.Quit?.Invoke(); });
+        var no = Btn(T("Остаться"), () => mv.Hide("quitOv"), "alt");
+        var card = CardBox(360, Logo(T("Выход"), LogoSize(mv)), Lead(T("Выйти из игры? Весь прогресс сохранён.")), Col(10, yes, no));
+        mv.Show("quitOv", Ov(mv, card, true), 8);
+    }
 
     // ---------- настройки ----------
     static long lastSfxPreview; // пробный звук при перетаскивании ползунка — не чаще раза в 160 мс, а не на каждый шаг
@@ -157,18 +168,20 @@ public static class Overlays
     }
     public static Control Settings(MainView mv)
     {
-        Control seg()
-        {
-            var row = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (var (code, name) in new[] { ("ru", "Русский"), ("en", "English") })
+        Control langs()
+        { // 8 языков: сетка 4×2 (на узком экране 2×4)
+            var grid = new UniformGrid { Columns = mv.View.Width < 460 ? 2 : 4 };
+            for (int i = 0; i < L.LANGS.Length; i++)
             {
-                var on = SET.lang == code;
-                var p = new Press(Txt(name, 14, FontWeight.ExtraBold, InkB, wrap: false), on ? YolkB : PaperB, 0, 0, new Thickness(12, 10), 0);
+                var (code, name) = L.LANGS[i]; bool on = SET.lang == code;
+                var t = Txt(name, 13, FontWeight.ExtraBold, InkB, TextAlignment.Center, false); t.VerticalAlignment = VerticalAlignment.Center;
+                var p = new Press(t, on ? YolkB : PaperB, 0, 0, new Thickness(4, 9), 0) { MinHeight = 38, BorderBrush = InkB };
+                int cols = grid.Columns; p.BorderThickness = new Thickness(i % cols > 0 ? 2.5 : 0, i >= cols ? 2.5 : 0, 0, 0);
                 p.Click += () => { if (SET.lang == code) return; SetLang(mv, code); };
-                if (row.Children.Count > 0) row.Children.Add(new Border { Width = 2.5, Background = InkB });
-                row.Children.Add(p);
+                grid.Children.Add(p);
             }
-            var b = Box(row, PaperB, 2.5, 12); b.ClipToBounds = true; return b;
+            var b = Box(grid, PaperB, 2.5, 12); b.ClipToBounds = true;
+            return Box(Col(8, Txt(T("Язык"), 15, FontWeight.ExtraBold), b), StrawB, 0, 14, new Thickness(12, 10));
         }
         Control slider(Func<double> get, Action<double> set)
         {
@@ -182,7 +195,7 @@ public static class Overlays
         var rows = new List<Control>
         {
             Logo(T("Настройки"), LogoSize(mv)),
-            SetRow(Txt(T("Язык"), 15, FontWeight.ExtraBold), seg()),
+            langs(),
             SetRow(Txt(T("Музыка"), 15, FontWeight.ExtraBold), slider(() => SET.music, v => SET.music = v)),
             SetRow(Txt(T("Звуки"), 15, FontWeight.ExtraBold), slider(() => SET.sfx, v => { SET.sfx = v; if (Environment.TickCount64 - lastSfxPreview > 160) { lastSfxPreview = Environment.TickCount64; Sfx.pick(); } })),
             SetRow(Txt(T("Тряска экрана от взрывов"), 15, FontWeight.ExtraBold), Toggle(SET.shake, () => { SET.shake = !SET.shake; saveSet(); if (SET.shake) G.S.shake = Math.Max(G.S.shake, 6); mv.Show("setOv", Settings(mv), 8); })),
@@ -290,6 +303,7 @@ public static class Overlays
             new Control[] { Cell(T("Темп стрельбы")), Cell("×" + Num(a.rate)), d(a.rate, b.rate, "0.##", true) },
             new Control[] { Cell(T("Скорость бега")), Cell(Num(a.spd, "0")), d(a.spd, b.spd, "0") },
             new Control[] { Cell(T("Защита")), Cell(Num(a.armor * 100, "0") + "%"), d(a.armor, b.armor, "0", true) },
+            new Control[] { Cell(T("Шанс крита ×2")), Cell(Num(a.crit * 100, "0") + "%"), Cell("—") },
         };
         if (a.regen > 0) rows.Add(new Control[] { Cell(T("Лечение в секунду")), Cell(Num(a.regen, "0.#")), Cell("—") });
         if (a.range > 1) rows.Add(new Control[] { Cell(T("Дальность пуль")), Cell("+" + Num((a.range - 1) * 100, "0") + "%"), Cell("—") });
@@ -413,7 +427,7 @@ public static class Overlays
             stats = Box(Col(5,
                 Badges(Rar(RAR[Hp.rar].name, RAR[Hp.rar].c, 9.5), Rar(CLASSES[Hp.cls].name, CLASSES[Hp.cls].c, 9.5), Rar(T("Ур. ") + heroLv(skPick), "#6b5a48", 9.5)),
                 Txt(Hp.name, 16, FontWeight.Black),
-                Txt(T("Здоровье ") + pl.max + T(" · скорость ") + Math.Round(pl.spd) + T(" · урон ×") + f1(pl.dmgMul), 12.5, FontWeight.Bold),
+                Txt(T("Здоровье ") + pl.max + T(" · скорость ") + Math.Round(pl.spd) + T(" · урон ×") + f1(pl.dmgMul) + T(" · крит ") + Math.Round(pl.crit * 100) + "%", 12.5, FontWeight.Bold),
                 Txt(T("Оружие сюжета остаётся дома: забег начинается с рогатки и палки, остальное — из сундуков и у торговца. Смена — кнопкой у оружия или ") + G.keyHint("swap") + ".", 12.5, FontWeight.Medium),
                 Rich(T("<b>Ульта: ") + Hp.ult[0] + ".</b> " + Hp.ult[1], 12.5, FontWeight.Medium),
                 Txt(Hp.perk, 12, FontWeight.Medium, B("#b32b1d14"))), StrawB, 0, 14, new Thickness(12, 10));
@@ -458,7 +472,8 @@ public static class Overlays
             var t = Txt(text, 13.5, FontWeight.Medium); t.VerticalAlignment = VerticalAlignment.Center; d.Children.Add(t); return d;
         }
         var how = Box(Col(8, li("◀", "#5fcf3f", "#2b1d14", T("Левый палец — бежать")), li("●", "#c0392b", "#ffffff", T("Правый палец — целиться и стрелять. Держи на месте — бьёт по ближнему")),
-            li("", "#fff4dc", "#2b1d14", T("«Бум» — яйцо-граната")), li("★", "#ffc93a", "#2b1d14", T("Ульта копится от урона по врагам")), li("◆", "#4cc3ff", "#2b1d14", T("Голубая полоска — стамина: выстрелы тратят её, а сама она понемногу восстанавливается"))), StrawB, 0, 16, new Thickness(12));
+            li("", "#fff4dc", "#2b1d14", T("«Бум» — яйцо-граната")), li("★", "#ffc93a", "#2b1d14", T("Ульта копится от урона по врагам")), li("◆", "#4cc3ff", "#2b1d14", T("В режиме Soul Knight голубая полоска — стамина: выстрелы тратят её, а сама она понемногу восстанавливается")),
+            li("!", "#ff4a3a", "#ffffff", T("Цветная аура у врага — бафф: красная — сила, зелёная — скорость, жёлтая — скорострельность"))), StrawB, 0, 16, new Thickness(12));
         var desk = Txt(T("На компьютере: ") + G.keyHint("up") + G.keyHint("left") + G.keyHint("down") + G.keyHint("right") + T(" — бег, автонаводка стреляет сама (") + G.keyHint("auto") + T(" — вкл/выкл), зажатая мышь — ручная стрельба, ") + G.keyHint("nade") + T(" — граната, ") + G.keyHint("ult") + T(" — ульта, ") + G.keyHint("swap") + T(" — смена оружия, ") + G.keyHint("act") + T(" — взять или купить, ") + G.keyHint("full") + T(" — полный экран. Клавиши меняются в настройках."), 12, FontWeight.Medium, B("#b32b1d14"), TextAlignment.Center);
         var card = CardBox(380, Logo(T("Как играть"), LogoSize(mv)), how, desk, Best(T("Версия ") + GAME_VERSION), Btn(T("Понятно"), () => mv.Hide("helpOv")));
         mv.Show("helpOv", Ov(mv, card, true), 8);
@@ -544,7 +559,7 @@ public static class Overlays
         var note = Txt(T("Шансы считаются от твоего прогресса: уже открытые герои и стволы на максимальном уровне не выпадают. Сначала проверяется самая высокая редкость героя. * Чем выше редкость, тем меньше карт в пачке."), 12, FontWeight.SemiBold, B("#bf2b1d14"));
         note.Margin = new Thickness(0, 10, 0, 4);
         var sub = C.sub; sub = sub.Length > 0 ? char.ToUpper(sub[0]) + sub[1..] : sub;
-        var body = Col(0, pvb, h(T("Всегда внутри")), t1, h(T("Новый герой") + (C.sure ? T(" · гарантирован") : "")), t2, h(T("Кому достанется пачка карт")), t3, t4, note);
+        var body = Col(0, pvb, h(T("Всегда внутри")), t1, h(T("Новый герой")), t2, h(T("Кому достанется пачка карт")), t3, t4, note);
         var card = Box(Col(14, Eyebrow(T("Свойства сундука")), Logo(C.name, Math.Clamp(mv.View.Width * .09, 28, 40)), Best(sub), body, Btn(T("Закрыть"), () => mv.Hide("chestInfoOv"))), PaperB, 4, 24, new Thickness(18, 20, 18, 18), 8);
         card.MaxWidth = 560;
         mv.Show("chestInfoOv", Ov(mv, card, true), 8);

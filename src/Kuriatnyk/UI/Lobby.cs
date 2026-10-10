@@ -36,6 +36,7 @@ public static class Svg
     public static Control Shop(double s) => View(32, s, new("M7 11h18l-2 16H9z", "#ffc93a"), new("M11 11a5 5 0 0 1 10 0", null, "#fff4dc", 2.5), new(Circle(16, 19, 3.5), "#fff4dc"));
     public static Control Info(double s) => View(32, s, new(Circle(16, 16, 11), "#ffc93a"), new(Circle(16, 10.5, 1.9), "#2b1d14"), new("M16 14.5v8", null, "#2b1d14", 3));
     public static Control Help(double s) => View(32, s, new(Circle(16, 16, 11), "#4cc3ff"), new("M12.5 13a3.5 3.5 0 1 1 5 3.2c-1 .5-1.5 1.2-1.5 2.3", null, "#fff", 2.6), new(Circle(16, 22.5, 1.6), "#fff"));
+    public static Control Exit(double s) => View(24, s, new("M4 3h11v18H4z", "#fff4dc", "#2b1d14", 1.6), new(Circle(12, 12.5, 1.3), "#2b1d14"), new("M14 12h7", null, "#ffc93a", 2.8), new("M18 8.5l3.5 3.5-3.5 3.5", null, "#ffc93a", 2.8));
     public static Control Gear(double s) => View(24, s, new("M10.3 2h3.4l.5 2.6 1.9.8 2.2-1.5 2.4 2.4-1.5 2.2.8 1.9 2.6.5v3.4l-2.6.5-.8 1.9 1.5 2.2-2.4 2.4-2.2-1.5-1.9.8-.5 2.6h-3.4l-.5-2.6-1.9-.8-2.2 1.5-2.4-2.4 1.5-2.2-.8-1.9L2 13.7v-3.4l2.6-.5.8-1.9-1.5-2.2 2.4-2.4 2.2 1.5 1.9-.8z", "#fff4dc", "#2b1d14", 1.6), new(Circle(12, 12, 3.6), "#2b1d14"));
 }
 
@@ -73,6 +74,12 @@ public sealed class Lobby : Grid
         var gear = new Press(Svg.Gear(26), BarnB, 2.5, 12, new Thickness(5), 3) { Width = 40, Height = 40, VerticalAlignment = VerticalAlignment.Center };
         gear.Click += () => Overlays.OpenSettings(mv);
         var right = Row(10, wallet, gear); right.VerticalAlignment = VerticalAlignment.Center;
+        if (Platform.Quit != null)
+        { // выход из игры — с подтверждением
+            var exit = new Press(Svg.Exit(26), BarnB, 2.5, 12, new Thickness(5), 3) { Width = 40, Height = 40, VerticalAlignment = VerticalAlignment.Center };
+            exit.Click += () => Overlays.OpenQuit(mv);
+            right.Children.Add(exit);
+        }
         var topP = new SpaceBetweenWrap(); topP.Children.Add(brand); topP.Children.Add(right);
         top = topP;
 
@@ -144,7 +151,7 @@ public sealed class Lobby : Grid
         bestText = Txt("", 12, FontWeight.SemiBold, B("#b32b1d14"));
         var endless = new Press(Col(3, Txt(T("Бесконечный бой"), tsz, FontWeight.Black), bestText), PaperB, 3, 16, pad, 4) { MinHeight = minH };
         endless.Click += () => { Audio.Init(); G.startGame("endless"); };
-        var skSub = Txt(T("Подземелья 0-1 … 0-5 · 35 стволов, торговец и сундуки"), 12, FontWeight.SemiBold, B("#b32b1d14"));
+        var skSub = Txt(T("Два мира: 0-1 … 1-5 · 35 стволов, торговец и сундуки"), 12, FontWeight.SemiBold, B("#b32b1d14"));
         var sk = new Press(Col(3, Txt(T("Режим Soul Knight"), tsz, FontWeight.Black), skSub), B("#e9dcff"), 3, 16, pad, 4) { MinHeight = minH };
         sk.Click += () => Overlays.OpenSkSelect(mv);
         singleModes = Col(9, headRow, story, endless, sk);
@@ -272,7 +279,7 @@ public sealed class Lobby : Grid
         else
         {
             var Lv = STORY.FirstOrDefault(l => !SAVE.story.done.Contains(l.gid)) ?? STORY[0];
-            storySub.Text = T("Глава ") + (Lv.ch + 1) + (L.En ? " “" : " «") + CHAPTERS[Lv.ch].name + (L.En ? "” · " : "» · ") + CHAPTERS[Lv.ch].levels.Count(l => SAVE.story.done.Contains(l.gid)) + "/20";
+            storySub.Text = T("Глава ") + (Lv.ch + 1) + " " + L.Qo + CHAPTERS[Lv.ch].name + L.Qc + " · " + CHAPTERS[Lv.ch].levels.Count(l => SAVE.story.done.Contains(l.gid)) + "/20";
         }
         bestText.Text = SAVE.best.score > 0 ? T("Рекорд: волна ") + SAVE.best.wave + " · " + L.Fmt(SAVE.best.score) + T(" очк.") : T("Рекорда пока нет — поставь первый");
         chestBadge.IsVisible = SAVE.tokens >= 100 || SAVE.btokens >= 10 || SAVE.schests > 0;
