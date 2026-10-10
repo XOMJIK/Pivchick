@@ -131,10 +131,12 @@ public static partial class G
         }
         else if (input.mouse) { double wx = camX + input.mx / SC, wy = camY + input.my / SC; P.ang = Math.Atan2(wy - (P.y - 19), wx - P.x); }
         else if (P.moving) P.ang = Math.Atan2(my, mx);
-        if (firing && PW.special == "melee" && !(input.mouse && input.firing) && !(sticks.aim != null && hypot(stickVal(sticks.aim).x, stickVal(sticks.aim).y) > .38))
-        { // ближним оружием сам машет только когда враг рядом, а не по всем на экране
-            var t = nearestTarget();
-            if (t == null || hypot(t.x - P.x, t.y - P.y) - t.r > (PW.meleeR > 0 ? PW.meleeR : MELEE_R) + 20) firing = false; else P.ang = Math.Atan2(t.y - P.y, t.x - P.x);
+        if (PW.special == "melee" && !(input.mouse && input.firing) && !(sticks.aim != null && hypot(stickVal(sticks.aim).x, stickVal(sticks.aim).y) > .38))
+        { // ближним оружием сам машет только когда враг рядом, а не по всем на экране, — или чтобы отбить летящее в героя яйцо
+            double mr = PW.meleeR > 0 ? PW.meleeR : MELEE_R; var egg = incomingShot(mr);
+            var t = firing ? nearestTarget() : null;
+            if (egg != null) { firing = true; P.ang = Math.Atan2(egg.y - P.y, egg.x - P.x); }
+            else if (t == null || hypot(t.x - P.x, t.y - P.y) - t.r > mr + 20) firing = false; else P.ang = Math.Atan2(t.y - P.y, t.x - P.x);
         }
         if (P.noStamT > 0) P.noStamT -= dt; // стамина сама не восстанавливается — только кристаллы и зелья
         if (P.swing > 0) P.swing -= dt;
@@ -145,8 +147,9 @@ public static partial class G
         P.vx = (P.x - ox) / Math.Max(dt, .001); P.vy = (P.y - oy) / Math.Max(dt, .001);
         { var k = Math.Min(1, dt * 3); P.svx += (P.vx - P.svx) * k; P.svy += (P.vy - P.svy) * k; }
         P.cd -= dt; if (P.inv > 0) P.inv -= dt; if (P.flash > 0) P.flash -= dt;
-        if (P.medic) { if (P.hp < P.max) { P.hp = Math.Min(P.max, P.hp + 1.2 * dt * P.medMul); healFx(P); } healTeam(P.x, P.y, 2.5 * dt * P.medMul, 240, false); }
-        if (P.regen > 0 && S.t - P.lastHit > 4 && P.hp < P.max)
+        bool selfHeal = S.kind != "sk"; // в Soul Knight здоровье само не восстанавливается — только кукуруза, зелья и ульты
+        if (P.medic) { if (P.hp < P.max && selfHeal) { P.hp = Math.Min(P.max, P.hp + 1.2 * dt * P.medMul); healFx(P); } healTeam(P.x, P.y, 2.5 * dt * P.medMul, 240, false); }
+        if (P.regen > 0 && selfHeal && S.t - P.lastHit > 4 && P.hp < P.max)
         {
             P.hp = Math.Min(P.max, P.hp + P.regen * dt); regenTick += dt;
             if (regenTick > .5) { regenTick = 0; if (rnd() < .5) parts.Add(new Part { k = "puff", x = P.x + rand(-10, 10), y = P.y, z = rand(20, 40), vx = 0, vy = 0, vz = 30, t = 0, max = .5, r = 3, col = "#9cf27a" }); }

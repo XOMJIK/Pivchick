@@ -102,7 +102,6 @@ public static partial class G
         buildLevel(lv); renderDungeon();
         var st = DUN.rooms.First(r => r.type == "start"); st.seen = true;
         P.x = st.cx; P.y = st.cy + 30; P._px = P.x; P._py = P.y; P.buff = null; P.inv = 1;
-        if (lv > 1) { var h = Math.Round(P.max * .25); P.hp = Math.Min(P.max, P.hp + h); } // между уровнями немного лечимся
         snapCamera(); DUN.enterCd = 1.2;
         Music.Play("battle"); Sfx.wave();
         bool fac = skFactory(lv), last = skWl(lv) == SK_WORLD;
@@ -179,9 +178,9 @@ public static partial class G
             if (R == vendRoom) OBS.Add(new Obs { x = R.type == "shop" ? R.x + R.w - 46 : R.x + 62, y = R.y + 62, r = 24, type = "vend" });
             if (R.type == "shop") OBS.Add(new Obs { x = R.cx, y = R.y + 82, r = 34, type = "counter" });
             if (R.type == "shrine")
-            { // две статуи с разными ультами, кроме той, что у героя сейчас
-                var pool = SKU.ALL.Where(u => u != (P?.ultId ?? P?.hid)).OrderBy(_ => rnd()).Take(2).ToList();
-                for (int i = 0; i < pool.Count; i++) OBS.Add(new Obs { x = R.cx + (i == 0 ? -82 : 82), y = R.cy - 36, r = 26, type = "statue", kind = pool[i] });
+            { // одна статуя с ультой, которой у героя сейчас нет; поклон — за пивчики
+                var pool = SKU.ALL.Where(u => u != (P?.ultId ?? P?.hid)).ToList();
+                OBS.Add(new Obs { x = R.cx, y = R.cy - 40, r = 26, type = "statue", kind = pool[(int)(rnd() * pool.Count)] });
             }
         }
         // речки на некоторых уровнях: на втором и четвёртом уровне мира — в двух боевых комнатах, на третьем — в одной
@@ -422,6 +421,17 @@ public static partial class G
         ftext(P.x, P.y - 54, WEAP[P.w].name, "#ffc93a", 13);
     }
     const double MELEE_R = 80, MELEE_ARC = 1.15;
+    /// <summary>Вражеский снаряд, который вот-вот долетит до героя (в пределах взмаха и летит к нему): ближнее оружие машет само, чтобы его отбить.</summary>
+    static Bullet incomingShot(double R)
+    {
+        Bullet best = null; double bd = R + 10;
+        foreach (var b in bullets)
+        {
+            if (b.fromP) continue; double dx = P.x - b.x, dy = P.y - b.y, d = hypot(dx, dy);
+            if (d < bd && b.vx * dx + b.vy * dy > 0) { bd = d; best = b; }
+        }
+        return best;
+    }
     /// <summary>Взмах ближним оружием: бьёт всех врагов в секторе перед героем и отбивает вражеские яйца
     /// (сковородка — обратно во врагов). Меч-кладенец ещё и пускает волну.</summary>
     static void meleeSwing(double ang, Weap W)
@@ -444,6 +454,12 @@ public static partial class G
             double dx = b.x - hx, dy = b.y - hy, d = hypot(dx, dy); if (d > R + 10) continue;
             var df = Math.Abs(((Math.Atan2(dy, dx) - ang + Math.PI * 3) % TAU) - Math.PI); if (df > arc) continue;
             if (W.reflect) { b.fromP = true; b.vx = Math.Cos(ang) * 620; b.vy = Math.Sin(ang) * 620; b.dmg = 26 * P.dmgMul; b.life = 1; b.kind = "refl"; b.pierce = 0; b.hits = null; puff(b.x, b.y, "#ffe066", 2, .5); continue; }
+            if (b.kind == "egg")
+            { // любое ближнее оружие отбивает яйцо обратно туда, откуда оно прилетело
+                double sp = Math.Max(560, hypot(b.vx, b.vy) * 1.3), ba = Math.Atan2(-b.vy, -b.vx);
+                b.fromP = true; b.vx = Math.Cos(ba) * sp; b.vy = Math.Sin(ba) * sp; b.dmg = Math.Max(20, W.dmg * .6) * P.dmgMul * P.meleeMul;
+                b.life = 1; b.kind = "refl"; b.pierce = 0; b.hits = null; puff(b.x, b.y, "#fff4dc", 3, .6); Sfx.pop(); continue;
+            }
             puff(b.x, b.y, "#fff4dc", 2, .5); bullets.RemoveAt(i);
         }
         parts.Add(new Part { k = "swing", x = hx, y = hy, a = ang, t = 0, max = .18, R = R, s = arc, col = W.id == "sword" ? "#9fe3ff" : null });

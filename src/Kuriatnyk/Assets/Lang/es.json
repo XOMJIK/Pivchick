@@ -995,8 +995,8 @@
  "Soul Knight: у оружия на земле видны характеристики и сравнение с тем, что в руках": "Soul Knight: las armas en el suelo muestran sus estadísticas y una comparación con la que llevas",
  "Пивчикомёт тратит 1 пивчик на 3 выстрела": "El Lanzapivchiki gasta 1 pivchik cada 3 disparos",
  "Сборки игры для Windows и Android — на странице GitHub Releases": "Las versiones para Windows y Android están en la página de GitHub Releases",
- "Заживление": "Curación",
- "Восстанавливает 1,5 здоровья в секунду, если 4 с не получал урона": "Recupera 1,5 de salud por segundo si no recibes daño durante 4 s",
+ "Знахарь": "Curandero",
+ "Кукуруза и зелья здоровья лечат вдвое сильнее": "El maíz y las pociones de salud curan el doble",
  "Подкрепление": "Refuerzos",
  "Зовёт на подмогу случайного бойца: 20 секунд он сражается рядом": "Llama en tu ayuda a un luchador al azar: pelea a tu lado durante 20 segundos",
  "Поклониться: ": "Reverencia: ",
@@ -1010,5 +1010,9 @@
  "Soul Knight: святилище со статуями птиц — поклонись одной, и её ульта заменит твою до конца забега: ульта любого героя или новое «Подкрепление», которое зовёт бойца на подмогу": "Soul Knight: un santuario con estatuas de aves — haz una reverencia a una y su definitiva sustituye a la tuya hasta el final de la partida: la definitiva de cualquier héroe o los nuevos «Refuerzos», que llaman a un luchador en tu ayuda",
  "Soul Knight: мини-карта в углу экрана и значки взятых пассивок под ней": "Soul Knight: un minimapa en la esquina de la pantalla y debajo los iconos de las pasivas que tienes",
  "Soul Knight: гранат больше нет, вместо пассивки «Запас яиц» — «Заживление»; из ящиков падает стамина и лишь изредка кукуруза или пивчик": "Soul Knight: ya no hay granadas y la pasiva «Reserva de huevos» se cambia por «Curación»; las cajas sueltan aguante y solo a veces maíz o un pivchiki",
- "Soul Knight: надпись на вывеске торговца больше не вылезает за край": "Soul Knight: el texto del letrero del mercader ya no se sale del borde"
+ "Soul Knight: надпись на вывеске торговца больше не вылезает за край": "Soul Knight: el texto del letrero del mercader ya no se sale del borde",
+ "Soul Knight: любое оружие ближнего боя отбивает яйца обратно во врагов и само замахивается, когда в героя летит снаряд": "Soul Knight: todas las armas cuerpo a cuerpo devuelven los huevos a los enemigos y golpean solas cuando un proyectil vuela hacia el héroe",
+ "Soul Knight: здоровье само не восстанавливается — ни между уровнями, ни от умений героев; пассивка «Заживление» заменена на «Знахаря»: кукуруза и зелья здоровья лечат вдвое сильнее": "Soul Knight: la salud ya no se recupera sola — ni entre niveles ni por habilidades de los héroes; la pasiva «Curación» se cambia por «Curandero»: el maíz y las pociones de salud curan el doble",
+ "Soul Knight: в святилище одна статуя, а поклон стоит пивчиков — чем сильнее ульта и глубже уровень, тем дороже": "Soul Knight: el santuario tiene una sola estatua y la reverencia cuesta pivchikis — cuanto más fuerte la definitiva y más profundo el nivel, más cara",
+ "Soul Knight: у Пеструшки «Запасливая» вместо гранаты даёт +15 стамины за каждую волну": "Soul Knight: la «Previsora» de Pintita da +15 de aguante por oleada en vez de una granada"
 }

@@ -165,7 +165,7 @@ public static partial class G
     static void collect(Pickup p)
     {
         if (p.kind != "piv") Sfx.pick();
-        if (p.kind == "corn") { double heal = P.hid == "hen" && hasP(10) ? 40 : 20; var h = Math.Min(heal, P.max - P.hp); P.hp = Math.Min(P.max, P.hp + heal); ftext(P.x, P.y - 50, "+" + Math.Max(Math.Round(h, MidpointRounding.AwayFromZero), 0) + T(" здоровья"), "#7df05a", 14); }
+        if (p.kind == "corn") { double heal = (P.hid == "hen" && hasP(10) ? 40 : 20) * P.healMul; var h = Math.Min(heal, P.max - P.hp); P.hp = Math.Min(P.max, P.hp + heal); ftext(P.x, P.y - 50, "+" + Math.Max(Math.Round(h, MidpointRounding.AwayFromZero), 0) + T(" здоровья"), "#7df05a", 14); }
         else if (p.kind == "nade") { P.nades = Math.Min(Math.Max(6, P.nades), P.nades + 1); ftext(P.x, P.y - 50, T("+1 яйцо"), "#ffc93a", 14); }
         else if (p.kind is "stam" or "stamp")
         {
@@ -174,7 +174,7 @@ public static partial class G
         }
         else if (p.kind == "hpp")
         { // зелье здоровья: половина максимума
-            var h = Math.Min(P.max * .5, P.max - P.hp); P.hp = Math.Min(P.max, P.hp + P.max * .5); healFx(P);
+            double v = P.max * .5 * P.healMul, h = Math.Min(v, P.max - P.hp); P.hp = Math.Min(P.max, P.hp + v); healFx(P);
             ftext(P.x, P.y - 50, "+" + Math.Max(Math.Round(h, MidpointRounding.AwayFromZero), 0) + T(" здоровья"), "#7df05a", 14);
         }
         else if (p.kind == "piv") { S.piv += p.n; if (rnd() < .5) Sfx.coin(); }
@@ -297,7 +297,7 @@ public static partial class G
     static void nurseKit(Fighter src, double dt) // Гусыня Медсестра: аптечка самому раненому из своих
     {
         src.kitT -= dt; if (src.kitT > 0) return;
-        var team = new List<Fighter> { P }.Concat(allies).Where(u => (u == P ? P.alive : ((Ally)u).down <= 0) && u.hp < u.max * .95).ToList();
+        var team = new List<Fighter> { P }.Concat(allies).Where(u => (u == P ? P.alive && S.kind != "sk" : ((Ally)u).down <= 0) && u.hp < u.max * .95).ToList(); // в Soul Knight герой сам не лечится
         if (team.Count == 0) { src.kitT = 1; return; }
         var tg = team.OrderBy(a => a.hp / a.max).First(); src.kitT = 15;
         var h = Math.Min(25, tg.max - tg.hp); tg.hp += h;

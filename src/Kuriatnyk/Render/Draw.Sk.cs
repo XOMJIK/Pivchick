@@ -316,7 +316,7 @@ public static partial class G
             c.restore(); return true;
         }
         if (o.type == "statue")
-        { // каменная птица на постаменте: ждёт поклона — мерцает золотом, выбранная — сияет, остальные гаснут
+        { // каменная птица на постаменте: ждёт поклона — мерцает золотом и показывает цену, после поклона — сияет
             bool lit = o.st == 1, dark = o.st == 2;
             string stone = dark ? "#6f6b66" : lit ? "#f2d27a" : "#b9b5ad", stone2 = dark ? "#5c5853" : lit ? "#d9b04a" : "#9a958c";
             c.save(); c.translate(o.x, o.y + 10); c.strokeStyle = INK; c.lineWidth = 2.4; c.lineJoin = "round";
@@ -348,6 +348,12 @@ public static partial class G
                 c.beginPath(); c.moveTo(-8, -1.5); c.lineTo(6, -3); c.lineTo(12, -8); c.lineTo(12, 8); c.lineTo(6, 3); c.lineTo(-8, 1.5); c.closePath(); c.fill(); c.stroke(); c.restore();
             }
             c.restore(); // слой камня
+            if (o.st == 0)
+            { // ценник поклона
+                int pr = SKU.Price(o.kind, S.skLv); c.font = "900 13px Rubik"; var pt = pr.ToString(); double tw = c.measureText(pt) + 26, ty = 4;
+                c.fillStyle = INK; rr(c, -tw / 2, ty, tw, 20, 9); c.fill(); Hud.Piv(c, -tw / 2 + 11, ty + 10, 13);
+                c.textAlign = "left"; c.fillStyle = S.piv < pr ? "#ff8a6b" : "#ffd25a"; c.fillText(pt, -tw / 2 + 20, ty + 14.5);
+            }
             c.restore(); return true;
         }
         if (o.type == "counter")

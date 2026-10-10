@@ -33,7 +33,7 @@ public sealed class Player : Fighter
     public int coinN; // Пивчикомёт: пивчик списывается раз в 3 выстрела
     // Soul Knight: оружие в рюкзаке (до bagMax) и бонусы пассивок забега
     public List<string> bag; public int slot, bagMax = 2;
-    public double vamp, meleeMul = 1, pivMul = 1; public int luck; public bool magnetFar;
+    public double vamp, meleeMul = 1, pivMul = 1, healMul = 1; public int luck; public bool magnetFar; // healMul — во сколько раз сильнее лечат кукуруза и зелья
     public string ultId; public double bowT; // ульта от статуи (null — своя ульта героя) и поклон статуе
 }
 

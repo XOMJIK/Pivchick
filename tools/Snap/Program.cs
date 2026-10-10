@@ -130,6 +130,13 @@ if (args.Length > 1 && args[1] == "sk")
         G.sticks.move = null; return false;
     }
     G.startSK("hen"); for (int i = 0; i < 90; i++) Tick(); Shot("20-sk-hub");
+    { // палка сама отбивает летящее в героя яйцо
+        G.selectSlot(1); for (int i = 0; i < 20; i++) Tick();
+        var egg = new Bullet { x = G.P.x + 140, y = G.P.y, vx = -320, vy = 0, r = 5, dmg = 10, fromP = false, life = 2.4, kind = "egg" }; G.bullets.Add(egg);
+        double hp0 = G.P.hp; for (int i = 0; i < 40; i++) Tick();
+        Console.WriteLine($"melee vs egg: reflected={egg.fromP} kind={egg.kind} vx={egg.vx:0} hp {hp0}->{G.P.hp}");
+        G.selectSlot(0);
+    }
     var pt = G.DUN.portals[0]; WalkTo(pt.x, pt.y); Tick(); Tick();
     // на каждом уровне — пара стволов из списка, чтобы прогнать их механику в бою
     string[] testGuns = { "plunger", "gauss", "grinder", "sbolt", "swind", "pumpkin", "rocket", "boomer", "laser", "sice", "spoison", "sroot", "sstar", "bees", "accordion", "cactus", "axe", "sword", "coingun", "bubble" };

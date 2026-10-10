@@ -222,7 +222,7 @@ public static partial class G
         return (P.bag.Count < P.bagMax ? T("Взять: ") : T("Заменить на: ")) + nm;
     }
     /// <summary>Цена на кнопке действия (0 — бесплатно).</summary>
-    public static int actPrice() => actVend != null ? vendPrice() : actPick?.price ?? 0;
+    public static int actPrice() => actStatue != null ? SKU.Price(actStatue.kind, S.skLv) : actVend != null ? vendPrice() : actPick?.price ?? 0;
     static int vendPrice() => SKW.Cost(SKW.VEND_PRICE, S.skLv);
     /// <summary>Автомат: один раз за уровень за пивчики выдаёт одно зелье наугад — здоровья или стамины.</summary>
     static void useVend(Obs o)
@@ -234,12 +234,14 @@ public static partial class G
         pickups.Add(p);
         ftext(o.x, o.y - 70, itemName(p), p.kind == "hpp" ? "#ff8a7a" : "#7fd4ff", 15);
     }
-    /// <summary>Поклон статуе: её ульта заменяет твою до конца забега, остальные статуи святилища гаснут.</summary>
+    /// <summary>Поклон статуе за пивчики: её ульта заменяет твою до конца забега.</summary>
     static void bowStatue(Obs o)
     {
+        int price = SKU.Price(o.kind, S.skLv);
+        if (S.piv < price) { ftext(P.x, P.y - 58, T("Не хватает пивчиков"), "#ffb3a3", 13); Sfx.hurt(); return; }
+        S.piv -= price; Sfx.buy();
         P.ultId = o.kind == P.hid ? null : o.kind; o.st = 1; P.bowT = .9;
         P.ang = Math.Atan2(o.y - P.y, o.x - P.x);
-        foreach (var s in OBS) if (s.type == "statue" && s != o && s.st == 0 && hypot(s.x - o.x, s.y - o.y) < 400) s.st = 2;
         if (P.buff == null) P.ult = Math.Max(P.ult, 50); // благословение сразу заряжает ульту наполовину
         Sfx.ult(); Sfx.chest(); S.shake += 4; Platform.Buzz(30);
         ring(o.x, o.y, "#ffe066", 120, .6); ring(P.x, P.y, "#fff6c8", 80, .5); puff(o.x, o.y - 50, "#ffe066", 12, 1.2);
@@ -340,7 +342,7 @@ public static partial class G
             case "magnet": P.magnetFar = true; P.pivMul += .3; break;
             case "crit": P.crit += .12; break;
             case "melee": P.meleeMul *= 1.4; break;
-            case "regen": P.regen += 1.5; break;
+            case "herb": P.healMul *= 2; break;
             case "ult": P.ultRate *= 1.3; break;
             case "luck": P.luck++; break;
         }

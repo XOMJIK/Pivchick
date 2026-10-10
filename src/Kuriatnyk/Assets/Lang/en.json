@@ -995,8 +995,8 @@
  "Soul Knight: у оружия на земле видны характеристики и сравнение с тем, что в руках": "Soul Knight: weapons on the ground show their stats and a comparison with the one in your hands",
  "Пивчикомёт тратит 1 пивчик на 3 выстрела": "The Pivchik Blaster uses 1 pivchik per 3 shots",
  "Сборки игры для Windows и Android — на странице GitHub Releases": "Windows and Android builds are on the GitHub Releases page",
- "Заживление": "Healing",
- "Восстанавливает 1,5 здоровья в секунду, если 4 с не получал урона": "Restores 1.5 health per second if you take no damage for 4 s",
+ "Знахарь": "Herbalist",
+ "Кукуруза и зелья здоровья лечат вдвое сильнее": "Corn and health potions heal twice as much",
  "Подкрепление": "Reinforcements",
  "Зовёт на подмогу случайного бойца: 20 секунд он сражается рядом": "Calls a random fighter for help: they fight by your side for 20 seconds",
  "Поклониться: ": "Bow: ",
@@ -1010,5 +1010,9 @@
  "Soul Knight: святилище со статуями птиц — поклонись одной, и её ульта заменит твою до конца забега: ульта любого героя или новое «Подкрепление», которое зовёт бойца на подмогу": "Soul Knight: a shrine with bird statues — bow to one and its ultimate replaces yours until the end of the run: any hero’s ultimate or the new “Reinforcements”, which calls a fighter for help",
  "Soul Knight: мини-карта в углу экрана и значки взятых пассивок под ней": "Soul Knight: a minimap in the corner of the screen with icons of the passives you took under it",
  "Soul Knight: гранат больше нет, вместо пассивки «Запас яиц» — «Заживление»; из ящиков падает стамина и лишь изредка кукуруза или пивчик": "Soul Knight: no more grenades, and the “Egg Stash” passive is replaced by “Healing”; crates drop stamina and only rarely corn or a pivchik",
- "Soul Knight: надпись на вывеске торговца больше не вылезает за край": "Soul Knight: the text on the merchant’s sign no longer runs off the edge"
+ "Soul Knight: надпись на вывеске торговца больше не вылезает за край": "Soul Knight: the text on the merchant’s sign no longer runs off the edge",
+ "Soul Knight: любое оружие ближнего боя отбивает яйца обратно во врагов и само замахивается, когда в героя летит снаряд": "Soul Knight: every melee weapon knocks eggs back at enemies and swings on its own when a projectile flies at the hero",
+ "Soul Knight: здоровье само не восстанавливается — ни между уровнями, ни от умений героев; пассивка «Заживление» заменена на «Знахаря»: кукуруза и зелья здоровья лечат вдвое сильнее": "Soul Knight: health no longer regenerates on its own — neither between levels nor from hero perks; the “Healing” passive is replaced by “Herbalist”: corn and health potions heal twice as much",
+ "Soul Knight: в святилище одна статуя, а поклон стоит пивчиков — чем сильнее ульта и глубже уровень, тем дороже": "Soul Knight: the shrine has a single statue, and bowing costs pivchiki — the stronger the ultimate and the deeper the level, the higher the price",
+ "Soul Knight: у Пеструшки «Запасливая» вместо гранаты даёт +15 стамины за каждую волну": "Soul Knight: Speckles’ “Thrifty” perk gives +15 stamina per wave instead of a grenade"
 }

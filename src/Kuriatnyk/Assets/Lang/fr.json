@@ -995,8 +995,8 @@
  "Soul Knight: у оружия на земле видны характеристики и сравнение с тем, что в руках": "Soul Knight : les armes au sol affichent leurs stats et une comparaison avec celle que tu tiens",
  "Пивчикомёт тратит 1 пивчик на 3 выстрела": "Le Lance-pivchiki consomme 1 pivchik pour 3 tirs",
  "Сборки игры для Windows и Android — на странице GitHub Releases": "Les versions Windows et Android sont sur la page GitHub Releases",
- "Заживление": "Guérison",
- "Восстанавливает 1,5 здоровья в секунду, если 4 с не получал урона": "Rend 1,5 de vie par seconde si tu ne subis aucun dégât pendant 4 s",
+ "Знахарь": "Guérisseur",
+ "Кукуруза и зелья здоровья лечат вдвое сильнее": "Le maïs et les potions de vie soignent deux fois plus",
  "Подкрепление": "Renforts",
  "Зовёт на подмогу случайного бойца: 20 секунд он сражается рядом": "Appelle un combattant au hasard à la rescousse : il se bat à tes côtés pendant 20 secondes",
  "Поклониться: ": "S’incliner : ",
@@ -1010,5 +1010,9 @@
  "Soul Knight: святилище со статуями птиц — поклонись одной, и её ульта заменит твою до конца забега: ульта любого героя или новое «Подкрепление», которое зовёт бойца на подмогу": "Soul Knight : un sanctuaire avec des statues d’oiseaux — incline-toi devant l’une d’elles et son ultime remplace le tien jusqu’à la fin de la partie : l’ultime de n’importe quel héros ou les nouveaux « Renforts », qui appellent un combattant à la rescousse",
  "Soul Knight: мини-карта в углу экрана и значки взятых пассивок под ней": "Soul Knight : une mini-carte dans le coin de l’écran et, en dessous, les icônes des passifs obtenus",
  "Soul Knight: гранат больше нет, вместо пассивки «Запас яиц» — «Заживление»; из ящиков падает стамина и лишь изредка кукуруза или пивчик": "Soul Knight : plus de grenades, le passif « Réserve d’œufs » devient « Guérison » ; les caisses donnent de l’endurance et seulement rarement du maïs ou un pivchiki",
- "Soul Knight: надпись на вывеске торговца больше не вылезает за край": "Soul Knight : le texte de l’enseigne du marchand ne dépasse plus du bord"
+ "Soul Knight: надпись на вывеске торговца больше не вылезает за край": "Soul Knight : le texte de l’enseigne du marchand ne dépasse plus du bord",
+ "Soul Knight: любое оружие ближнего боя отбивает яйца обратно во врагов и само замахивается, когда в героя летит снаряд": "Soul Knight : toutes les armes de corps à corps renvoient les œufs sur les ennemis et frappent d’elles-mêmes quand un projectile fonce sur le héros",
+ "Soul Knight: здоровье само не восстанавливается — ни между уровнями, ни от умений героев; пассивка «Заживление» заменена на «Знахаря»: кукуруза и зелья здоровья лечат вдвое сильнее": "Soul Knight : la vie ne se régénère plus toute seule — ni entre les niveaux, ni grâce aux talents des héros ; le passif « Guérison » devient « Guérisseur » : le maïs et les potions de vie soignent deux fois plus",
+ "Soul Knight: в святилище одна статуя, а поклон стоит пивчиков — чем сильнее ульта и глубже уровень, тем дороже": "Soul Knight : le sanctuaire n’a qu’une statue, et s’incliner coûte des pivchikis — plus l’ultime est puissant et le niveau profond, plus c’est cher",
+ "Soul Knight: у Пеструшки «Запасливая» вместо гранаты даёт +15 стамины за каждую волну": "Soul Knight : la « Prévoyante » de Mouchetée donne +15 d’endurance par vague au lieu d’une grenade"
 }

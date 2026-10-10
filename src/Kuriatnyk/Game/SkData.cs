@@ -101,7 +101,7 @@ public static class SKP
         new(){id="magnet",nameRu="Магнит",descRu="Пивчики летят к тебе издалека, и их падает на 30% больше",icon="piv"},
         new(){id="crit",nameRu="Меткость",descRu="12% шанс крита ×2",icon="beak"},
         new(){id="melee",nameRu="Боевой задор",descRu="+40% урона ближним оружием",icon="sword"},
-        new(){id="regen",nameRu="Заживление",descRu="Восстанавливает 1,5 здоровья в секунду, если 4 с не получал урона",icon="heart"},
+        new(){id="herb",nameRu="Знахарь",descRu="Кукуруза и зелья здоровья лечат вдвое сильнее",once=true,icon="heart"},
         new(){id="ult",nameRu="Боевой дух",descRu="Ульта копится на 30% быстрее",icon="star"},
         new(){id="luck",nameRu="Удача",descRu="В сундуках и у торговца чаще редкое оружие",icon="clover"},
     };
@@ -117,6 +117,13 @@ public static class SKU
     public static readonly string[] ALL = { "hen", "chick", "rooster", "duck", "goose", "quail", "guinea", "nurse", "adren", SUMMON };
     public static string Name(string id) => id == SUMMON ? L.T("Подкрепление") : D.HEROES[id].ult[0];
     public static string Desc(string id) => id == SUMMON ? L.T("Зовёт на подмогу случайного бойца: 20 секунд он сражается рядом") : D.HEROES[id].ult[1];
+    /// <summary>Цена поклона в пивчиках на 0-1 (дальше +15% за уровень): чем сильнее ульта, тем дороже.
+    /// Лечащие и «Подкрепление» дороже — в подземелье здоровье само не восстанавливается.</summary>
+    public static int BasePrice(string id) => id switch
+    {
+        "chick" => 25, "hen" or "rooster" => 30, "goose" or "quail" or "guinea" => 35, "duck" or "nurse" => 40, "adren" or SUMMON => 45, _ => 35,
+    };
+    public static int Price(string id, int lv) => SKW.Cost(BasePrice(id), lv);
     /// <summary>Цвет камня-самоцвета на постаменте.</summary>
     public static string Gem(string id) => id switch
     {
