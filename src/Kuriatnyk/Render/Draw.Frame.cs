@@ -82,11 +82,11 @@ public static partial class G
         }
     }
 
-    static Sprite playerSprite() => new Sprite
+    static Sprite playerSprite(Player p) => new Sprite
     {
-        x = P.x, y = P.y, face = P.face, ang = P.ang, phase = P.phase, moving = P.moving, flash = P.flash, kind = "player", gun = P.w, blink = P.inv > 0, buff = P.buff,
-        swim = P.hop && inWater(P.x, P.y), ghost = P.buff == "shadow", swing = P.swing > 0 ? P.swing / .22 : 0
-    }.With(P.look);
+        x = p.x, y = p.y, face = p.face, ang = p.ang, phase = p.phase, moving = p.moving, flash = p.flash, kind = "player", gun = p.w, blink = p.inv > 0, buff = p.buff,
+        swim = p.hop && inWater(p.x, p.y), ghost = p.buff == "shadow", swing = p.swing > 0 ? p.swing / .22 : 0
+    }.With(p.look);
 
     static readonly Ctx frameCtx = new();
     // список отрисовки по глубине: без лямбд на каждый объект — меньше мусора для сборщика в каждом кадре
@@ -162,7 +162,7 @@ public static partial class G
         bool vis(double x, double y) => x > vx0 && x < vx1 && y > vy0 && y < vy1;
         foreach (var o in OBS) if (vis(o.x, o.y)) add(o.y, 0, o);
         foreach (var e in enemies) if (vis(e.x, e.y)) add(e.y + (e.T.fly ? 60 : 0), 1, e);
-        if (P.alive) add(P.y, 2, P);
+        foreach (var pl in players) if (pl.alive) add(pl.y, 2, pl);
         foreach (var a in allies) if (a.down <= 0) add(a.y, 3, a);
         foreach (var n in nades) add(n.y, 4, n);
         drawList.Sort(byDepth);
@@ -172,13 +172,17 @@ public static partial class G
                 case 0: drawObstacle(c, (Obs)it.o); break;
                 case 1: drawEnemy(c, (Enemy)it.o); break;
                 case 2:
-                    if (P.bowT > 0)
-                    { // поклон статуе: наклон вперёд и обратно
-                        double bk = Math.Sin(clamp(1 - P.bowT / .9, 0, 1) * Math.PI) * .5;
-                        c.save(); c.translate(P.x, P.y); c.rotate(bk * P.face); c.translate(-P.x, -P.y); drawBird(c, playerSprite()); c.restore();
+                    {
+                        var pp = (Player)it.o;
+                        if (pp != Me) { c.save(); c.strokeStyle = "rgba(76,195,255,.9)"; c.lineWidth = 2.5; c.beginPath(); c.ellipse(pp.x, pp.y + 1, 17, 6.5, 0, 0, TAU); c.stroke(); c.restore(); } // товарищ — голубой круг
+                        if (pp.bowT > 0)
+                        { // поклон статуе: наклон вперёд и обратно
+                            double bk = Math.Sin(clamp(1 - pp.bowT / .9, 0, 1) * Math.PI) * .5;
+                            c.save(); c.translate(pp.x, pp.y); c.rotate(bk * pp.face); c.translate(-pp.x, -pp.y); drawBird(c, playerSprite(pp)); c.restore();
+                        }
+                        else drawBird(c, playerSprite(pp));
+                        break;
                     }
-                    else drawBird(c, playerSprite());
-                    break;
                 case 3:
                     {
                         var aa = (Ally)it.o;
@@ -202,6 +206,14 @@ public static partial class G
         {
             double a = 1 - t.t / t.max; c.globalAlpha = Math.Min(1, a * 2.5); c.font = textFont(t.size); c.textAlign = "center"; c.lineJoin = "round";
             c.strokeStyle = INK; c.lineWidth = 4; c.strokeText(t.txt, t.x, t.y); c.fillStyle = t.col; c.fillText(t.txt, t.x, t.y); c.globalAlpha = 1;
+        }
+        foreach (var pl in players)
+        { // имена и здоровье товарищей
+            if (pl == Me || S.mode == "menu") continue;
+            if (!pl.alive) { c.font = "900 11px Rubik"; c.textAlign = "center"; c.lineJoin = "round"; c.strokeStyle = INK; c.lineWidth = 3; var dt0 = (pl.pname ?? "") + " · " + Math.Ceiling(pl.downT); c.strokeText(dt0, pl.x, pl.y - 20); c.fillStyle = "#ffb3a3"; c.fillText(dt0, pl.x, pl.y - 20); continue; }
+            double w = 36, y = pl.y - 60;
+            c.fillStyle = INK; c.fillRect(pl.x - w / 2 - 1.5, y - 1.5, w + 3, 8); c.fillStyle = "#8e2a21"; c.fillRect(pl.x - w / 2, y, w, 5); c.fillStyle = "#5fcf3f"; c.fillRect(pl.x - w / 2, y, w * Math.Max(0, pl.hp / pl.max), 5);
+            c.font = "900 11px Rubik"; c.textAlign = "center"; c.lineJoin = "round"; c.strokeStyle = INK; c.lineWidth = 3; var nm = pl.pname ?? HEROES[pl.hid].name; c.strokeText(nm, pl.x, y - 4); c.fillStyle = "#bfe9ff"; c.fillText(nm, pl.x, y - 4);
         }
         foreach (var a in allies)
         {

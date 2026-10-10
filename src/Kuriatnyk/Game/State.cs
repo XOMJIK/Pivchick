@@ -36,12 +36,24 @@ public sealed class Player : Fighter
     public List<string> bag; public int slot, bagMax = 2;
     public double vamp, meleeMul = 1, pivMul = 1, healMul = 1; public int luck; public bool magnetFar; // healMul — во сколько раз сильнее лечат кукуруза и зелья
     public string ultId; public double bowT; // ульта от статуи (null — своя ульта героя) и поклон статуе
+    // прицел: мышью (без автонаводки), зажата ли кнопка, куда смотрит курсор в мире; граната — по курсору
+    public bool aimMouse, aimHeld, manualNade; public double tx, ty;
+    // сетевая игра: номер игрока, удалённый ли он (управляет другой компьютер), имя и аватарка, выбит (downT — до возвращения)
+    public int pid; public bool remote; public string pname, avatar; public double downT;
+    public RemoteIn ri; public int tp; public Bridge lastBridge; // tp — счётчик телепортов: клиент сверяет, когда хост переставил героя
+}
+/// <summary>Что прислал удалённый игрок: где он, куда смотрит, стреляет ли, и нажатые кнопки.</summary>
+public sealed class RemoteIn
+{
+    public double x, y, ang, phase, tx, ty; public bool firing, moving, aimMouse, aimHeld, manualNade; public int face = 1, tp;
+    public List<string> acts = new();
 }
 
 public sealed class Ally : Fighter
 {
     public string id, gun; public int lv; public double range, down;
     public bool summon; public double summonT; // боец, вызванный «Подкреплением»: уходит через summonT секунд
+    public Player lead; // за кем ходит (в сетевой игре — тот, кто его вызвал)
 }
 
 public sealed class Enemy : Unit
@@ -60,7 +72,7 @@ public sealed class Enemy : Unit
 public sealed class Bullet
 {
     public double x, y, vx, vy, r, dmg, life, max, spin; public bool fromP, ally, frag; public string kind;
-    public int pierce, bounce, shape; public List<Enemy> hits; public Ally owner;
+    public int pierce, bounce, shape; public List<Enemy> hits; public Ally owner; public Player pl; // pl — игрок, чей это выстрел
     public Weap w; public bool back; public double tick; // снаряд оружия Soul Knight: свойства берутся из w
     public double uw = 1; // доля «удара» для ульты при попадании
     public int rico; // «Рикошет»: сколько ещё раз пуля отскочит к следующему врагу
@@ -76,8 +88,8 @@ public sealed class FText { public double x, y, size, t, max, vx; public string 
 /// <summary>Предмет на земле. kind: corn, nade, stam, piv (пивчики, n — сколько), skw (оружие wid), а также временные стволы.
 /// price &gt; 0 — товар у торговца, берётся кнопкой действия.</summary>
 public sealed class Pickup { public double x, y, t, ph, vx, vy, z, vz; public string kind, wid; public int n, price; public bool egg; } // egg — цена в золотых яйцах (легендарное оружие у торговца)
-public sealed class Nade { public double x, y, z, vx, vy, vz, t, rot; }
-public sealed class Bomb { public double x, y, t, max, r, dmg, heal, sx, sy; public bool fromP, lob, quiet, ult; public string kind; } // ult — яйцо из ульты: ульту не копит
+public sealed class Nade { public double x, y, z, vx, vy, vz, t, rot; public Player pl; }
+public sealed class Bomb { public double x, y, t, max, r, dmg, heal, sx, sy; public bool fromP, lob, quiet, ult; public string kind; public Player pl; } // ult — яйцо из ульты: ульту не копит
 public sealed class Hole { public double x, y, t, ct, life, spawnT; public string state; public int made, max; }
 public sealed class Zone { public double x, y, t, r, max; public bool mini; } // mini — лечебное облако «Аптечкомёта»: лечит слабее и не поднимает выбитых
 /// <summary>Лужи и облака от оружия Soul Knight: poop — вонючая лужа, poison — ядовитое облако, roots — корни.</summary>
@@ -118,10 +130,23 @@ public static partial class G
     }
 
     public static readonly GState S = new();
+    /// <summary>Текущий игрок — «контекст»: в одиночной игре всегда герой; в сетевой игра по очереди ставит сюда того,
+    /// за кого считает ход (кто стреляет, в кого целится враг, кто подбирает). Вне таких циклов P == Me.</summary>
     public static Player P;
+    /// <summary>Свой герой на этом компьютере и все герои в бою (в одиночной игре — один).</summary>
+    public static Player Me; public static List<Player> players = new();
+    /// <summary>Одиночная игра: в бою только свой герой.</summary>
+    public static void solo() { Me = P; players = new() { P }; }
+    public static Player nearestPlayer(double x, double y)
+    {
+        Player best = null; double bd = double.MaxValue;
+        foreach (var p in players) { if (!p.alive) continue; double d = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y); if (d < bd) { bd = d; best = p; } }
+        return best;
+    }
+    public static bool anyAlive() { foreach (var p in players) if (p.alive) return true; return false; }
     public static List<Enemy> enemies = new();
     public static List<Bullet> bullets = new();
-    public static List<Part> parts = new();
+    public static PartList parts = new();
     public static List<Pickup> pickups = new();
     public static List<Nade> nades = new();
     public static List<Bomb> bombs = new();
@@ -199,10 +224,11 @@ public static partial class G
     // в подземелье стамина восстанавливается медленно и только когда 1,5 с не стреляешь — основное пополнение из кристаллов
     public const double STAM_MAX = 50, SK_STAM_MAX = 100;
 
-    public static Player newPlayer(string heroId = null)
+    /// <summary>Новый герой. В сетевой игре у чужого героя свой уровень и ствол (lv, gun) — с его компьютера.</summary>
+    public static Player newPlayer(string heroId = null, int lv = 0, string gun0 = null)
     {
-        var id = heroId ?? SAVE.hero; var H = HEROES[id]; int Lv = heroLv(id);
-        var C = H.cls; var gun = gunOf(id); double medMul = id == "nurse" && Lv >= 10 ? 2 : 1;
+        var id = heroId ?? SAVE.hero; var H = HEROES[id]; int Lv = lv > 0 ? lv : heroLv(id);
+        var C = H.cls; var gun = gun0 != null && WEAP.TryGetValue(gun0, out var gw) && gw.cls == C ? gun0 : gunOf(id); double medMul = id == "nurse" && Lv >= 10 ? 2 : 1;
         var st = heroStats(id, Lv);
         return new Player
         {

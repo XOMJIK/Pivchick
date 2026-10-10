@@ -78,6 +78,43 @@ if (args.Length > 1 && args[1] == "skweapons")
     Console.WriteLine($"weapons checked: {SKW.LIST.Length}, problems: {bad}");
     return;
 }
+// сетевая игра: два процесса — хост (mphost [режим]) и клиент (mpclient) через 127.0.0.1
+if (args.Length > 1 && args[1] is "mphost" or "mpclient")
+{
+    bool hostSide = args[1] == "mphost"; var sw = System.Diagnostics.Stopwatch.StartNew();
+    void Pump(int ms) { var t0 = sw.ElapsedMilliseconds; while (sw.ElapsedMilliseconds - t0 < ms) { Mp.Poll(1 / 60.0); G.TickTimers(1 / 60.0); G.update(1 / 60.0); System.Threading.Thread.Sleep(15); } }
+    void Wait(Func<bool> ok, int ms) { var t0 = sw.ElapsedMilliseconds; while (!ok() && sw.ElapsedMilliseconds - t0 < ms) { Mp.Poll(1 / 60.0); System.Threading.Thread.Sleep(15); } }
+    G.toMenu();
+    if (hostSide)
+    {
+        Store.SAVE.name = "Host"; Console.WriteLine("host: " + Mp.Host() + " ips=" + string.Join(",", Net.LocalIPs().Select(a => a.ip)));
+        Wait(() => Mp.roster.Count >= 2, 30000); Console.WriteLine($"host: roster={Mp.roster.Count} ({string.Join(",", Mp.roster.Select(r => r.name + ":" + r.hero))})");
+        var mode = args.Length > 2 ? args[2] : "endless"; Mp.SetMode(mode, 0); Mp.StartMatch("rooster");
+        Console.WriteLine($"host: started {mode}, players={G.players.Count} hp scale={G.MpHp}");
+        Pump(4000); Shot("60-mp-host-a");
+        Pump(8000); Shot("61-mp-host-b");
+        var rp = G.players.FirstOrDefault(p => p.remote);
+        Console.WriteLine($"host: remote at ({rp?.x:0},{rp?.y:0}) alive={rp?.alive} hp={rp?.hp:0} ult={rp?.ult:0} kills={G.S.kills} enemies={G.enemies.Count} mode={G.S.mode}");
+        if (mode == "sk") { G.skEnterLevel(1); Pump(3000); Shot("62-mp-host-sk"); Console.WriteLine($"host: sk level players at {string.Join(" ", G.players.Select(p => $"({p.x:0},{p.y:0})"))}"); }
+        G.toMenu(); Pump(500); Mp.Leave(); Console.WriteLine("host: done");
+    }
+    else
+    {
+        Store.SAVE.name = "Client"; Store.SAVE.heroes["duck"] = new LvRec { lv = 4 }; Store.SAVE.hero = "duck";
+        System.Threading.Thread.Sleep(800); Mp.Join("127.0.0.1");
+        Wait(() => Mp.state is "lobby" or "game" || Mp.state == "idle" && Mp.status.Length > 0 && !Mp.status.Contains("…"), 15000);
+        Console.WriteLine($"client: state={Mp.state} status={Mp.status} pid={Mp.myPid}");
+        Wait(() => Mp.state == "game" && G.IsClientWorld && (G.enemies.Count > 0 || G.S.kind == "sk"), 30000);
+        Console.WriteLine($"client: in game={G.IsClientWorld} kind={G.S.kind} players={G.players.Count} me={G.Me?.hid}");
+        Pump(2000); Shot("65-mp-client-a");
+        G.input.keys.Add("KeyD"); Pump(1500); G.input.keys.Clear(); G.act("ult"); Pump(4000); Shot("66-mp-client-b");
+        Console.WriteLine($"client: me at ({G.Me.x:0},{G.Me.y:0}) hp={G.Me.hp:0} alive={G.Me.alive} enemies={G.enemies.Count} bullets={G.bullets.Count} parts={G.parts.Count} score={G.S.score}");
+        Wait(() => Mp.state != "game", 25000); Pump(1000);
+        Console.WriteLine($"client: after host left state={Mp.state} mode={G.S.mode}");
+        Mp.Leave();
+    }
+    return;
+}
 // босс Хомяк-Трясун: землетрясения, камни, трещины
 if (args.Length > 1 && args[1] == "hamster")
 {

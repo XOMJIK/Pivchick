@@ -33,13 +33,13 @@ public static class Hud
     {
         switch (name)
         {
-            case "nade": throwNade(); break;
-            case "ult": useUlt(); break;
+            case "nade": act("nade"); break;
+            case "ult": act("ult"); break;
             case "pause": Sfx.click(); pauseGame(); break;
-            case "swap": swapWeapon(); break;
-            case "act": interact(); break;
-            case "drop": dropCurrent(); break;
-            case "slot0": selectSlot(0); break; case "slot1": selectSlot(1); break; case "slot2": selectSlot(2); break;
+            case "swap": act("swap"); break;
+            case "act": act("act"); break;
+            case "drop": act("drop"); break;
+            case "slot0": act("slot0"); break; case "slot1": act("slot1"); break; case "slot2": act("slot2"); break;
             case "mute": SET.muted = !SET.muted; saveSet(); Audio.ApplyVolume(); Sfx.click(); break;
         }
     }
@@ -298,6 +298,9 @@ public static class Hud
             }
         }
         if (sk && DUN != null && !DUN.hub) { double my = Tp + bs + 10; my = Minimap(c, R, my, sh ? 104 : 128); Passives(c, R, my + 8); }
+        // сетевая игра: выбит — ждём возвращения; хост выбирает пассивку
+        if (!P.alive && P.downT > 0) Outlined(c, T("Ты выбит — вернёшься через ") + Math.Ceiling(P.downT) + T(" сек"), VW / 2, VH * .42, "900 20px Rubik", "#ffb3a3", 2.5);
+        if (IsClientWorld && S.mode == "pick") Outlined(c, T("Хост выбирает пассивку для команды…"), VW / 2, VH * .42, "900 20px Rubik", "#ffe066", 2.5);
         DrawBanner(c);
     }
 

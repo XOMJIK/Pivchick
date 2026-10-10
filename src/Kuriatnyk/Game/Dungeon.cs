@@ -59,11 +59,13 @@ public static partial class G
     public static void startSK(string heroId)
     {
         if (heroId == null || !SAVE.heroes.ContainsKey(heroId)) heroId = SAVE.hero;
-        lastBridge = null;
-        P = newPlayer(heroId); allies = new();
-        // оружие сюжета сюда не берём: забег начинается с рогатки и палки
-        P.bag = new List<string>(SKW.START); P.slot = 0; P.w = P.prim = P.bag[0]; P.bagMax = 2;
-        P.stamMax = P.stam = SK_STAM_MAX; P.nades = 0; // гранат в подземелье нет
+        spawnPlayers(heroId); allies = new();
+        foreach (var pl in players)
+        { // оружие сюжета сюда не берём: забег начинается с рогатки и палки
+            pl.bag = new List<string>(SKW.START); pl.slot = 0; pl.w = pl.prim = pl.bag[0]; pl.bagMax = 2;
+            pl.stamMax = pl.stam = SK_STAM_MAX; pl.nades = 0; // гранат в подземелье нет
+        }
+        MpHp = MpScale(players.Count);
         enemies = new(); bullets = new(); parts = new(); pickups = new(); nades = new(); bombs = new(); texts = new(); holes = new(); zones = new(); strikes = new(); puddles = new(); goo = new();
         S.piv = 0; S.skPass = new(); S.won = false;
         S.mode = "play"; S.kind = "sk"; S.skHero = heroId; S.lvIdx = 0; S.L = null; S.diff = 1; S.night = false; S.t = 0; S.score = 0; S.wave = 0; S.toSpawn = 0; S.spawnT = 0;
@@ -80,7 +82,16 @@ public static partial class G
         S.boss = null; bossBarOn = false; RIVERS = new(); RIVER = null; actPick = null; actVend = actStatue = null; fish = new();
         allies = new(); // бойцы «Подкрепления» на следующий уровень не идут
     }
-    static void snapCamera() { double vw = VW / SC, vh = VH / SC; camX = P.x - vw / 2; camY = P.y - 28 - vh / 2; }
+    static void snapCamera() { double vw = VW / SC, vh = VH / SC; camX = Me.x - vw / 2; camY = Me.y - 28 - vh / 2; }
+    /// <summary>Поставить всех героев рядом с точкой (первого — в неё, остальных кружком).</summary>
+    static void placePlayers(double x, double y)
+    {
+        for (int i = 0; i < players.Count; i++)
+        {
+            var pl = players[i]; double a = i * TAU / Math.Max(1, players.Count) + Math.PI / 2, d = i == 0 ? 0 : 40;
+            pl.x = x + Math.Cos(a) * d; pl.y = y + Math.Sin(a) * d * .7; pl._px = pl.x; pl._py = pl.y; pl.lastBridge = null; pl.tp++;
+        }
+    }
 
     static void enterHub()
     {
@@ -91,17 +102,17 @@ public static partial class G
         D.doorX = R.x + R.w - 70; D.doorY = R.y + 6; // закрытая дверь в стене: здесь в будущем что-то появится
         OBS = new() { new Obs { x = R.x + 60, y = R.y + R.h - 60, r = 34, type = "hay" }, new Obs { x = R.x + R.w - 60, y = R.y + R.h - 60, r = 22, type = "barrel" }, new Obs { x = R.x + 56, y = R.y + 90, r = 22, type = "barrel" } };
         DUN = D; renderDungeon(); D.enterCd = 1;
-        P.x = R.cx; P.y = R.y + R.h - 110; P._px = P.x; P._py = P.y; snapCamera();
+        placePlayers(R.cx, R.y + R.h - 110); snapCamera();
         Music.Play("menu");
         showBanner(T("Лагерь"), T("Зайди в портал — начнётся забег"));
     }
 
     static void enterLevel(int lv)
     {
-        resetField(); S.skLv = lv; S.lvIdx = lv; S.diff = 1 + (lv - 1) * 1.3; WW = WH = SK_SIZE; Stats.Max("sk_depth", lv);
+        resetField(); S.skLv = lv; S.lvIdx = lv; S.diff = 1 + (lv - 1) * 1.3; WW = WH = SK_SIZE; Stats.MaxTeam("sk_depth", lv);
         buildLevel(lv); renderDungeon();
         var st = DUN.rooms.First(r => r.type == "start"); st.seen = true;
-        P.x = st.cx; P.y = st.cy + 30; P._px = P.x; P._py = P.y; P.buff = null; P.inv = 1;
+        placePlayers(st.cx, st.cy + 30); foreach (var pl in players) { pl.buff = null; pl.inv = 1; if (!pl.alive) { pl.alive = true; pl.hp = Math.Round(pl.max * .5); pl.downT = 0; } }
         snapCamera(); DUN.enterCd = 1.2;
         Music.Play("battle"); Sfx.wave();
         bool fac = skFactory(lv), last = skWl(lv) == SK_WORLD;
@@ -266,14 +277,14 @@ public static partial class G
     /* ---------- ход уровня ---------- */
     static void updateSK(double dt)
     {
-        var D = DUN; if (D == null || !P.alive) return;
+        var D = DUN; if (D == null || !anyAlive()) return;
         D.enterCd -= dt;
         findAct();
-        foreach (var o in OBS) if (o.type == "skchest" && !o.open && hypot(o.x - P.x, o.y - P.y) < o.r + P.r + 16) openChest(o);
+        foreach (var o in OBS) if (o.type == "skchest" && !o.open && players.Any(pl => pl.alive && hypot(o.x - pl.x, o.y - pl.y) < o.r + pl.r + 16)) openChest(o);
         foreach (var p in D.portals)
         {
             p.t += dt;
-            if (p.on && D.enterCd <= 0 && hypot(P.x - p.x, P.y - p.y) < 30) { usePortal(p); return; }
+            if (p.on && D.enterCd <= 0 && players.Any(pl => pl.alive && hypot(pl.x - p.x, pl.y - p.y) < 30)) { usePortal(p); return; }
         }
         if (D.hub)
         {
@@ -282,7 +293,7 @@ public static partial class G
             return;
         }
         foreach (var R in D.rooms)
-            if (!R.seen && inRoom(R, P.x, P.y, 0))
+            if (!R.seen && players.Any(pl => pl.alive && inRoom(R, pl.x, pl.y, 0)))
             { // первый раз в комнате — она появляется на мини-карте
                 R.seen = true;
                 if (R.type == "shrine" && OBS.Any(o => o.type == "statue" && o.st == 0)) showBanner(T("Святилище"), T("Поклонись статуе — её ульта заменит твою"));
@@ -290,7 +301,10 @@ public static partial class G
         if (D.active == null)
         {
             foreach (var R in D.rooms)
-                if (!R.cleared && R.type is "fight" or "boss" or "bossopt" && inRoom(R, P.x, P.y, P.r + 22)) { lockRoom(R); break; }
+            {
+                var who = players.FirstOrDefault(pl => pl.alive && !R.cleared && R.type is "fight" or "boss" or "bossopt" && inRoom(R, pl.x, pl.y, pl.r + 22));
+                if (who != null) { lockRoom(R, who); break; }
+            }
             return;
         }
         var A = D.active;
@@ -303,9 +317,11 @@ public static partial class G
         if (A.wave < A.waves) { A.waveT -= dt; if (A.waveT <= 0) spawnRoomWave(A); }
         else clearRoom(A);
     }
-    static void lockRoom(Room R)
+    static void lockRoom(Room R, Player who = null)
     {
         DUN.active = R; R.wave = 0; R.waveT = .6; Sfx.chest(); S.shake += 5;
+        foreach (var pl in players) // кто остался в коридоре — затягивает в комнату к товарищу
+            if (pl.alive && !inRoom(R, pl.x, pl.y, pl.r)) { var w = who ?? Me; pl.x = clamp(w.x + rand(-26, 26), R.x + 30, R.x + R.w - 30); pl.y = clamp(w.y + rand(-20, 20), R.y + 30, R.y + R.h - 30); pl._px = pl.x; pl._py = pl.y; pl.tp++; puff(pl.x, pl.y, "#d9c4ff", 6, 1); }
         if (R.type is "boss" or "bossopt")
         {
             bool fac = skFactory(S.skLv); // во втором мире — роботы и сам доктор
@@ -351,7 +367,7 @@ public static partial class G
     }
     static void clearRoom(Room R)
     {
-        R.cleared = true; DUN.active = null; Sfx.pick(); S.shake += 3; Stats.Add("sk_rooms");
+        R.cleared = true; DUN.active = null; Sfx.pick(); S.shake += 3; Stats.AddTeam("sk_rooms");
         int bonus = 2 + S.skLv; S.coins += bonus; // зёрен за комнату немного: в забеге главное — пивчики
         ftext(P.x, P.y - 62, T("Комната зачищена!") + " +" + bonus, "#9cf27a", 15);
         if (rnd() < .45) pickups.Add(new Pickup { x = R.cx, y = R.cy, kind = "corn", t = 60, ph = 0 });
@@ -379,7 +395,7 @@ public static partial class G
     {
         Sfx.ult(); ring(P.x, P.y, "#b48cff", 120, .5); puff(P.x, P.y, "#d9c4ff", 12, 1.2);
         if (p.kind == "start") { enterLevel(1); return; }
-        Stats.Add("sk_levels");
+        Stats.AddTeam("sk_levels");
         if (S.skLv >= SK_LEVELS) { skFinish(); return; }
         // между уровнями — выбор одной пассивки из трёх
         skOffer = rollPassives(3);
@@ -389,7 +405,7 @@ public static partial class G
     }
     static void skFinish()
     {
-        S.mode = "result"; sticks.move = sticks.aim = null; input.firing = false; S.won = true; Stats.Add("sk_runs");
+        S.mode = "result"; sticks.move = sticks.aim = null; input.firing = false; S.won = true; Stats.AddTeam("sk_runs");
         skCashPiv(); long sc = S.coins, st = S.tokens; bankCoins();
         bool first = !SAVE.eggMs.ContainsKey("skRun");
         long lc = 300, lt = 80; int le = first ? 15 : 0;
@@ -398,7 +414,7 @@ public static partial class G
         var w = new WinInfo { eyebrow = T("Режим Soul Knight") + " · " + skLvName(SK_LEVELS), lead = T("Оба мира пройдены! Лис-атаман и Доктор Хорёк повержены."), hasNext = false };
         w.rows.Add(new WinRow { icon = "coin", text = "+" + (lc + sc) + T(" зёрен"), sub = T("за забег и врагов") });
         w.rows.Add(new WinRow { icon = "tok", text = "+" + (lt + st) + T(" жетонов"), sub = T("на обычный сундук: ") + L.Fmt(SAVE.tokens) + "/100" });
-        AddMatchRow(w);
+        AddMatchRow(w); Mp.SendEnd(true, w.lead, null, null);
         if (first) { w.rows.Add(new WinRow { icon = "gegg", text = "+" + le + T(" золотых яиц"), sub = T("только за первое прохождение") }); w.rows.Add(new WinRow { icon = "btok", text = StripIcon(T("<i class=\"btok\"></i>+1 большой жетон")), sub = T("на большой сундук: ") + SAVE.btokens + "/10" }); w.rows.Add(new WinRow { icon = "lch", text = T("Легендарный сундук!"), sub = T("за первое прохождение обоих миров · открой в «Сундуках»") }); }
         Ui.ShowWin(w);
     }

@@ -18,11 +18,11 @@ public static partial class G
         if (W.special == "lob")
         {
             double tx, ty; var t = nearestTarget();
-            if (input.mouse && input.firing) { tx = camX + input.mx / SC; ty = camY + input.my / SC; }
+            if (P.aimHeld) { tx = P.tx; ty = P.ty; }
             else if (t != null) { tx = t.x; ty = t.y; }
             else { tx = P.x + cx * 260; ty = P.y + sy * 260; }
             var d = hypot(tx - P.x, ty - P.y); if (d > 400) { tx = P.x + (tx - P.x) / d * 400; ty = P.y + (ty - P.y) / d * 400; }
-            bombs.Add(new Bomb { x = tx, y = ty, t = .6, max = .6, r = W.boomR, dmg = dmg, fromP = true, lob = true, sx = P.x, sy = P.y, kind = W.id });
+            bombs.Add(new Bomb { x = tx, y = ty, t = .6, max = .6, r = W.boomR, dmg = dmg, fromP = true, lob = true, sx = P.x, sy = P.y, kind = W.id, pl = P });
             return;
         }
         if (W.ring > 0)
@@ -44,7 +44,7 @@ public static partial class G
         var b = new Bullet
         {
             x = x, y = y, vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp, r = W.size > 0 ? W.size : W.pellets > 3 ? 3.6 : 5, dmg = dmg, fromP = true,
-            life = life, max = life, kind = W.shape ?? W.id, pierce = W.pierce, hits = W.pierce > 0 ? new() : null, w = W, shape = i % 4, spin = rand(0, TAU), uw = P.uw
+            life = life, max = life, kind = W.shape ?? W.id, pierce = W.pierce, hits = W.pierce > 0 ? new() : null, w = W, shape = i % 4, spin = rand(0, TAU), uw = P.uw, pl = P
         };
         bullets.Add(b); return b;
     }
@@ -257,7 +257,7 @@ public static partial class G
         double a = P.ang + Math.PI + rand(-.6, .6);
         var al = newAlly(id, Math.Max(1, P.hlv), P.x + Math.Cos(a) * 50, P.y + Math.Sin(a) * 40);
         double k = 1 + .15 * (Math.Max(1, S.skLv) - 1); al.max = al.hp = Math.Round(al.max * k); al.dmgMul *= k; // глубже — крепче, иначе его сразу выбьют
-        al.summon = true; al.summonT = SKU.SUMMON_T; al.ult = 60; al._px = P.x; al._py = P.y;
+        al.summon = true; al.summonT = SKU.SUMMON_T; al.ult = 60; al._px = P.x; al._py = P.y; al.lead = P;
         collideWorld(al); allies.Add(al);
         ring(al.x, al.y, "#9cf27a", 90, .5); puff(al.x, al.y, "#ffffff", 12, 1.3); feathers(al.x, al.y, al.look.body, 8, 1);
         ftext(al.x, al.y - 62, HEROES[id].name.Split(' ')[0] + T(" на подмогу!"), "#9cf27a", 15);
@@ -347,6 +347,13 @@ public static partial class G
     {
         if (S.mode != "pick") return;
         S.skPass.Add(id); Sfx.buy();
+        foreach (var pl in players) { P = pl; applyPassive(id); } // в сетевой игре пассивка — на всю команду
+        P = Me;
+        S.mode = "play"; skOffer = null; Music.Duck(1);
+        enterLevel(S.skLv + 1);
+    }
+    static void applyPassive(string id)
+    {
         switch (id)
         {
             case "bag": P.bagMax++; break;
@@ -366,7 +373,5 @@ public static partial class G
             case "ult": P.ultRate *= 1.1; break;
             case "luck": P.luck++; break;
         }
-        S.mode = "play"; skOffer = null; Music.Duck(1);
-        enterLevel(S.skLv + 1);
     }
 }

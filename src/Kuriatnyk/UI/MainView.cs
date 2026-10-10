@@ -67,7 +67,7 @@ public sealed partial class MainView : UserControl, IGameUi
             }
         }
         Audio.Init();
-        G.buildWorld(G.menuMap()); G.P = G.newPlayer(); G.toMenu();
+        G.buildWorld(G.menuMap()); G.P = G.newPlayer(); G.solo(); G.toMenu();
     }
     public Thickness Safe => new(Hud.SafeL, Hud.SafeT, Hud.SafeR, Hud.SafeB);
     Thickness safeRaw;
@@ -94,12 +94,12 @@ public sealed partial class MainView : UserControl, IGameUi
         Hide(id); c.ZIndex = z; ov[id] = c; layer.Children.Add(c);
     }
     public void Hide(string id) { if (ov.Remove(id, out var c)) layer.Children.Remove(c); }
-    public static readonly string[] PANELS = { "shop", "heroes", "weapons", "storyP", "chestP" };
+    public static readonly string[] PANELS = { "shop", "heroes", "weapons", "storyP", "chestP", "profile", "quests", "pass" };
     public bool AnyPanel => panel != null;
     public void OpenPanel(string id)
     {
         Audio.Init(); ClosePanels(); panelId = id; RefreshMenu();
-        panel = id switch { "shop" => new ShopPanel(this), "heroes" => new HeroesPanel(this), "weapons" => new WeaponsPanel(this), "storyP" => new StoryPanel(this), _ => new ChestPanel(this) };
+        panel = id switch { "shop" => new ShopPanel(this), "heroes" => new HeroesPanel(this), "weapons" => new WeaponsPanel(this), "storyP" => new StoryPanel(this), "profile" => new ProfilePanel(this), "quests" => new QuestsPanel(this), "pass" => new PassPanel(this), _ => new ChestPanel(this) };
         panel.ZIndex = 7; layer.Children.Add(panel);
     }
     public void ClosePanels() { if (panel != null) layer.Children.Remove(panel); panel = null; panelId = null; }
@@ -147,9 +147,10 @@ public sealed partial class MainView : UserControl, IGameUi
     public void OnGameStart()
     {
         ClosePanels(); ShowLobby(false);
-        foreach (var id in new[] { "over", "pause", "win", "brief", "chestOv", "setOv", "skSel", "skPick", "keysOv", "heroInfo" }) Hide(id);
+        foreach (var id in new[] { "over", "pause", "win", "brief", "chestOv", "setOv", "skSel", "skPick", "keysOv", "heroInfo", "mpOv", "confirmOv" }) Hide(id);
     }
     public void ShowSkPick(List<string> passives) => Show("skPick", Overlays.SkPick(this, passives), 8);
+    public void ShowMpLobby() => Overlays.OpenMultiplayer(this);
     public void ShowPause(bool show) { if (show) Show("pause", Overlays.Pause(this)); else { Hide("pause"); Hide("setOv"); } }
     public void ShowOver(OverInfo info) => Show("over", Overlays.Over(this, info));
     public void ShowWin(WinInfo info) { Show("win", Overlays.Win(this, info)); RefreshMenu(); }
@@ -190,14 +191,15 @@ public sealed partial class MainView : UserControl, IGameUi
         if (act == "auto") ToggleAuto();
         if (code == "Escape")
         {
-            foreach (var id in new[] { "quitOv", "keysOv", "heroInfo", "bgOv", "chestInfoOv", "setOv", "infoOv", "helpOv", "brief", "skSel" })
+            foreach (var id in new[] { "confirmOv", "mpOv", "quitOv", "keysOv", "heroInfo", "bgOv", "chestInfoOv", "setOv", "infoOv", "helpOv", "brief", "skSel" })
                 if (Shown(id)) { Hide(id); e.Handled = true; return; }
             if (AnyPanel) { ClosePanels(); RefreshMenu(); e.Handled = true; return; }
             if (G.S.mode == "menu" && lobby != null && lobby.Back()) { e.Handled = true; return; }
         }
         if (code == "Escape" || act == "pause")
         {
-            if (G.S.mode == "play") G.pauseGame(); else if (G.S.mode == "paused") G.resumeGame();
+            if (Mp.InMatch && Shown("pause")) G.resumeGame();
+            else if (G.S.mode == "play") G.pauseGame(); else if (G.S.mode == "paused") G.resumeGame();
             e.Handled = true;
         }
     }

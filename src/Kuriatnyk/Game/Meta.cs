@@ -70,6 +70,9 @@ public static class Stats
         Quests.OnStat(key, n, false);
         Ach.Check();
     }
+    /// <summary>Командное событие (волна, уровень, комната): засчитать себе и всем в сетевой игре.</summary>
+    public static void AddTeam(string key, long n = 1) { if (n <= 0 || SAVE == null) return; AddLocal(key, n); Mp.TeamStat(key, n, false); }
+    public static void MaxTeam(string key, long v) { if (SAVE == null) return; MaxLocal(key, v); Mp.TeamStat(key, v, true); }
     /// <summary>Рекорд: запомнить, если больше прежнего (лучшая волна, глубина подземелья). Задания «дойди до…» считают максимум.</summary>
     public static void Max(string key, long v)
     {

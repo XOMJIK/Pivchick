@@ -32,7 +32,7 @@ public static partial class G
         if (isMouse)
         {
             input.mouse = true; input.mx = x; input.my = y;
-            if (rightButton) { throwNade(); return; }
+            if (rightButton) { act("nade"); return; }
             input.firing = true; return;
         }
         input.mouse = false;
@@ -130,12 +130,12 @@ public static partial class G
         if (S.mode == "play")
         {
             var a = actionOf(code);
-            if (a == "nade") { throwNade(); handled = true; }
-            if (a == "ult") { useUlt(); handled = true; }
-            if (a == "swap" && P?.bag != null) { swapWeapon(); handled = true; }
-            if (a == "act") { interact(); handled = true; }
-            if (a == "drop" && P?.bag != null) { dropCurrent(); handled = true; }
-            if (P?.bag != null && code is "D1" or "D2" or "D3") { selectSlot(code[1] - '1'); handled = true; } // в подземелье 1-3 — слоты рюкзака
+            if (a == "nade") { act("nade"); handled = true; }
+            if (a == "ult") { act("ult"); handled = true; }
+            if (a == "swap" && P?.bag != null) { act("swap"); handled = true; }
+            if (a == "act") { act("act"); handled = true; }
+            if (a == "drop" && P?.bag != null) { act("drop"); handled = true; }
+            if (P?.bag != null && code is "D1" or "D2" or "D3") { act("slot" + (code[1] - '1')); handled = true; } // в подземелье 1-3 — слоты рюкзака
         }
         return handled;
     }

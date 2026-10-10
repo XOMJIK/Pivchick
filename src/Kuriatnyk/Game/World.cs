@@ -358,16 +358,16 @@ public static partial class G
     }
 
     /* --- мосты: скрип и обрушение гнилых --- */
-    static Bridge lastBridge;
+    /// <summary>Гнилые мосты под героем (в контексте P): скрипят и рушатся после второго прохода. У каждого героя свой «последний мост».</summary>
     public static void updateBridges(double dt)
     {
         if (RIVER == null) return;
-        foreach (var br in allBridges()) if (br.wob > 0) br.wob -= dt;
-        var b = P.alive ? bridgeAt(P.x, P.y) : null;
-        if (b == lastBridge) return;
-        if (lastBridge != null && lastBridge.rotten && !lastBridge.broken) { lastBridge.passes++; if (lastBridge.passes >= 2) breakBridge(lastBridge); }
+        if (P == players[0]) foreach (var br in allBridges()) if (br.wob > 0) br.wob -= dt;
+        var b = P.alive ? bridgeAt(P.x, P.y) : null; var last = P.lastBridge;
+        if (b == last) return;
+        if (last != null && last.rotten && !last.broken) { last.passes++; if (last.passes >= 2) breakBridge(last); }
         if (b != null && b.rotten && !b.broken) { b.wob = .6; Sfx.creak(); S.shake += 2; ftext(P.x, P.y - 52, b.passes == 0 ? T("Скрип… мост гнилой") : T("Трещит! Сейчас рухнет"), "#e8d3a8", 12); }
-        lastBridge = b;
+        P.lastBridge = b;
     }
     static void breakBridge(Bridge b)
     {

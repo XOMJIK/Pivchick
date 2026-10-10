@@ -22,8 +22,25 @@ public static class Audio
 public static class Sfx
 {
     static bool On => Synth.Running && SET != null && !SET.muted && SET.sfx > 0;
-    static void tone(double f, double d, string type, double v, double slide = 0, double delay = 0) { if (On) Synth.Tone(false, f, d, type, v, slide, Synth.Time + delay); }
-    static void noise(double d, double v, double freq) { if (On) Synth.Noise(false, d, v, freq, Synth.Time); }
+    static void tone(double f, double d, string type, double v, double slide = 0, double delay = 0)
+    {
+        if (Rec && Fresh.Count < 60) Fresh.Add(new[] { 0f, (float)f, (float)d, WAVES.IndexOf(type), (float)v, (float)slide, (float)delay });
+        if (On) Synth.Tone(false, f, d, type, v, slide, Synth.Time + delay);
+    }
+    static void noise(double d, double v, double freq)
+    {
+        if (Rec && Fresh.Count < 60) Fresh.Add(new[] { 1f, (float)d, (float)v, (float)freq });
+        if (On) Synth.Noise(false, d, v, freq, Synth.Time);
+    }
+    /// <summary>Сетевая игра: хост записывает звуки боя и рассылает их — клиенты играют те же ноты.</summary>
+    public static bool Rec; public static readonly System.Collections.Generic.List<float[]> Fresh = new();
+    static readonly System.Collections.Generic.List<string> WAVES = new() { "sine", "square", "triangle", "sawtooth" };
+    public static void PlayRaw(float[] a)
+    {
+        if (!On || a.Length == 0) return;
+        if (a[0] == 0 && a.Length >= 7) Synth.Tone(false, a[1], a[2], WAVES[Math.Clamp((int)a[3], 0, 3)], a[4], a[5], Synth.Time + a[6]);
+        else if (a[0] == 1 && a.Length >= 4) Synth.Noise(false, a[1], a[2], a[3], Synth.Time);
+    }
     static double Ms => Environment.TickCount64;
     static double lastSmg;
 
@@ -98,6 +115,7 @@ public static class Music
     public static double duck = 1;
     static double mf(int m) => 440 * Math.Pow(2, (m - 69) / 12.0);
     public static void Play(string name) => want = name;
+    public static string Want => want;
     public static void Duck(double k) { duck = k; Audio.ApplyVolume(); }
 
     /// <summary>Вызывает аудиопоток перед каждым буфером: расписать ноты на 0,25 с вперёд (musicTick).</summary>

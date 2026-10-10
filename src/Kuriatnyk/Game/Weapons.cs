@@ -22,7 +22,7 @@ public static partial class G
     }
     static Bullet pBullet(double x, double y, double a, double sp, double dmg, double r, double life, string kind, int pierce = 0, int bounce = 0, int shape = 0)
     {
-        var b = new Bullet { x = x, y = y, vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp, r = r, dmg = dmg, fromP = true, life = life, max = life, kind = kind, pierce = pierce, hits = pierce > 0 ? new() : null, bounce = bounce, shape = shape, uw = P?.uw ?? 1 };
+        var b = new Bullet { x = x, y = y, vx = Math.Cos(a) * sp, vy = Math.Sin(a) * sp, r = r, dmg = dmg, fromP = true, life = life, max = life, kind = kind, pierce = pierce, hits = pierce > 0 ? new() : null, bounce = bounce, shape = shape, uw = P?.uw ?? 1, pl = P };
         bullets.Add(b); return b;
     }
     /// <summary>Сколько стамины стоит выстрел. Стамина есть только в Soul Knight: у каждого ствола своё число.</summary>
@@ -61,7 +61,7 @@ public static partial class G
         }
         P.stam = Math.Max(0, P.stam - cost);
         P.uw = hitWeight(W);
-        double ang = input.mouse ? P.ang : aimAssist(P.ang); P.ang = ang;
+        double ang = P.aimMouse ? P.ang : aimAssist(P.ang); P.ang = ang;
         double wm = P.w == P.prim ? wMul(P.w) : 1;
         if (W.special == "melee") meleeSwing(ang, W);
         else if (W.skr != null) skFire(W, ang);
@@ -69,11 +69,11 @@ public static partial class G
         else if (W.special == "mortar")
         {
             double tx, ty; var t = nearestTarget();
-            if (input.mouse && input.firing) { tx = camX + input.mx / SC; ty = camY + input.my / SC; }
+            if (P.aimHeld) { tx = P.tx; ty = P.ty; }
             else if (t != null) { tx = t.x; ty = t.y; }
             else { tx = P.x + Math.Cos(ang) * 260; ty = P.y + Math.Sin(ang) * 260; }
             var d = hypot(tx - P.x, ty - P.y); if (d > 380) { tx = P.x + (tx - P.x) / d * 380; ty = P.y + (ty - P.y) / d * 380; }
-            bombs.Add(new Bomb { x = clamp(tx, FENCE + 10, WW - FENCE - 10), y = clamp(ty, FENCE + 10, WH - FENCE - 10), t = .55, max = .55, r = 72, dmg = W.dmg * P.dmgMul * wm, fromP = true, heal = W.heal, lob = true, sx = P.x, sy = P.y });
+            bombs.Add(new Bomb { x = clamp(tx, FENCE + 10, WW - FENCE - 10), y = clamp(ty, FENCE + 10, WH - FENCE - 10), t = .55, max = .55, r = 72, dmg = W.dmg * P.dmgMul * wm, fromP = true, heal = W.heal, lob = true, sx = P.x, sy = P.y, pl = P });
         }
         else if (W.special == "cat" && (++P.catN) % 6 == 0)
         {
@@ -143,10 +143,10 @@ public static partial class G
         if (S.mode != "play" || !P.alive || P.nades <= 0 || S.kind == "sk") return; // в Soul Knight гранат нет
         P.nades--; Sfx.throw_();
         double ang = P.ang, dist = 240;
-        if (input.mouse && !pcAuto()) { double wx = camX + input.mx / SC, wy = camY + input.my / SC; ang = Math.Atan2(wy - P.y, wx - P.x); dist = clamp(hypot(wx - P.x, wy - P.y), 80, 320); }
+        if (P.manualNade) { double wx = P.tx, wy = P.ty; ang = Math.Atan2(wy - P.y, wx - P.x); dist = clamp(hypot(wx - P.x, wy - P.y), 80, 320); }
         else { var t = nearestTarget(); if (t != null) { ang = Math.Atan2(t.y - P.y, t.x - P.x); dist = clamp(hypot(t.x - P.x, t.y - P.y), 80, 320); } else ang = aimAssist(ang); }
         double tt = .7;
-        nades.Add(new Nade { x = P.x, y = P.y, z = 24, vx = Math.Cos(ang) * dist / tt, vy = Math.Sin(ang) * dist / tt, vz = 240, t = 1.05, rot = 0 });
+        nades.Add(new Nade { x = P.x, y = P.y, z = 24, vx = Math.Cos(ang) * dist / tt, vy = Math.Sin(ang) * dist / tt, vz = 240, t = 1.05, rot = 0, pl = P });
     }
     /// <summary>«Громобой»: молния от врага перескакивает ещё на n соседей.</summary>
     static void miniChain(Enemy from, double dmg, int n, bool ally, Fighter owner)
@@ -178,7 +178,7 @@ public static partial class G
     static void healTeam(double cx, double cy, double v, double R = 240, bool inclP = true) // лечит игрока и всех живых бойцов отряда в радиусе
     {
         if (v == 0) return;
-        if (inclP && P != null && P.alive && P.hp < P.max && hypot(P.x - cx, P.y - cy) < R) { P.hp = Math.Min(P.max, P.hp + v); healFx(P); }
+        if (inclP) foreach (var pl in players) if (pl.alive && pl.hp < pl.max && hypot(pl.x - cx, pl.y - cy) < R) { pl.hp = Math.Min(pl.max, pl.hp + v); healFx(pl); }
         foreach (var a in allies) if (a.down <= 0 && a.hp < a.max && hypot(a.x - cx, a.y - cy) < R) { a.hp = Math.Min(a.max, a.hp + v); healFx(a); }
     }
     static void healHit(double v) { if (P == null || !P.alive || v == 0) return; healTeam(P.x, P.y, v, 240, true); }
@@ -205,7 +205,7 @@ public static partial class G
             hitW = oldW;
         }
         var dp = hypot(P.x - x, P.y - y);
-        if (!fromP && dp < R + P.r * .5) hurtPlayer(dmg, "bomb");
+        if (!fromP) { var old = P; foreach (var pl in players) { if (!pl.alive || hypot(pl.x - x, pl.y - y) >= R + pl.r * .5) continue; P = pl; hurtPlayer(dmg, "bomb"); } P = old; }
         if (!fromP) foreach (var a in allies) if (a.down <= 0 && hypot(a.x - x, a.y - y) < R + a.r * .5) hurtAlly(a, dmg * .7);
         if (fromP && selfDmg && dp < 85) hurtPlayer(Math.Round(18 * (1 - dp / 110), MidpointRounding.AwayFromZero), "self");
     }
@@ -241,7 +241,7 @@ public static partial class G
         var id = P.ultId ?? P.hid; // в Soul Knight ульту может заменить статуя
         ftext(P.x, P.y - 62, SKU.Name(id).ToUpper(L.Culture), "#ffc93a", 16);
         if (id == SKU.SUMMON) { summonAlly(); return; }
-        if (id == "hen") { var (cx, cy) = strikeCenter(P, enemies.Where(e => !e.dead && onScreen(e, 0)).ToList()); eggStrike(cx, cy, 8, 70 * P.dmgMul, 72); }
+        if (id == "hen") { var (cx, cy) = strikeCenter(P, enemies.Where(e => !e.dead && hypot(e.x - P.x, e.y - P.y) < 520).ToList()); eggStrike(cx, cy, 8, 70 * P.dmgMul, 72); }
         else if (id == "chick") { P.buff = "turbo"; P.buffT = 4; ring(P.x, P.y, "#ffe066", 120, .4); }
         else if (id == "rooster")
         {
@@ -257,6 +257,7 @@ public static partial class G
         {
             var h = Math.Min(P.max * .5, P.max - P.hp); P.hp += h; ftext(P.x, P.y - 50, "+" + Math.Round(h, MidpointRounding.AwayFromZero), "#7df05a", 16);
             foreach (var a in allies) if (!(a.down > 0) && hypot(a.x - P.x, a.y - P.y) < 260) a.hp = Math.Min(a.max, a.hp + a.max * .5);
+            foreach (var pl in players) if (pl != P && pl.alive && hypot(pl.x - P.x, pl.y - P.y) < 260) pl.hp = Math.Min(pl.max, pl.hp + pl.max * .5); // и товарищей рядом
             ring(P.x, P.y, "#7fd4ff", 240, .5); ring(P.x, P.y, "#ffffff", 160, .4);
             for (int i = bullets.Count - 1; i >= 0; i--) { var b = bullets[i]; if (!b.fromP && hypot(b.x - P.x, b.y - P.y) < 340) { puff(b.x, b.y, "#ffffff", 2, .5); bullets.RemoveAt(i); } }
             puddles.Add(new Zone { x = P.x, y = P.y, r = 150, t = 5, max = 5 });
@@ -269,7 +270,7 @@ public static partial class G
         else if (id == "goose") { P.buff = "fort"; P.buffT = 5; ring(P.x, P.y, "#cfe8ff", 100, .4); }
         else if (id == "quail")
         {
-            var tg = enemies.Where(e => !e.dead && onScreen(e, 0)).OrderByDescending(e => e.hp).Take(3).ToList();
+            var tg = enemies.Where(e => !e.dead && hypot(e.x - P.x, e.y - P.y) < 520).OrderByDescending(e => e.hp).Take(3).ToList();
             if (tg.Count == 0) fireBeam(P.x, P.y, P.ang, 200 * P.dmgMul, true);
             foreach (var e in tg) fireBeam(P.x, P.y, Math.Atan2(e.y - P.y, e.x - P.x), 200 * P.dmgMul, true);
             S.shake += 8; P.buff = "shadow"; P.buffT = 3; puff(P.x, P.y, "#3b3550", 10, 1.2);
@@ -349,7 +350,7 @@ public static partial class G
     static void nurseKit(Fighter src, double dt) // Гусыня Медсестра: аптечка самому раненому из своих
     {
         src.kitT -= dt; if (src.kitT > 0) return;
-        var team = new List<Fighter> { P }.Concat(allies).Where(u => (u == P ? P.alive && S.kind != "sk" : ((Ally)u).down <= 0) && u.hp < u.max * .95).ToList(); // в Soul Knight герой сам не лечится
+        var team = players.Cast<Fighter>().Concat(allies).Where(u => (u is Player pu ? pu.alive && (S.kind != "sk" || pu != src) : ((Ally)u).down <= 0) && u.hp < u.max * .95).ToList(); // в Soul Knight медсестра сама себя не лечит
         if (team.Count == 0) { src.kitT = 1; return; }
         var tg = team.OrderBy(a => a.hp / a.max).First(); src.kitT = 15;
         var h = Math.Min(25, tg.max - tg.hp); tg.hp += h;
@@ -360,7 +361,7 @@ public static partial class G
     {
         for (int i = puddles.Count - 1; i >= 0; i--) { puddles[i].t -= dt; if (puddles[i].t <= 0) puddles.RemoveAt(i); }
         if (goo.Count > 0) updateGoo(dt);
-        if (P.alive && P.hid == "nurse") nurseKit(P, dt);
+        foreach (var pl in players) if (pl.alive && pl.hid == "nurse") nurseKit(pl, dt);
         foreach (var a in allies) if (a.id == "nurse" && a.down <= 0) nurseKit(a, dt);
         for (int i = strikes.Count - 1; i >= 0; i--) { strikes[i].t -= dt; if (strikes[i].t <= 0) strikes.RemoveAt(i); }
         for (int i = zones.Count - 1; i >= 0; i--)
@@ -369,11 +370,11 @@ public static partial class G
             double heal = (z.mini ? 10 : 25) * dt * (P.medMul > 0 ? P.medMul : 1);
             if (z.mini)
             {
-                if (P.alive && S.kind != "sk" && hypot(P.x - z.x, P.y - z.y) < z.r) P.hp = Math.Min(P.max, P.hp + heal); // в подземелье герой сам не лечится
+                foreach (var pl in players) if (pl.alive && hypot(pl.x - z.x, pl.y - z.y) < z.r && pl.hp < pl.max) pl.hp = Math.Min(pl.max, pl.hp + heal);
                 foreach (var a in allies) if (a.down <= 0 && hypot(a.x - z.x, a.y - z.y) < z.r) a.hp = Math.Min(a.max, a.hp + heal);
                 if (z.t <= 0) zones.RemoveAt(i); continue;
             }
-            if (P.alive && hypot(P.x - z.x, P.y - z.y) < z.r) P.hp = Math.Min(P.max, P.hp + heal);
+            foreach (var pl in players) if (pl.alive && hypot(pl.x - z.x, pl.y - z.y) < z.r) pl.hp = Math.Min(pl.max, pl.hp + heal);
             foreach (var a in allies)
             {
                 if (hypot(a.x - z.x, a.y - z.y) > z.r + 400 && a.down <= 0) continue;
@@ -427,7 +428,7 @@ public static partial class G
         else if (a.id == "duck")
         {
             ring(a.x, a.y, "#7fd4ff", 240, .5); puddles.Add(new Zone { x = a.x, y = a.y, r = 130, t = 4, max = 4 });
-            if (hypot(P.x - a.x, P.y - a.y) < 240) P.hp = Math.Min(P.max, P.hp + P.max * .4);
+            foreach (var pl in players) if (pl.alive && hypot(pl.x - a.x, pl.y - a.y) < 240) pl.hp = Math.Min(pl.max, pl.hp + pl.max * .4);
             foreach (var b in allies) if (b.down <= 0 && hypot(b.x - a.x, b.y - a.y) < 240) b.hp = Math.Min(b.max, b.hp + b.max * .4);
             for (int i = bullets.Count - 1; i >= 0; i--) { var b = bullets[i]; if (!b.fromP && hypot(b.x - a.x, b.y - a.y) < 260) bullets.RemoveAt(i); }
             foreach (var e in near) { var d = hypot(e.x - a.x, e.y - a.y); if (d == 0) d = 1; if (d < 240 && !e.T.boss) { e.kx += (e.x - a.x) / d * 380; e.ky += (e.y - a.y) / d * 380; } }

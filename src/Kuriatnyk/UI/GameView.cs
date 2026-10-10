@@ -37,6 +37,7 @@ public sealed class GameView : Control
         try
         {
             G.TickTimers(real);
+            Mp.Poll(real); // сетевая игра: входящие сообщения, снимки и ввод
             var S = G.S;
             if (S.mode != "paused") G.update(dt);
             if (S.mode == "menu" && G.P != null)

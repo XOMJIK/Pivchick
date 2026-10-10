@@ -18,12 +18,14 @@ public interface IGameUi
     void OnMenu();
     void RefreshMenu();
     void ShowSkPick(List<string> passives); // Soul Knight: выбор пассивки в портале
+    void ShowMpLobby(); // сетевая игра: окно лобби
 }
 public sealed class NullUi : IGameUi
 {
     public void Toast(string msg) { } public void ToastClear() { } public void OnGameStart() { } public void ShowPause(bool show) { }
     public void ShowOver(OverInfo info) { } public void ShowWin(WinInfo info) { } public void OnMenu() { } public void RefreshMenu() { }
     public void ShowSkPick(List<string> passives) => G.skTakePassive(passives[0]); // без интерфейса (Snap) — первая же
+    public void ShowMpLobby() { }
 }
 public sealed class OverInfo { public string lead, earnCoins, earnTokens, waveLabel, waveText; public long score, pts, xp; public int kills, wave; public bool record; }
 public sealed class WinRow { public string icon, text, sub; }
@@ -37,7 +39,7 @@ public static partial class G
     // баннер «Волна N» — рисуется поверх поля (анимация 2.1 с, как в CSS)
     public static string banBig = "", banSmall = ""; public static double banT = -99;
     public static double Clock => clock;
-    public static void showBanner(string big, string small) { banBig = big ?? ""; banSmall = small ?? ""; banT = clock; }
+    public static void showBanner(string big, string small) { banBig = big ?? ""; banSmall = small ?? ""; banT = clock; recBanner(banBig, banSmall); }
     public static void clearBanner() { banBig = ""; banSmall = ""; banT = -99; }
 
     /// <summary>Уровень сюжета длится не меньше трёх минут; босс выходит через 1:15 после начала.</summary>
@@ -70,22 +72,34 @@ public static partial class G
     public static void toMenu()
     {
         if (S.mode is "play" or "paused" or "dying" or "pick") bankCoins();
+        IsClientWorld = false; PartList.Rec = false; Sfx.Rec = false;
+        Mp.BackToLobby(); // хост вышел из боя — все в лобби
         S.mode = "menu"; S.night = false; Music.Play("menu"); Music.Duck(1); clearBanner();
         bool wasDun = DUN != null; DUN = null;
         if (MAP != menuMap() || ground == null || wasDun || WW != MAP_SIZE) buildWorld(menuMap());
         OBS.RemoveAll(o => o.type == "crate");
-        P = newPlayer(); makeAllies(); enemies = new(); bullets = new(); nades = new(); bombs = new(); pickups = new(); texts = new(); parts = new(); holes = new(); zones = new(); strikes = new(); puddles = new(); goo = new(); quakes = new();
+        P = newPlayer(); solo(); makeAllies(); enemies = new(); bullets = new(); nades = new(); bombs = new(); pickups = new(); texts = new(); parts = new(); holes = new(); zones = new(); strikes = new(); puddles = new(); goo = new(); quakes = new(); MpHp = 1;
         bossBarOn = false; S.boss = null;
         Ui.OnMenu();
+        if (Net.role != Net.Role.Off && Mp.state == "lobby") Ui.ShowMpLobby();
     }
     /// <summary>После покупки/смены героя в меню — пересобрать героя и отряд на сцене.</summary>
     public static void RebuildMenuHero()
     {
         if (S.mode != "menu" || P == null) return;
-        double x = P.x, y = P.y; P = newPlayer(); P.x = x; P.y = y; makeAllies();
+        double x = P.x, y = P.y; P = newPlayer(); solo(); P.x = x; P.y = y; makeAllies();
     }
-    public static void pauseGame() { if (S.mode != "play") return; S.mode = "paused"; Ui.ShowPause(true); Music.Duck(.35); sticks.move = sticks.aim = null; input.firing = false; }
-    public static void resumeGame() { if (S.mode != "paused") return; S.mode = "play"; Ui.ShowPause(false); Music.Duck(1); }
+    public static void pauseGame()
+    {
+        if (S.mode != "play") return;
+        if (Mp.InMatch) { Ui.ShowPause(true); sticks.move = sticks.aim = null; input.firing = false; return; } // в сетевой игре бой не останавливается
+        S.mode = "paused"; Ui.ShowPause(true); Music.Duck(.35); sticks.move = sticks.aim = null; input.firing = false;
+    }
+    public static void resumeGame()
+    {
+        if (Mp.InMatch) { Ui.ShowPause(false); return; }
+        if (S.mode != "paused") return; S.mode = "play"; Ui.ShowPause(false); Music.Duck(1);
+    }
     static void gameOver()
     {
         S.mode = "over";
@@ -97,12 +111,13 @@ public static partial class G
         if (S.kind == "sk") { info.waveText = skLvName(S.skLv); info.waveLabel = T("Уровень"); info.lead = T("Забег окончен на уровне ") + skLvName(S.skLv) + T(". Попробуй ещё раз!"); }
         else if (S.kind == "story") { info.wave = S.lvIdx + 1; info.waveLabel = T("Уровень"); info.lead = T("Уровень «") + S.L.name + T("» не пройден. Попробуй ещё раз!"); }
         else { info.wave = S.wave; info.waveLabel = T("Волна"); info.lead = T("Курятник пал на волне ") + S.wave + "."; }
+        Mp.SendEnd(false, info.lead, info.waveLabel, info.waveText ?? info.wave.ToString());
         Ui.ShowOver(info);
     }
     public static void victory()
     {
         if (S.mode != "play") return;
-        S.mode = "won"; S.winT = 1.4; Sfx.win(); P.buff = null; P.inv = 99; S.won = true; Stats.Add("story_wins");
+        S.mode = "won"; S.winT = 1.4; Sfx.win(); foreach (var pl in players) { pl.buff = null; pl.inv = 99; } S.won = true; Stats.AddTeam("story_wins");
         foreach (var e in enemies) if (!e.dead) { puff(e.x, e.y, "#ffffff", 6, 1); e.dead = true; }
         S.cleanup = true;
         foreach (var h in holes) if (h.state != "close") { h.state = "close"; h.ct = 0; }
@@ -139,6 +154,7 @@ public static partial class G
         else w.rows.Add(new WinRow { icon = "btok", text = StripIcon(T("<i class=\"btok\"></i>Большой жетон — за первое прохождение")), sub = T("или каждые 5 волн в бесконечном бою") });
         if (Lv.i == 19 && first) storyCh = -1;
         AddMatchRow(w);
+        Mp.SendEnd(true, w.lead, null, null);
         Ui.ShowWin(w);
     }
     /// <summary>Строка «+PTS · опыт пропуска» в окне победы.</summary>

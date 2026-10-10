@@ -16,10 +16,20 @@ public static partial class G
 
     public static void update(double dt)
     {
+        if (IsClientWorld) { clientUpdate(dt); return; } // клиент сетевой игры бой не считает — только свой герой и картинка
         S.t += dt;
         if (S.mode == "play" || S.mode == "dying" || S.mode == "won")
         {
-            if (S.mode == "play") { updatePlayer(dt); updateBuff(dt); updateAllies(dt); updateZones(dt); }
+            if (S.mode == "play")
+            {
+                foreach (var pl in players.ToArray())
+                { // каждый герой — в своём «контексте» P
+                    P = pl;
+                    if (pl.alive) { updatePlayer(dt); updateBuff(dt); }
+                    else if (pl.downT > 0) { pl.downT -= dt; if (pl.downT <= 0) respawnPlayer(pl); }
+                }
+                P = Me; updateAllies(dt); updateZones(dt);
+            }
             if (quakes.Count > 0 && S.mode is "play" or "dying") updateQuakes(dt);
             if (S.mode != "won") updateEnemies(dt);
             updateBullets(dt); updateNades(dt); updateBombs(dt);
@@ -29,7 +39,7 @@ public static partial class G
             if (S.mode == "won")
             {
                 S.winT -= dt;
-                if (rnd() < dt * 20) feathers(P.x + rand(-200, 200), P.y + rand(-150, 100), new[] { "#ffc93a", "#fff", "#e8322a", "#7fd4ff" }[(int)Math.Floor(rnd() * 4)], 1, .4);
+                if (rnd() < dt * 20) feathers(Me.x + rand(-200, 200), Me.y + rand(-150, 100), new[] { "#ffc93a", "#fff", "#e8322a", "#7fd4ff" }[(int)Math.Floor(rnd() * 4)], 1, .4);
                 if (S.winT <= 0) showWin();
             }
         }
@@ -37,6 +47,11 @@ public static partial class G
         foreach (var o in OBS) if (o.hit > 0) o.hit -= dt;
         updateParts(dt);
         S.shake *= Math.Pow(.004, dt); if (S.shake < .1) S.shake = 0;
+        P = Me;
+        updateCamera(dt);
+    }
+    public static void updateCamera(double dt)
+    {
         if (S.mode == "menu")
         { // showcase: hero stands on the lobby stage
             double Z = SC * MENU_ZOOM; var a = menuAnchor();
@@ -67,7 +82,7 @@ public static partial class G
                     if (S.toSpawn == 0 && enemies.Count == 0 && S.wave > 0 && !(S.bossT > 0))
                     {
                         if (S.kind == "story" && S.wave >= S.L.goal.n) { storyGoal(); if (S.mode != "play") return; } // раньше трёх минут — следующая волна
-                        S.between = 3; var h = Math.Min(10, P.max - P.hp); P.hp += h;
+                        S.between = 3; double h = 0; foreach (var pl in players) { if (!pl.alive) continue; var hh = Math.Min(10, pl.max - pl.hp); pl.hp += hh; if (pl == Me) h = hh; }
                         bool en = S.kind == "endless"; int bonus = en ? 10 + S.wave * 5 : 5 + S.wave * 3; S.coins += bonus; S.tokens += en ? 5 : 3;
                         if (en && S.wave % 5 == 0) { SAVE.btokens++; persist(); Later(.9, () => Ui.Toast(T("+1 большой жетон за 5 волн"))); }
                         showBanner(T("Двор чист!"), "+" + bonus + (en ? T(" зёрен · +5 жетонов") : T(" зёрен · +3 жетона")) + (h > 0 ? " · +" + Math.Round(h, MidpointRounding.AwayFromZero) + T(" здоровья") : "")); Sfx.pick();
@@ -95,15 +110,35 @@ public static partial class G
         for (int i = pickups.Count - 1; i >= 0; i--)
         {
             var p = pickups[i]; p.t -= dt; p.ph += dt;
-            if (S.kind == "sk") updateSkPickup(p, dt);
-            if (p.kind == "skw" || p.price > 0) continue; // оружие и товары — кнопкой действия
-            if (p.z <= 0 && hypot(p.x - P.x, p.y - P.y) < P.r + P.magnet) { collect(p); pickups.RemoveAt(i); continue; }
+            P = nearestPlayer(p.x, p.y) ?? Me; // подбирает ближайший герой
+            if (S.kind == "sk" && P != null) updateSkPickup(p, dt);
+            if (p.kind == "skw" || p.price > 0) { P = Me; continue; } // оружие и товары — кнопкой действия
+            if (P.alive && p.z <= 0 && hypot(p.x - P.x, p.y - P.y) < P.r + P.magnet) { collect(p); pickups.RemoveAt(i); P = Me; continue; }
+            P = Me;
             if (p.t <= 0) pickups.RemoveAt(i);
         }
     }
 
     static double regenTick;
     static void updatePlayer(double dt)
+    {
+        bool firing = P.remote ? remoteControls(dt) : localControls(dt);
+        playerAct(dt, firing);
+    }
+    /// <summary>Сетевой игрок: положение и прицел пришли с его компьютера (он сам двигает героя и считает столкновения).</summary>
+    static bool remoteControls(double dt)
+    {
+        var ri = P.ri; if (ri == null) return false;
+        P._px = P.x; P._py = P.y; double ox = P.x, oy = P.y;
+        if (ri.tp == P.tp) { P.x = ri.x; P.y = ri.y; } // после телепорта ждём, пока клиент примет новое место
+        P.ang = ri.ang; P.moving = ri.moving; P.phase = ri.phase; P.face = ri.face;
+        P.aimMouse = ri.aimMouse; P.aimHeld = ri.aimHeld; P.manualNade = ri.manualNade; P.tx = ri.tx; P.ty = ri.ty;
+        P.vx = (P.x - ox) / Math.Max(dt, .001); P.vy = (P.y - oy) / Math.Max(dt, .001);
+        { var k = Math.Min(1, dt * 3); P.svx += (P.vx - P.svx) * k; P.svy += (P.vy - P.svy) * k; }
+        return ri.firing;
+    }
+    /// <summary>Своё управление: бег (с препятствиями и водой) и прицел. Возвращает, стрелять ли. Его же зовёт клиент сетевой игры.</summary>
+    public static bool localControls(double dt)
     {
         double mx = 0, my = 0;
         if (sticks.move != null) { var v = stickVal(sticks.move); mx = v.x; my = v.y; }
@@ -115,6 +150,9 @@ public static partial class G
         var PW = WEAP[P.w]; bool spinGun = PW.special == "mini" || PW.spinUp;
         double ox = P.x, oy = P.y, spd = P.spd * (P.buff == "turbo" ? 2 : P.buff == "adren" ? 1.4 : 1) * (spinGun && P.wasFiring ? .72 : 1) * (P.hop && inWater(P.x, P.y) ? .65 : 1); // утка плывёт медленнее
         P.x += mx * spd * dt; P.y += my * spd * dt; P.moving = ml > 0; if (P.moving) P.phase += dt * 15 * Math.Max(.5, ml);
+        // прицел для выстрела и гранаты: мышью или автонаводкой, куда смотрит курсор в мире
+        P.aimMouse = input.mouse && sticks.aim == null; P.aimHeld = input.mouse && input.firing; P.manualNade = input.mouse && !pcAuto();
+        if (input.mouse) { P.tx = camX + input.mx / SC; P.ty = camY + input.my / SC; }
         bool firing = false;
         if (sticks.aim != null)
         {
@@ -139,14 +177,22 @@ public static partial class G
             if (egg != null) { firing = true; P.ang = Math.Atan2(egg.y - P.y, egg.x - P.x); }
             else if (t == null || hypot(t.x - P.x, t.y - P.y) - t.r > mr + 20) firing = false; else P.ang = Math.Atan2(t.y - P.y, t.x - P.x);
         }
-        if (P.noStamT > 0) P.noStamT -= dt; // стамина сама не восстанавливается — только кристаллы и зелья
-        if (P.swing > 0) P.swing -= dt;
-        if (P.bowT > 0) P.bowT -= dt;
         P.face = Math.Cos(P.ang) >= 0 ? 1 : -1;
         foreach (var e in enemies) { if (e.T.fly) continue; double dx = P.x - e.x, dy = P.y - e.y, d = hypot(dx, dy); if (d == 0) d = 1; double m = P.r + e.r; if (d < m) { P.x += dx / d * (m - d) * .5; P.y += dy / d * (m - d) * .5; } }
         collideWorld(P);
+        if (!P.hop) waterBlock(P, P._px, P._py);
         P.vx = (P.x - ox) / Math.Max(dt, .001); P.vy = (P.y - oy) / Math.Max(dt, .001);
         { var k = Math.Min(1, dt * 3); P.svx += (P.vx - P.svx) * k; P.svy += (P.vy - P.svy) * k; }
+        if (P.moving && rnd() < dt * 8) puff(P.x - mx * 8, P.y, "#e9dcc0", 1, .5);
+        return firing;
+    }
+    /// <summary>Действия героя (только у того, кто считает бой): перезарядка, лечение, выстрел, мосты.</summary>
+    static void playerAct(double dt, bool firing)
+    {
+        var PW = WEAP[P.w]; bool spinGun = PW.special == "mini" || PW.spinUp;
+        if (P.noStamT > 0) P.noStamT -= dt; // стамина сама не восстанавливается — только кристаллы и зелья
+        if (P.swing > 0) P.swing -= dt;
+        if (P.bowT > 0) P.bowT -= dt;
         P.cd -= dt; if (P.inv > 0) P.inv -= dt; if (P.flash > 0) P.flash -= dt;
         bool selfHeal = S.kind != "sk"; // в Soul Knight здоровье само не восстанавливается — только кукуруза, зелья и ульты
         if (P.medic) { if (P.hp < P.max && selfHeal) { P.hp = Math.Min(P.max, P.hp + 1.2 * dt * P.medMul); healFx(P); } healTeam(P.x, P.y, 2.5 * dt * P.medMul, 240, false); }
@@ -158,9 +204,15 @@ public static partial class G
         if (firing && P.cd <= 0) shoot();
         if (!firing || !spinGun) P.spin = Math.Max(0, P.spin - dt * 1.4);
         P.wasFiring = firing;
-        if (!P.hop) waterBlock(P, P._px, P._py);
         updateBridges(dt);
-        if (P.moving && rnd() < dt * 8) puff(P.x - mx * 8, P.y, "#e9dcc0", 1, .5);
+    }
+    /// <summary>Сетевая игра: выбитый герой возвращается рядом с живым товарищем.</summary>
+    static void respawnPlayer(Player pl)
+    {
+        var mate = players.FirstOrDefault(o => o.alive && o != pl); if (mate == null) return;
+        pl.alive = true; pl.hp = Math.Round(pl.max * .5); pl.inv = 2; pl.buff = null; pl.x = mate.x + rand(-30, 30); pl.y = mate.y + rand(-20, 20); pl._px = pl.x; pl._py = pl.y; pl.tp++;
+        collideWorld(pl); puff(pl.x, pl.y, "#ffffff", 10, 1.2); ring(pl.x, pl.y, "#9cf27a", 80, .5);
+        ftext(pl.x, pl.y - 56, (pl.pname ?? HEROES[pl.hid].name) + T(" снова в бою!"), "#9cf27a", 14);
     }
 
     static void bite(Enemy e, double dmg, double cd) { if (e.bite > 0) return; e.bite = cd; hitTarget(curTg, eDmgE(e, dmg), e); }
@@ -169,12 +221,13 @@ public static partial class G
 
     static void updateEnemies(double dt)
     {
-        bool alive = P.alive;
-        bool gooseSlow = P.hid == "goose" && hasP(5) && alive;
+        bool alive = anyAlive();
         for (int ei = 0; ei < enemies.Count; ei++) // по индексу: босс может призвать новых врагов прямо в цикле (как в JS)
         {
             var e = enemies[ei];
             if (e.dead) continue;
+            P = nearestPlayer(e.x, e.y) ?? Me; // враг охотится на ближайшего героя: в его «контексте» целятся, бьют и кидают бомбы
+            bool gooseSlow = P.hid == "goose" && hasP(5) && P.alive;
             e._px = e.x; e._py = e.y;
             var T = e.T;
             double rk = e.buff == "rate" ? 1.7 : 1; // бафф скорострельности: перезарядка идёт быстрее
@@ -352,7 +405,7 @@ public static partial class G
             collideWorld(e, T.fly);
         }
         enemies.RemoveAll(x => x.dead);
-        curTg = null;
+        curTg = null; P = Me;
     }
     static (double x, double y) predictP(double t) // куда игрок придёт через t секунд: сглаженная скорость, не дальше 150, только по суше
     {
@@ -418,6 +471,7 @@ public static partial class G
         {
             if (i >= bullets.Count) continue;
             var b = bullets[i];
+            P = b.fromP && b.pl != null ? b.pl : Me; // чей выстрел — в том контексте и считаем
             if (b.w != null) skBulletTick(b, dt);
             b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
             if (b.bounce > 0 && b.life > 0)
@@ -510,11 +564,17 @@ public static partial class G
                         }
                     }
                 }
-                else if (P.alive)
+                else
                 {
-                    double d2 = (b.x - P.x) * (b.x - P.x) + (b.y - P.y) * (b.y - P.y);
-                    if (P.buff == "fort" && d2 < (P.r + 34) * (P.r + 34)) { b.fromP = true; b.vx *= -1.15; b.vy *= -1.15; b.dmg = 30 * P.dmgMul; b.life = 1.2; b.kind = "refl"; b.pierce = 0; b.hits = null; puff(b.x, b.y, "#cfe8ff", 2, .6); continue; }
-                    if (d2 < (P.r + b.r - 2) * (P.r + b.r - 2)) { hurtPlayer(b.dmg, "egg"); splat(b.x, b.y, .8); dead = true; }
+                    bool refl = false;
+                    foreach (var pl in players)
+                    {
+                        if (!pl.alive) continue; P = pl;
+                        double d2 = (b.x - P.x) * (b.x - P.x) + (b.y - P.y) * (b.y - P.y);
+                        if (P.buff == "fort" && d2 < (P.r + 34) * (P.r + 34)) { b.fromP = true; b.pl = P; b.vx *= -1.15; b.vy *= -1.15; b.dmg = 30 * P.dmgMul; b.life = 1.2; b.kind = "refl"; b.pierce = 0; b.hits = null; puff(b.x, b.y, "#cfe8ff", 2, .6); refl = true; break; }
+                        if (d2 < (P.r + b.r - 2) * (P.r + b.r - 2)) { hurtPlayer(b.dmg, "egg"); splat(b.x, b.y, .8); dead = true; break; }
+                    }
+                    P = Me; if (refl) continue;
                 }
                 if (!dead && !b.fromP)
                     foreach (var a in allies)
@@ -530,6 +590,7 @@ public static partial class G
                 var idx = i < bullets.Count && bullets[i] == b ? i : bullets.IndexOf(b); if (idx >= 0) bullets.RemoveAt(idx);
             }
         }
+        P = Me;
     }
     static void updateNades(double dt)
     {
@@ -544,7 +605,7 @@ public static partial class G
                 if (d < o.r + 5) { n.x = o.x + dx / d * (o.r + 5); n.y = o.y + dy / d * (o.r + 5); double dot = (n.vx * dx + n.vy * dy) / d; n.vx -= 1.6 * dot * dx / d; n.vy -= 1.6 * dot * dy / d; }
             }
             n.x = clamp(n.x, FENCE + 6, WW - FENCE - 6); n.y = clamp(n.y, FENCE + 6, WH - FENCE - 6);
-            n.t -= dt; if (n.t <= 0) { nades.RemoveAt(i); blast(n.x, n.y, 130, 110 * P.dmgMul, true, true); }
+            n.t -= dt; if (n.t <= 0) { nades.RemoveAt(i); P = n.pl ?? Me; blast(n.x, n.y, 130, 110 * P.dmgMul, true, true); P = Me; }
         }
     }
     static void updateBombs(double dt)
@@ -553,7 +614,7 @@ public static partial class G
         {
             if (i >= bombs.Count) continue;
             var b = bombs[i]; b.t -= dt;
-            if (b.t <= 0) { bombs.RemoveAt(i); if (!b.fromP && S.mode != "play") continue; blast(b.x, b.y, b.r, b.dmg, b.fromP, false, b.heal, b.ult); }
+            if (b.t <= 0) { bombs.RemoveAt(i); if (!b.fromP && S.mode != "play") continue; P = b.pl ?? Me; blast(b.x, b.y, b.r, b.dmg, b.fromP, false, b.heal, b.ult); P = Me; }
         }
     }
     static void updateParts(double dt)

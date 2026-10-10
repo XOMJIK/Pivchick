@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -37,6 +38,8 @@ public static class Svg
     public static Control Info(double s) => View(32, s, new(Circle(16, 16, 11), "#ffc93a"), new(Circle(16, 10.5, 1.9), "#2b1d14"), new("M16 14.5v8", null, "#2b1d14", 3));
     public static Control Help(double s) => View(32, s, new(Circle(16, 16, 11), "#4cc3ff"), new("M12.5 13a3.5 3.5 0 1 1 5 3.2c-1 .5-1.5 1.2-1.5 2.3", null, "#fff", 2.6), new(Circle(16, 22.5, 1.6), "#fff"));
     public static Control Exit(double s) => View(24, s, new("M4 3h11v18H4z", "#fff4dc", "#2b1d14", 1.6), new(Circle(12, 12.5, 1.3), "#2b1d14"), new("M14 12h7", null, "#ffc93a", 2.8), new("M18 8.5l3.5 3.5-3.5 3.5", null, "#ffc93a", 2.8));
+    public static Control Pass(double s) => View(32, s, new("M5 9h22v4a3 3 0 0 0 0 6v4H5v-4a3 3 0 0 0 0-6z", "#ffc93a", "#2b1d14", 1.4), new("M16 10.5l1.6 3.4 3.7.4-2.8 2.5.8 3.7-3.3-1.9-3.3 1.9.8-3.7-2.8-2.5 3.7-.4z", "#c0392b"));
+    public static Control Quests(double s) => View(32, s, new("M8 5h14l3 3v19H8z", "#fff4dc", "#2b1d14", 1.4), new("M11 12l2 2 3-4", null, "#3fa535", 2.2), new("M18 12h4", null, "#2b1d14", 1.8), new("M11 18l2 2 3-4", null, "#3fa535", 2.2), new("M18 18h4", null, "#2b1d14", 1.8), new("M11 24h11", null, "#c0392b", 1.8));
     public static Control Gear(double s) => View(24, s, new("M10.3 2h3.4l.5 2.6 1.9.8 2.2-1.5 2.4 2.4-1.5 2.2.8 1.9 2.6.5v3.4l-2.6.5-.8 1.9 1.5 2.2-2.4 2.4-2.2-1.5-1.9.8-.5 2.6h-3.4l-.5-2.6-1.9-.8-2.2 1.5-2.4-2.4 1.5-2.2-.8-1.9L2 13.7v-3.4l2.6-.5.8-1.9-1.5-2.2 2.4-2.4 2.2 1.5 1.9-.8z", "#fff4dc", "#2b1d14", 1.6), new(Circle(12, 12, 3.6), "#2b1d14"));
 }
 
@@ -48,6 +51,8 @@ public sealed class Lobby : Grid
     readonly Grid grid = new();
     Control top, hero, modes, nav; Border plate;
     TextBlock heroName, heroLine, storySub, bestText; WrapPanel heroBadges; StackPanel wallet; Border chestBadge;
+    readonly List<(Border badge, Func<int> count)> badges = new(); // значки «!» и числа на кнопках разделов
+    Panel profileHost; // аватарка, имя и уровень аккаунта в шапке
     Grid navGrid;
     readonly OutlineText logo = new() { Display = true, FontSize = 34, Stroke = 1.6, ShadowY = 3 };
 
@@ -68,12 +73,15 @@ public sealed class Lobby : Grid
         logo.Text = T("Боевой Курятник");
         var ver = new Press(Txt("v" + GAME_VERSION, 12, FontWeight.Black, YolkB, wrap: false), InkB, 2, 8, new Thickness(9, 5), 0, YolkB) { VerticalAlignment = VerticalAlignment.Center };
         ver.Click += () => Overlays.OpenInfo(mv);
-        var brand = Row(8, logo, ver); brand.VerticalAlignment = VerticalAlignment.Center;
+        profileHost = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var brand = Row(8, profileHost, logo, ver); brand.VerticalAlignment = VerticalAlignment.Center;
         wallet = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
         // настройки — в правом верхнем углу, после кошелька (как в большинстве игр)
         var gear = new Press(Svg.Gear(26), BarnB, 2.5, 12, new Thickness(5), 3) { Width = 40, Height = 40, VerticalAlignment = VerticalAlignment.Center };
         gear.Click += () => Overlays.OpenSettings(mv);
-        var right = Row(10, wallet, gear); right.VerticalAlignment = VerticalAlignment.Center;
+        var help = new Press(Txt("?", 20, FontWeight.Black, InkB, TextAlignment.Center), PaperB, 2.5, 12, new Thickness(0, 0, 0, 2), 3) { Width = 40, Height = 40, VerticalAlignment = VerticalAlignment.Center };
+        ((TextBlock)help.Child).VerticalAlignment = VerticalAlignment.Center; help.Click += () => Overlays.OpenHelp(mv); ToolTip.SetTip(help, T("Как играть"));
+        var right = Row(10, wallet, help, gear); right.VerticalAlignment = VerticalAlignment.Center;
         if (Platform.Quit != null)
         { // выход из игры — с подтверждением
             var exit = new Press(Svg.Exit(26), BarnB, 2.5, 12, new Thickness(5), 3) { Width = 40, Height = 40, VerticalAlignment = VerticalAlignment.Center };
@@ -125,16 +133,6 @@ public sealed class Lobby : Grid
             var p = new Press(g, shine, 3, 16, sh ? new Thickness(16, 8, 26, 8) : new Thickness(18, 12, 26, 12), 4) { MinHeight = sh ? 58 : 70 };
             p.Click += click; return p;
         }
-        Control locked(string title, string msg)
-        {
-            var soon = Box(Txt(T("Скоро").ToUpper(L.Culture), 10.5, FontWeight.ExtraBold, B("#f6e3b8"), wrap: false), B("#6b5a48"), 0, 6, new Thickness(7, 2));
-            soon.HorizontalAlignment = HorizontalAlignment.Left;
-            var ic = Icon("lock", 18); ic.Width = 18; ic.Height = 20; ic.Margin = new Thickness(0, 0, 12, 0);
-            var row = new DockPanel(); DockPanel.SetDock(ic, Dock.Left); row.Children.Add(ic); row.Children.Add(Col(3, Txt(T(title), tsz, FontWeight.Black, B("#6b5a48")), soon));
-            var p = new Press(row, B(Poor), 3, 16, pad, 4, B("#6b5a48")) { MinHeight = minH };
-            p.Click += () => mv.Toast(T(msg)); return p;
-        }
-
         // --- главный экран режимов ---
         var soloSub = Txt(T("Сюжет и бесконечный бой"), 12, FontWeight.SemiBold, B("#e6ffffff"));
         var solo = bigRed(T("Одиночная игра"), soloSub, () => ShowSingle(true));
@@ -185,7 +183,7 @@ public sealed class Lobby : Grid
     /// <summary>Нижние разделы: герои, оружие, сундуки, магазин, об игре, как играть.</summary>
     Control BuildNav(bool sh)
     {
-        Control navBtn(Func<double, Control> icon, string label, Action click, bool badge = false)
+        Control navBtn(Func<double, Control> icon, string label, Action click, Func<int> badge = null)
         {
             var t = Txt(T(label), 12, FontWeight.ExtraBold, PaperB, TextAlignment.Center); t.TextWrapping = T(label).Contains(' ') ? TextWrapping.Wrap : TextWrapping.NoWrap; t.LineHeight = 13; t.HorizontalAlignment = HorizontalAlignment.Center;
             var col = Col(3, icon(sh ? 24 : 30), t);
@@ -193,20 +191,22 @@ public sealed class Lobby : Grid
             var g = new Grid(); g.Children.Add(col); col.VerticalAlignment = VerticalAlignment.Center;
             var p = new Press(g, B("#3a2a1e"), 3, 14, sh ? new Thickness(4, 5, 4, 6) : new Thickness(4, 7, 4, 8), 4) { MinHeight = sh ? 56 : 62 };
             p.Click += click;
-            if (!badge) return p;
-            chestBadge = Box(Txt("!", 12, FontWeight.Black, White, TextAlignment.Center), BarnB, 3, 11, new Thickness(4, 0));
-            chestBadge.MinWidth = 22; chestBadge.Height = 22; chestBadge.HorizontalAlignment = HorizontalAlignment.Right; chestBadge.VerticalAlignment = VerticalAlignment.Top; chestBadge.Margin = new Thickness(0, -8, -6, 0);
-            var wrap = new Grid(); wrap.Children.Add(p); wrap.Children.Add(chestBadge); return wrap;
+            if (badge == null) return p;
+            var bd = Box(Txt("!", 12, FontWeight.Black, White, TextAlignment.Center), BarnB, 3, 11, new Thickness(4, 0));
+            bd.MinWidth = 22; bd.Height = 22; bd.HorizontalAlignment = HorizontalAlignment.Right; bd.VerticalAlignment = VerticalAlignment.Top; bd.Margin = new Thickness(0, -8, -6, 0);
+            badges.Add((bd, badge));
+            var wrap = new Grid(); wrap.Children.Add(p); wrap.Children.Add(bd); return wrap;
         }
+        badges.Clear();
         navGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,*") };
         var items = new[]
         {
             navBtn(Svg.Heroes, "Герои", () => mv.OpenPanel("heroes")),
             navBtn(Svg.Gun, "Оружие", () => mv.OpenPanel("weapons")),
-            navBtn(Svg.Chest, "Сундуки", () => mv.OpenPanel("chestP"), true),
+            navBtn(Svg.Chest, "Сундуки", () => mv.OpenPanel("chestP"), () => SAVE.tokens >= 100 || SAVE.btokens >= 10 || SAVE.schests > 0 || SAVE.lchests > 0 ? -1 : 0),
             navBtn(Svg.Shop, "Магазин", () => mv.OpenPanel("shop")),
-            navBtn(Svg.Info, "Об игре", () => Overlays.OpenInfo(mv)),
-            navBtn(Svg.Help, "Как играть", () => Overlays.OpenHelp(mv)),
+            navBtn(Svg.Pass, "Пропуск", () => mv.OpenPanel("pass"), Pass.ReadyCount),
+            navBtn(Svg.Quests, "Задания", () => mv.OpenPanel("quests"), Quests.ReadyCount),
         };
         for (int i = 0; i < items.Length; i++) { Grid.SetColumn(items[i], i); items[i].Margin = new Thickness(i == 0 ? 0 : 3, 0, i == items.Length - 1 ? 0 : 3, 0); navGrid.Children.Add(items[i]); }
         return navGrid;
@@ -293,6 +293,21 @@ public sealed class Lobby : Grid
             storySub.Text = T("Глава ") + (Lv.ch + 1) + " " + L.Qo + CHAPTERS[Lv.ch].name + L.Qc + " · " + CHAPTERS[Lv.ch].levels.Count(l => SAVE.story.done.Contains(l.gid)) + "/20";
         }
         bestText.Text = SAVE.best.score > 0 ? T("Рекорд: волна ") + SAVE.best.wave + " · " + L.Fmt(SAVE.best.score) + T(" очк.") : T("Рекорда пока нет — поставь первый");
-        chestBadge.IsVisible = SAVE.tokens >= 100 || SAVE.btokens >= 10 || SAVE.schests > 0 || SAVE.lchests > 0;
+        Quests.Ensure(); Pass.Ensure();
+        foreach (var (bd, cnt) in badges)
+        { // −1 — просто «!», больше нуля — число наград, которые можно забрать
+            int n = cnt(); bd.IsVisible = n != 0; ((TextBlock)bd.Child).Text = n > 0 ? n.ToString() : "!";
+        }
+        // профиль в шапке: аватарка, имя и уровень аккаунта
+        profileHost.Children.Clear();
+        var ava = MetaUi.Avatar(SAVE.avatar, Short ? 34 : 42);
+        var nm = Txt(SAVE.name, 13, FontWeight.Black, White, wrap: false); nm.MaxWidth = 130; nm.TextTrimming = TextTrimming.CharacterEllipsis;
+        var (ph, pn) = Account.Progress(); var bar = Prog((double)ph / pn, "#4c7dff"); bar.Width = 86; bar.Height = 9;
+        var lvT = Txt(T("Ур. ") + Account.Level, 11, FontWeight.ExtraBold, YolkB, wrap: false);
+        var lvRow = Row(5, lvT, bar); bar.VerticalAlignment = VerticalAlignment.Center; lvT.VerticalAlignment = VerticalAlignment.Center;
+        var info = Col(2, nm, lvRow); info.VerticalAlignment = VerticalAlignment.Center;
+        var pr = new Press(Row(7, ava, info), B("#a62b1d14"), 0, 14, new Thickness(4, 4, 10, 4), 0) { VerticalAlignment = VerticalAlignment.Center };
+        pr.Click += () => mv.OpenPanel("profile"); ToolTip.SetTip(pr, T("Профиль"));
+        profileHost.Children.Add(pr);
     }
 }

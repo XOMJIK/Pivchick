@@ -52,7 +52,7 @@ public static partial class G
                 // ближайшая цель у воды: герой или боец отряда
                 Unit best = null; double bd = 1e9; var (fx, fy) = fishPos(f);
                 void consider(Unit e) { if (!fishCan(f, e)) return; var d = hypot(e.x - fx, e.y - fy); if (d < bd) { bd = d; best = e; } }
-                if (P.alive && P.inv <= 0) consider(P);
+                foreach (var pl in players) if (pl.alive && pl.inv <= 0) consider(pl);
                 foreach (var a in allies) if (a.down <= 0) consider(a);
                 if (best == null) { f.cd = .25; continue; }
                 f.st = "rise"; f.t = 0; f.tx = best.x; f.ty = best.y; f.sx = fx; f.sy = fy;
@@ -86,13 +86,13 @@ public static partial class G
     }
     static IEnumerable<Unit> fishTargets()
     {
-        if (P.alive) yield return P;
+        foreach (var pl in players) if (pl.alive) yield return pl;
         foreach (var a in allies) if (a.down <= 0) yield return a;
     }
     static void fishBite(Fish f)
     {
         bool any = false;
-        if (P.alive && hypot(P.x - f.tx, P.y - f.ty) < P.r + 14) { hurtPlayer(eDmg(13), "fish"); any = true; }
+        foreach (var pl in players) if (pl.alive && hypot(pl.x - f.tx, pl.y - f.ty) < pl.r + 14) { var old = P; P = pl; hurtPlayer(eDmg(13), "fish"); P = old; any = true; }
         foreach (var a in allies) if (a.down <= 0 && hypot(a.x - f.tx, a.y - f.ty) < a.r + 14) { hurtAlly(a, 14); any = true; }
         if (any) { Sfx.hurt(); feathers(f.tx, f.ty, "#ffffff", 3, .6); ftext(f.tx, f.ty - 46, T("Ам!"), "#ff5a3c", 14); }
         else puff(f.tx, f.ty, "#e9dcc0", 3, .6);

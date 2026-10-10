@@ -65,10 +65,15 @@ public static partial class Overlays
             if (G.S.skPass.Count == 0) list.Children.Add(Txt(T("Пассивок пока нет — их дают в портале между уровнями."), 12, FontWeight.SemiBold, B("#b32b1d14")));
             sk = Box(Col(6, Txt(T("Пассивки забега").ToUpper(L.Culture), 12, FontWeight.ExtraBold, BarnB), list), StrawB, 0, 14, new Thickness(10, 8));
         }
-        var card = CardBox(sk != null ? 440 : 380, Logo(T("Пауза"), LogoSize(mv)),
-            Col(10, Btn(T("Продолжить"), G.resumeGame), Btn(T("Заново"), () => { Audio.Init(); G.bankCoins(); G.startGame(G.S.kind, G.S.lvIdx); }, "alt"),
-                Btn(T("Настройки"), () => OpenSettings(mv), "alt"), Btn(T("В меню"), G.toMenu, "alt")),
-            sk, Best(T("Версия ") + GAME_VERSION));
+        Control buttons;
+        if (G.IsClientWorld) // клиент сетевой игры: бой идёт дальше, выйти — значит покинуть игру
+            buttons = Col(10, Btn(T("Продолжить"), G.resumeGame), Btn(T("Настройки"), () => OpenSettings(mv), "alt"), Btn(T("Покинуть игру"), () => { mv.Hide("pause"); Mp.Leave(); }, "alt"));
+        else if (Mp.InMatch) // хост: «Заново» — новый бой для всех, «В лобби» — все возвращаются в лобби
+            buttons = Col(10, Btn(T("Продолжить"), G.resumeGame), Btn(T("Заново"), () => { Audio.Init(); mv.Hide("pause"); G.bankCoins(); Mp.StartMatch(G.S.skHero ?? SAVE.hero); }, "alt"),
+                Btn(T("Настройки"), () => OpenSettings(mv), "alt"), Btn(T("В лобби"), () => { mv.Hide("pause"); G.toMenu(); }, "alt"));
+        else buttons = Col(10, Btn(T("Продолжить"), G.resumeGame), Btn(T("Заново"), () => { Audio.Init(); G.bankCoins(); G.startGame(G.S.kind, G.S.lvIdx); }, "alt"),
+                Btn(T("Настройки"), () => OpenSettings(mv), "alt"), Btn(T("В меню"), G.toMenu, "alt"));
+        var card = CardBox(sk != null ? 440 : 380, Logo(T("Пауза"), LogoSize(mv)), Mp.InMatch ? Lead(T("Сетевая игра: бой не останавливается")) : null, buttons, sk, Best(T("Версия ") + GAME_VERSION));
         return Ov(mv, card, false);
     }
 
@@ -88,6 +93,8 @@ public static partial class Overlays
         var rec = Txt(T("Новый рекорд!"), 15, FontWeight.ExtraBold, BarnB, TextAlignment.Center); rec.IsVisible = o.record;
         var again = Btn(T("Ещё раз"), () => { Audio.Init(); G.startGame(G.S.kind, G.S.lvIdx); });
         var menu = Btn(T("В меню"), G.toMenu, "alt");
+        if (Net.IsHost && Mp.state == "game") { again = Btn(T("Ещё раз"), () => { Audio.Init(); mv.Hide("over"); Mp.StartMatch(G.S.skHero ?? SAVE.hero); }); menu = Btn(T("В лобби"), G.toMenu, "alt"); }
+        if (G.IsClientWorld || Net.IsClient) { again = Btn(T("Ждём хоста…"), () => mv.Toast(T("Новый бой начинает хост")), "gold"); menu = Btn(T("Покинуть игру"), () => { mv.Hide("over"); Mp.Leave(); }, "alt"); }
         Control card;
         if (ShortLand(mv)) card = TwoCol(mv, 640, new Control[] { Logo(T("Ощипали!"), 34), Lead(o.lead), earn, rec }, new Control[] { tiles }, again, menu);
         else card = CardBox(380, Logo(T("Ощипали!"), LogoSize(mv)), Lead(o.lead), earn, tiles, rec, Col(10, again, menu));
@@ -115,6 +122,8 @@ public static partial class Overlays
         }
         var next = Btn(w.nextLabel, () => { int n = G.S.lvIdx + 1; G.toMenu(); if (n < STORY.Count) OpenBrief(mv, n); }); next.IsVisible = w.hasNext;
         var menu = Btn(T("В меню"), G.toMenu, "alt");
+        if (Net.IsHost && Mp.state == "game") { next.IsVisible = false; menu = Btn(T("В лобби"), G.toMenu, "alt"); }
+        if (G.IsClientWorld || Net.IsClient) { next.IsVisible = false; menu = Btn(T("Покинуть игру"), () => { mv.Hide("win"); Mp.Leave(); }, "alt"); }
         Control card;
         if (ShortLand(mv)) card = TwoCol(mv, 640, new Control[] { Eyebrow(w.eyebrow), Logo(T("Победа!"), 34), Lead(w.lead) }, new Control[] { rows }, w.hasNext ? new[] { next, menu } : new[] { menu });
         else card = CardBox(380, Eyebrow(w.eyebrow), Logo(T("Победа!"), LogoSize(mv)), Lead(w.lead), rows, Col(10, next, menu));
@@ -150,6 +159,16 @@ public static partial class Overlays
         mv.Show("brief", Ov(mv, card, true), 8);
     }
     static string StripTags(string s) => G.StripIcon(s);
+
+    // ---------- подтверждение ----------
+    public static void Confirm(MainView mv, string text, string yesLabel, Action yes)
+    {
+        Audio.Init();
+        var y = Btn(yesLabel, () => { mv.Hide("confirmOv"); yes(); });
+        var n = Btn(T("Отмена"), () => mv.Hide("confirmOv"), "alt");
+        var card = CardBox(360, Lead(text), Col(10, y, n));
+        mv.Show("confirmOv", Ov(mv, card, true), 9);
+    }
 
     // ---------- выход из игры ----------
     public static void OpenQuit(MainView mv)
@@ -405,6 +424,9 @@ public static partial class Overlays
             case "stam": c.fillStyle = "#4cc3ff"; c.beginPath(); c.moveTo(0, -13); c.quadraticCurveTo(11, 2, 0, 11); c.quadraticCurveTo(-11, 2, 0, -13); c.fill(); c.stroke(); c.fillStyle = "#e3f7ff"; c.beginPath(); c.ellipse(-3, 2, 2, 3.5, 0, 0, Ctx.TAU); c.fill(); break;
             case "shield": c.fillStyle = "#9aa3ad"; c.beginPath(); c.moveTo(0, -12); c.lineTo(10, -8); c.quadraticCurveTo(10, 6, 0, 12); c.quadraticCurveTo(-10, 6, -10, -8); c.closePath(); c.fill(); c.stroke(); break;
             case "piv": Hud.Piv(c, 0, 0, 24); break;
+            case "skull":
+                c.fillStyle = "#fffaf0"; c.beginPath(); c.arc(0, -2, 10, Math.PI * .85, Math.PI * 2.15); c.lineTo(5, 9); c.lineTo(-5, 9); c.closePath(); c.fill(); c.stroke();
+                c.fillStyle = G.INK; c.beginPath(); c.arc(-4, -2, 2.8, 0, Ctx.TAU); c.arc(4, -2, 2.8, 0, Ctx.TAU); c.fill(); break;
             case "sword": c.save(); c.rotate(-.8); c.translate(-14, 0); G.drawGun(c, "sword"); c.restore(); break;
             case "egg": c.fillStyle = "#fffaf0"; c.beginPath(); c.ellipse(0, 1, 9, 12, 0, 0, Ctx.TAU); c.fill(); c.stroke(); c.fillStyle = "#c0392b"; c.fillRect(-8.5, -1, 17, 4); break;
             case "star": c.fillStyle = "#ffd23a"; c.beginPath(); for (int i = 0; i < 10; i++) { double a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 == 1 ? 6 : 13; c.lineTo(Math.Cos(a) * q, Math.Sin(a) * q); } c.closePath(); c.fill(); c.stroke(); break;
